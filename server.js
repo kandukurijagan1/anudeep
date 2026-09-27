@@ -1575,10 +1575,31 @@ async function autoDispatchBots(inv) {
 
     let itemLines = '';
     if (inv.items && inv.items.length) {
-      itemLines = inv.items.slice(0, 10).map((it, idx) => 
-        `  • Bale ${it.baleNo || (idx+1)}: ${it.description || 'Item'} (${it.qty || 0} pcs) - ₹${Number(it.amount||0).toFixed(2)}`
-      ).join('\n');
+      itemLines = inv.items.slice(0, 10).map((it, idx) => {
+        const isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
+        const unitStr = isCloth ? `${Number(it.meters || 0)}.${String(it.cms || 0).padStart(2, '0')} Mtrs` : `${it.qty || 0} pcs`;
+        return `  • Bale ${it.baleNo || (idx+1)}: ${it.description || 'Item'} (${unitStr}) - ₹${Number(it.amount||0).toFixed(2)}`;
+      }).join('\n');
       if (inv.items.length > 10) itemLines += `\n  ... and ${inv.items.length - 10} more items`;
+    }
+
+    const sc = String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || '37').trim();
+    const posName = String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').toLowerCase();
+    const isWithinAP = (sc === '37' || sc === '037') || posName.includes('andhra') || posName === 'ap';
+    const isInter = inv.isInterState !== undefined ? inv.isInterState : !isWithinAP;
+
+    let tgGstLines = '';
+    if (isInter) {
+      const igstVal = Number(inv.igstAmount || 0).toFixed(2);
+      tgGstLines = `➕ *ADD IGST (5%)*: ₹${igstVal}\n` +
+                   `📊 *Total GST (5%)*: ₹${igstVal}\n`;
+    } else {
+      const cgstVal = Number(inv.cgstAmount || 0).toFixed(2);
+      const sgstVal = Number(inv.sgstAmount || 0).toFixed(2);
+      const totGstVal = (Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0)).toFixed(2);
+      tgGstLines = `➕ *ADD CGST (2.5%)*: ₹${cgstVal}\n` +
+                   `➕ *ADD SGST (2.5%)*: ₹${sgstVal}\n` +
+                   `📊 *Total GST (5%)*: ₹${totGstVal}\n`;
     }
 
     const tgText = `🧾 *TAX INVOICE #${invNo}*\n` +
@@ -1591,9 +1612,7 @@ async function autoDispatchBots(inv) {
       `────────────────────────\n` +
       (itemLines ? `📦 *Items* (${itemsCount}):\n${itemLines}\n────────────────────────\n` : '') +
       `💰 *Taxable Amount*: ₹${Number(inv.taxableAmount || 0).toFixed(2)}\n` +
-      `➕ *ADD CGST (2.5%)*: ₹${Number(inv.cgstAmount || 0).toFixed(2)}\n` +
-      `➕ *ADD SGST (2.5%)*: ₹${Number(inv.sgstAmount || 0).toFixed(2)}\n` +
-      `➕ *ADD IGST (5%)*: ₹${Number(inv.igstAmount || 0).toFixed(2)}\n` +
+      tgGstLines +
       `💵 *Grand Total*: ₹${totalAmt}\n` +
       `────────────────────────\n` +
       `⚡ *Status*: Automatic Message Sent (No Waiting / No Asking)`;
@@ -1636,13 +1655,33 @@ async function autoDispatchBots(inv) {
 
       let itemLines = '';
       if (inv.items && inv.items.length) {
-        itemLines = inv.items.slice(0, 10).map((it, idx) => 
-          `  • Bale ${it.baleNo || (idx+1)}: ${it.description || 'Item'} (${it.qty || 0} pcs) - ₹${Number(it.amount||0).toFixed(2)}`
-        ).join('\n');
+        itemLines = inv.items.slice(0, 10).map((it, idx) => {
+          const isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
+          const unitStr = isCloth ? `${Number(it.meters || 0)}.${String(it.cms || 0).padStart(2, '0')} Mtrs` : `${it.qty || 0} pcs`;
+          return `  • Bale ${it.baleNo || (idx+1)}: ${it.description || 'Item'} (${unitStr}) - ₹${Number(it.amount||0).toFixed(2)}`;
+        }).join('\n');
         if (inv.items.length > 10) itemLines += `\n  ... and ${inv.items.length - 10} more items`;
       }
 
-      const totalGst = Number((inv.cgstAmount || 0) + (inv.sgstAmount || 0) + (inv.igstAmount || 0)).toFixed(2);
+      const sc = String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || '37').trim();
+      const posName = String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').toLowerCase();
+      const isWithinAP = (sc === '37' || sc === '037') || posName.includes('andhra') || posName === 'ap';
+      const isInter = inv.isInterState !== undefined ? inv.isInterState : !isWithinAP;
+
+      let waGstLines = '';
+      let totalGst = '0.00';
+      if (isInter) {
+        const igstVal = Number(inv.igstAmount || 0).toFixed(2);
+        waGstLines = `➕ *ADD IGST (5%)*: ₹${igstVal}\n`;
+        totalGst = igstVal;
+      } else {
+        const cgstVal = Number(inv.cgstAmount || 0).toFixed(2);
+        const sgstVal = Number(inv.sgstAmount || 0).toFixed(2);
+        waGstLines = `➕ *ADD CGST (2.5%)*: ₹${cgstVal}\n` +
+                     `➕ *ADD SGST (2.5%)*: ₹${sgstVal}\n`;
+        totalGst = (Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0)).toFixed(2);
+      }
+
       const waText = `🧾 *ANUDEEP KHADI BANDAR*\n` +
         `*TAX INVOICE #${invNo}*\n` +
         `────────────────────────\n` +
@@ -1653,7 +1692,8 @@ async function autoDispatchBots(inv) {
         `────────────────────────\n` +
         (itemLines ? `📦 *Items* (${itemsCount}):\n${itemLines}\n────────────────────────\n` : '') +
         `💰 *Taxable Amount*: ₹${Number(inv.taxableAmount || 0).toFixed(2)}\n` +
-        `➕ *Total GST (5%)*: ₹${totalGst}\n` +
+        waGstLines +
+        `📊 *Total GST (5%)*: ₹${totalGst}\n` +
         `💵 *Grand Total*: ₹${totalAmt}\n` +
         `────────────────────────\n` +
         `🏦 *Axis Bank, Tenali* | A/C: 914020009962721 | IFSC: UTIB0000556\n` +

@@ -97,6 +97,10 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 .inv-items-table .tl{text-align:left}.inv-items-table .tr{text-align:right}
 .add-item-row{display:grid;grid-template-columns:85px 2fr .65fr .45fr .6fr .6fr .8fr auto;gap:.35rem;align-items:end;padding:.6rem 1.1rem;background:#fafafa;border-bottom:1px solid #000}
 .add-item-row .inv-form-field input{font-size:.8rem;padding:.4rem}
+.item-calc-type-bar{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem; padding:.55rem 1.1rem; background:linear-gradient(to right, #f8fafc, #f1f5f9); border-bottom:1px solid #e2e8f0; font-size:.83rem}
+.btn-calc-mode{padding:5px 12px; font-size:.8rem; font-weight:600; border:none; border-radius:4px; cursor:pointer; background:transparent; color:var(--td); display:inline-flex; align-items:center; gap:5px; transition:all .2s ease}
+.btn-calc-mode:hover{background:rgba(255,255,255,.6)}
+.btn-calc-mode.active{background:var(--p)!important; color:#fff!important; box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .billing-wrap{display:grid;grid-template-columns:1fr 300px;gap:1.25rem;align-items:start}
 .inv-summary{background:rgba(255,255,255,.9);border:1px solid var(--bd);border-radius:.75rem;padding:1.25rem;position:sticky;top:0}
 .inv-summary h3{margin:0 0 .75rem;font-size:1rem;color:var(--p)}
@@ -654,14 +658,30 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 <div class="inv-form-field"><label>State Code</label><input type="text" id="b-ssc" placeholder="37" maxlength="2"></div>
 </div></div></div>
 </div></div>
-<div class="add-item-row">
+<div class="item-calc-type-bar">
+  <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+    <span style="font-weight:700; color:var(--tl); font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px;"><i class="ph ph-scales"></i> Calculation Mode:</span>
+    <div style="display:inline-flex; border-radius:6px; background:#e2e8f0; padding:2px; gap:2px;">
+      <button type="button" id="calc-btn-qty" class="btn-calc-mode active" onclick="BM.setCalcMode('qty')" title="Calculate based on Quantity and Price (e.g. Sarees, Ready-made items, Pieces)">
+        <i class="ph ph-hash"></i> 1. By Quantity &amp; Price
+      </button>
+      <button type="button" id="calc-btn-meters" class="btn-calc-mode" onclick="BM.setCalcMode('meters')" title="Calculate based on Cloth Measurement (e.g. 10.5 meters of cloth)">
+        <i class="ph ph-ruler"></i> 2. By Cloth / Meters
+      </button>
+    </div>
+  </div>
+  <div id="calc-live-preview" style="font-weight:700; color:var(--p); background:#fff; padding:3px 12px; border-radius:4px; border:1px solid #cbd5e1; box-shadow:0 1px 2px rgba(0,0,0,0.05); font-size:0.82rem;">
+    Calculation: 0 Qty × ₹0.00 = ₹0.00
+  </div>
+</div>
+<div class="add-item-row" id="add-item-row">
 <div class="inv-form-field"><label>Bale No</label><input type="text" id="b-pb" placeholder="1" value="1"></div>
 <div class="inv-form-field"><label>Product</label><select id="b-pn"><option value="">Select product...</option></select></div>
 <div class="inv-form-field"><label>HSN CODE</label><input type="text" id="b-ph" readonly style="background:#f3f4f6"></div>
-<div class="inv-form-field"><label>Qty</label><input type="number" id="b-pq" value="0" min="0"></div>
-<div class="inv-form-field"><label>Meters</label><input type="text" id="b-pm" value="0"></div>
-<div class="inv-form-field"><label>Cms</label><input type="text" id="b-pc" value="0"></div>
-<div class="inv-form-field"><label>Rate</label><input type="number" id="b-pp" step="0.01" placeholder="0"></div>
+<div class="inv-form-field"><label id="lbl-pq">Qty <span style="color:var(--p);font-weight:700;">★</span></label><input type="number" id="b-pq" value="0" min="0"></div>
+<div class="inv-form-field"><label id="lbl-pm">Meters</label><input type="text" id="b-pm" value="0" placeholder="e.g. 10.5"></div>
+<div class="inv-form-field"><label id="lbl-pc">Cms</label><input type="text" id="b-pc" value="0" placeholder="0"></div>
+<div class="inv-form-field"><label id="lbl-pp">Rate (₹/pc)</label><input type="number" id="b-pp" step="0.01" placeholder="0"></div>
 <div class="inv-form-field" style="align-self:end"><button class="btn btn-primary" onclick="BM.addItem()" style="white-space:nowrap;padding:.45rem .8rem;font-size:.8rem"><i class="ph ph-plus"></i> Add</button></div>
 </div>
 <div class="inv-form-section" style="overflow-x:auto">
@@ -684,7 +704,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 <section id="products-view" class="content-section">
   <div class="table-container">
     <div class="table-header"><h3>Products</h3><input type="text" id="ps" placeholder="Search product..." onkeyup="PDM.search(this.value)"></div>
-    <div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Name</th><th>HSN</th><th>Price</th><th class="text-right">Actions</th></tr></thead><tbody id="pt"></tbody></table></div>
+    <div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Name</th><th>HSN</th><th>Calculation Type</th><th>Price / Rate</th><th class="text-right">Actions</th></tr></thead><tbody id="pt"></tbody></table></div>
     <div style="margin-top:1rem"><button class="btn btn-primary" onclick="UI.om('pm')"><i class="ph ph-plus"></i> Add Product</button></div>
   </div>
 </section>
@@ -878,7 +898,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 
 
 
-<div id="pm" class="modal-overlay"><div class="modal"><h3 class="modal-title">Product Details</h3><form id="fp"><input type="hidden" id="p-id"><div class="form-group"><label>Name</label><input type="text" id="p-n" required></div><div class="form-group"><label>HSN Code</label><input type="text" id="p-h" required></div><div class="form-group"><label>Price</label><input type="number" id="p-pr" step="0.01" min="0" required></div><div class="flex mt-4" style="justify-content:space-between"><button type="button" class="btn btn-secondary" onclick="UI.cl('pm')">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div>
+<div id="pm" class="modal-overlay"><div class="modal"><h3 class="modal-title">Product Details</h3><form id="fp"><input type="hidden" id="p-id"><div class="form-group"><label>Name</label><input type="text" id="p-n" required></div><div class="form-group"><label>HSN Code</label><input type="text" id="p-h" required></div><div class="form-group"><label>Price (Rate)</label><input type="number" id="p-pr" step="0.01" min="0" required></div><div class="form-group"><label>Calculation Type</label><select id="p-bt"><option value="qty">🔢 By Quantity &amp; Price (Qty × Rate)</option><option value="meters">📏 By Cloth / Meters (Meters × Rate)</option></select></div><div class="flex mt-4" style="justify-content:space-between"><button type="button" class="btn btn-secondary" onclick="UI.cl('pm')">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div>
 
 <!-- DEDICATED APP / WORKSTATION MODAL -->
 <div class="modal-overlay" id="dedicated-app-modal" onclick="if(event.target===this) closeDedicatedAppModal()">
@@ -1185,7 +1205,16 @@ var ones=["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten
 var tens=["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
 function w(n){if(n<20)return ones[n]||"";if(n<100)return tens[Math.floor(n/10)]+(n%10?" "+ones[n%10]:"");if(n<1000)return ones[Math.floor(n/100)]+" Hundred"+(n%100?" and "+w(n%100):"");if(n<100000)return w(Math.floor(n/1000))+" Thousand"+(n%1000?" "+w(n%1000):"");if(n<10000000)return w(Math.floor(n/100000))+" Lakh"+(n%100000?" "+w(n%100000):"");return w(Math.floor(n/10000000))+" Crore"+(n%10000000?" "+w(n%10000000):"")}
 var rupees=Math.floor(n),paise=Math.round((n-rupees)*100);
-var s=w(rupees)+" Rupees Only";if(paise>0)s+=" and "+w(paise)+" Paise";return s}
+var s=w(rupees)+" Rupees Only";if(paise>0)s+=" and "+w(paise)+" Paise";return s},
+isAndhraPradesh:function(stateCode, stateName){
+    var sc = String(stateCode || "").trim();
+    var sn = String(stateName || "").trim().toLowerCase();
+    if(sc === "37" || sc === "037") return true;
+    if(sc && sc !== "37" && /^\d{1,2}$/.test(sc)) return false;
+    if(sn.indexOf("andhra") > -1 || sn === "ap" || sn === "a.p" || sn === "a.p.") return true;
+    if(sn && sn !== "andhra pradesh" && sn !== "ap") return false;
+    return true;
+}
 };
 
 /* ===== AUTHENTICATION & INACTIVITY SECURITY ===== */
@@ -1343,16 +1372,31 @@ document.querySelectorAll(".modal-overlay").forEach(function(o){o.addEventListen
 document.getElementById("b-pn").addEventListener("change",function(){
     var v=this.value.trim().toLowerCase(),ps=PDM._all.length ? PDM._all : D.g("products"),f=ps.find(function(p){return p.name.toLowerCase()===v});
     if(f){
-        document.getElementById("b-ph").value=f.hsn;
-        document.getElementById("b-pp").value=f.price;
+        document.getElementById("b-ph").value=f.hsn || "";
+        document.getElementById("b-pp").value=f.price || "";
+        if(f.calcType || f.billingType){
+            BM.setCalcMode(f.calcType || f.billingType);
+        }
     }else{
         document.getElementById("b-ph").value="";
         document.getElementById("b-pp").value=""; 
     }
+    BM.updateLiveCalcPreview();
 });
 
-document.getElementById("b-sc").addEventListener("input", function() { if(BM.items.length) BM.calcSummary(); });
-document.getElementById("b-rsc").addEventListener("input", function() { if(BM.items.length) BM.calcSummary(); });
+["b-sc","b-pos","b-rsc","b-rst"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) {
+        el.addEventListener("input", function() { BM.calcSummary(); });
+        el.addEventListener("change", function() { BM.calcSummary(); });
+    }
+});
+["b-pq","b-pm","b-pc","b-pp"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) {
+        el.addEventListener("input", function() { BM.updateLiveCalcPreview(); });
+    }
+});
 
 function bindStateAuto(codeId, nameId) {
     document.getElementById(codeId).addEventListener("change",function(){
@@ -1362,13 +1406,20 @@ function bindStateAuto(codeId, nameId) {
             var pad = String(sc).padStart(2,'0');
             if(m[pad]) pe.value=m[pad];
         }
+        if(codeId === "b-rsc") {
+            var bsc = document.getElementById("b-sc");
+            if(bsc && sc) bsc.value = sc;
+            var bpos = document.getElementById("b-pos");
+            if(bpos && pe && pe.value) bpos.value = pe.value;
+        }
+        BM.calcSummary();
     });
 }
 bindStateAuto("b-rsc", "b-rst");
 bindStateAuto("b-ssc", "b-sst");
 bindStateAuto("py-sc", "py-st");
 
-document.getElementById("b-sc").addEventListener("change",function(){var sc=this.value.trim(),pe=document.getElementById("b-pos");if(sc&&!pe.value.trim()){var m={"37":"Andhra Pradesh","36":"Telangana","29":"Karnataka","10":"Bihar","33":"Tamil Nadu","09":"Uttar Pradesh","27":"Maharashtra","07":"Delhi","08":"Rajasthan","19":"West Bengal","32":"Kerala","24":"Gujarat","22":"Chhattisgarh","23":"Madhya Pradesh","21":"Odisha","20":"Jharkhand","18":"Assam","28":"Goa","05":"Uttarakhand","02":"Himachal Pradesh","03":"Punjab","34":"Puducherry"};if(m[sc])pe.value=m[sc]}});
+document.getElementById("b-sc").addEventListener("change",function(){var sc=this.value.trim(),pe=document.getElementById("b-pos");if(sc&&!pe.value.trim()){var m={"37":"Andhra Pradesh","36":"Telangana","29":"Karnataka","10":"Bihar","33":"Tamil Nadu","09":"Uttar Pradesh","27":"Maharashtra","07":"Delhi","08":"Rajasthan","19":"West Bengal","32":"Kerala","24":"Gujarat","22":"Chhattisgarh","23":"Madhya Pradesh","21":"Odisha","20":"Jharkhand","18":"Assam","28":"Goa","05":"Uttarakhand","02":"Himachal Pradesh","03":"Punjab","34":"Puducherry"};if(m[sc])pe.value=m[sc]} BM.calcSummary();});
 ["b-pq","b-pm","b-pc","b-pp"].forEach(function(id){document.getElementById(id).addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();BM.addItem()}})});
 var bInvnoEl = document.getElementById("b-invno");
 if(bInvnoEl) {
@@ -1766,26 +1817,39 @@ var cStName = inv.consignee.state || "";
 lines.push("  State: " + cStName + (inv.consignee.stateCode ? " ("+inv.consignee.stateCode+")" : ""));
 lines.push("----------------------------------------");
 }
-lines.push(String("Bale No").padEnd(8)+String("Description").padEnd(30)+String("HSN").padEnd(8)+String("Qty").padEnd(5)+String("Rate").padEnd(10)+String("Amount").padEnd(12));
-lines.push("".padEnd(69,"-"));
+lines.push(String("Bale No").padEnd(8)+String("Description").padEnd(28)+String("HSN").padEnd(8)+String("Qty/Mtrs").padEnd(10)+String("Rate").padEnd(8)+String("Amount").padEnd(10));
+lines.push("".padEnd(72,"-"));
 if(inv.items){
 inv.items.forEach(function(it,i){
-lines.push(String(it.baleNo || (i+1)).padEnd(5)+(it.description||"").padEnd(29)+(it.hsn||"").padEnd(8)+String(it.qty||0).padEnd(5)+U.fm(it.rate).padEnd(10)+U.fm(it.amount).padEnd(12));
+    var isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
+    var unitStr = isCloth ? ((it.meters||0)+"."+String(it.cms||0).padStart(2,"0")+"m") : ((it.qty||0)+"pc");
+    lines.push(String(it.baleNo || (i+1)).padEnd(8)+(it.description||"").slice(0,26).padEnd(28)+(it.hsn||"").padEnd(8)+unitStr.padEnd(10)+U.fm(it.rate).padEnd(8)+U.fm(it.amount).padEnd(10));
 });
 }
-lines.push("".padEnd(69,"-"));
+lines.push("".padEnd(72,"-"));
 
-lines.push("Taxable Value:".padEnd(55)+U.fm(inv.taxableAmount).padEnd(12));
-var cgstVal = inv.cgstAmount !== undefined ? inv.cgstAmount : parseFloat(((inv.taxableAmount || 0) * CR / 100).toFixed(2));
-var sgstVal = inv.sgstAmount !== undefined ? inv.sgstAmount : parseFloat(((inv.taxableAmount || 0) * SR / 100).toFixed(2));
-var igstVal = inv.igstAmount !== undefined ? inv.igstAmount : parseFloat(((inv.taxableAmount || 0) * IR / 100).toFixed(2));
-lines.push(("ADD CGST @ "+CR+"%:").padEnd(55)+U.fm(cgstVal).padEnd(12));
-lines.push(("ADD SGST @ "+SR+"%:").padEnd(55)+U.fm(sgstVal).padEnd(12));
-lines.push(("ADD IGST @ "+IR+"%:").padEnd(55)+U.fm(igstVal).padEnd(12));
-lines.push(("TOTAL GST:").padEnd(55)+U.fm(cgstVal + sgstVal + igstVal).padEnd(12));
+var sc = String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || '37').trim();
+var posName = String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').toLowerCase();
+var isWithinAP = U.isAndhraPradesh(sc, posName);
+var isInter = inv.isInterState !== undefined ? inv.isInterState : !isWithinAP;
+
+var cgstVal = 0, sgstVal = 0, igstVal = 0, totGst = 0;
+lines.push("Taxable Value:".padEnd(58)+U.fm(inv.taxableAmount).padEnd(12));
+if (isInter) {
+    igstVal = inv.igstAmount !== undefined ? inv.igstAmount : parseFloat(((inv.taxableAmount || 0) * IR / 100).toFixed(2));
+    totGst = igstVal;
+    lines.push(("ADD IGST @ "+IR+"%:").padEnd(58)+U.fm(igstVal).padEnd(12));
+} else {
+    cgstVal = inv.cgstAmount !== undefined ? inv.cgstAmount : parseFloat(((inv.taxableAmount || 0) * CR / 100).toFixed(2));
+    sgstVal = inv.sgstAmount !== undefined ? inv.sgstAmount : parseFloat(((inv.taxableAmount || 0) * SR / 100).toFixed(2));
+    totGst = parseFloat((cgstVal + sgstVal).toFixed(2));
+    lines.push(("ADD CGST @ "+CR+"%:").padEnd(58)+U.fm(cgstVal).padEnd(12));
+    lines.push(("ADD SGST @ "+SR+"%:").padEnd(58)+U.fm(sgstVal).padEnd(12));
+}
+lines.push(("TOTAL GST (5%):").padEnd(58)+U.fm(totGst).padEnd(12));
 var pRo = inv.roundOff !== undefined ? inv.roundOff : (inv.totalAmount - (inv.rawGrandTotal || inv.totalAmount));
 var pRoSign = pRo >= 0 ? "+" : "-";
-lines.push(("Round Off: (" + pRoSign + ")").padEnd(55)+U.fm(Math.abs(pRo)).padEnd(12));
+lines.push(("Round Off: (" + pRoSign + ")").padEnd(58)+U.fm(Math.abs(pRo)).padEnd(12));
 
 lines.push("========================================");
 lines.push("TOTAL AMOUNT AFTER TAX:".padEnd(55)+U.fm(inv.totalAmount).padEnd(12));
@@ -1819,34 +1883,51 @@ copyText:function(){
 },
 
 generatePrintHTML:function(inv){
-    var isInter=inv.isInterState;
+    var sc=String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || '37').trim();
+    var posName=String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').toLowerCase();
+    var isWithinAP=U.isAndhraPradesh(sc, posName);
+    var isInter=inv.isInterState !== undefined ? inv.isInterState : !isWithinAP;
+
     var mcHtml="";
     if(inv.items){
         inv.items.forEach(function(it,i){
+            var isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
+            var qtyDisplay = isCloth ? (it.qty > 0 ? it.qty : '-') : (it.qty || 0);
+            var metersDisplay = isCloth ? ((it.meters||"0")+'.'+String(it.cms||"0").padStart(2,"0")) : '-';
             mcHtml+='<tr>'+
                 '<td style="text-align:center; border:1px solid #1a237e; padding:4px;">'+U.esc(String(it.baleNo || (i+1)))+'</td>'+
                 '<td style="text-align:left; border:1px solid #1a237e; padding:4px;">'+U.esc(it.description)+'</td>'+
                 '<td style="text-align:center; border:1px solid #1a237e; padding:4px;">'+U.esc(it.hsn)+'</td>'+
-                '<td style="text-align:center; border:1px solid #1a237e; padding:4px;">'+it.qty+'</td>'+
-                '<td style="text-align:center; border:1px solid #1a237e; padding:4px;">'+(it.meters||"0")+'.'+String(it.cms||"0").padStart(2,"0")+'</td>'+
+                '<td style="text-align:center; border:1px solid #1a237e; padding:4px;">'+qtyDisplay+'</td>'+
+                '<td style="text-align:center; border:1px solid #1a237e; padding:4px;">'+metersDisplay+'</td>'+
                 '<td style="text-align:right; border:1px solid #1a237e; padding:4px;">'+U.fm(it.rate)+'</td>'+
-                '<td style="text-align:right; border:1px solid #1a237e; padding:4px;">'+U.fm(it.amount)+'</td>'+
+                '<td style="text-align:right; border:1px solid #1a237e; padding:4px; font-weight:bold;">'+U.fm(it.amount)+'</td>'+
                 '</tr>';
         });
     }
 
-    var cgstAmt = inv.cgstAmount !== undefined ? inv.cgstAmount : parseFloat(((inv.taxableAmount || 0) * CR / 100).toFixed(2));
-    var sgstAmt = inv.sgstAmount !== undefined ? inv.sgstAmount : parseFloat(((inv.taxableAmount || 0) * SR / 100).toFixed(2));
-    var igstAmt = inv.igstAmount !== undefined ? inv.igstAmount : parseFloat(((inv.taxableAmount || 0) * IR / 100).toFixed(2));
-    var rawGT = (inv.taxableAmount || 0) + cgstAmt + sgstAmt + igstAmt;
+    var cgstAmt = 0, sgstAmt = 0, igstAmt = 0, totalGst = 0;
+    if (isInter) {
+        igstAmt = inv.igstAmount !== undefined ? inv.igstAmount : parseFloat(((inv.taxableAmount || 0) * IR / 100).toFixed(2));
+        totalGst = igstAmt;
+    } else {
+        cgstAmt = inv.cgstAmount !== undefined ? inv.cgstAmount : parseFloat(((inv.taxableAmount || 0) * CR / 100).toFixed(2));
+        sgstAmt = inv.sgstAmount !== undefined ? inv.sgstAmount : parseFloat(((inv.taxableAmount || 0) * SR / 100).toFixed(2));
+        totalGst = parseFloat((cgstAmt + sgstAmt).toFixed(2));
+    }
+
+    var rawGT = (inv.taxableAmount || 0) + totalGst;
     var roVal = inv.roundOff !== undefined ? inv.roundOff : (Math.round(rawGT) - rawGT);
     var roStr = (roVal >= 0 ? '+ \u20B9' : '- \u20B9') + Math.abs(roVal).toFixed(2);
     var taxRows="";
     taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>Taxable Amount</span><span style="color:#000;">'+U.fm(inv.taxableAmount)+'</span></div>';
-    taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD CGST ('+CR+'%)</span><span style="color:#000;">'+U.fm(cgstAmt)+'</span></div>';
-    taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD SGST ('+SR+'%)</span><span style="color:#000;">'+U.fm(sgstAmt)+'</span></div>';
-    taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD IGST ('+IR+'%)</span><span style="color:#000;">'+U.fm(igstAmt)+'</span></div>';
-    taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; font-weight:bold;"><span>Total GST</span><span style="color:#000;">'+U.fm(cgstAmt + sgstAmt + igstAmt)+'</span></div>';
+    if (isInter) {
+        taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD IGST ('+IR+'%)</span><span style="color:#000;">'+U.fm(igstAmt)+'</span></div>';
+    } else {
+        taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD CGST ('+CR+'%)</span><span style="color:#000;">'+U.fm(cgstAmt)+'</span></div>';
+        taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD SGST ('+SR+'%)</span><span style="color:#000;">'+U.fm(sgstAmt)+'</span></div>';
+    }
+    taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; font-weight:bold;"><span>Total GST (5%)</span><span style="color:#000;">'+U.fm(totalGst)+'</span></div>';
     taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>Round Off</span><span style="color:#000;">'+roStr+'</span></div>';
 
     function getSt(c){
@@ -2050,17 +2131,24 @@ generatePrintHTML:function(inv){
             });
         }
         lines.push("--------------------------------");
-        lines.push("💵 *Taxable Value:* ₹" + U.fm(inv.taxableAmount));
-        var cgstVal = inv.cgstAmount !== undefined ? inv.cgstAmount : parseFloat(((inv.taxableAmount || 0) * (CR || 2.5) / 100).toFixed(2));
-        var sgstVal = inv.sgstAmount !== undefined ? inv.sgstAmount : parseFloat(((inv.taxableAmount || 0) * (SR || 2.5) / 100).toFixed(2));
-        var igstVal = inv.igstAmount !== undefined ? inv.igstAmount : parseFloat(((inv.taxableAmount || 0) * (IR || 5) / 100).toFixed(2));
-        if (inv.isInterState) {
+        var sc = String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || '37').trim();
+        var posName = String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').toLowerCase();
+        var isWithinAP = U.isAndhraPradesh(sc, posName);
+        var isInter = inv.isInterState !== undefined ? inv.isInterState : !isWithinAP;
+
+        var cgstVal = 0, sgstVal = 0, igstVal = 0, totalGst = 0;
+        if (isInter) {
+            igstVal = inv.igstAmount !== undefined ? inv.igstAmount : parseFloat(((inv.taxableAmount || 0) * (IR || 5) / 100).toFixed(2));
+            totalGst = igstVal;
             lines.push("➕ *ADD IGST @ 5%: ₹" + U.fm(igstVal) + "*");
         } else {
+            cgstVal = inv.cgstAmount !== undefined ? inv.cgstAmount : parseFloat(((inv.taxableAmount || 0) * (CR || 2.5) / 100).toFixed(2));
+            sgstVal = inv.sgstAmount !== undefined ? inv.sgstAmount : parseFloat(((inv.taxableAmount || 0) * (SR || 2.5) / 100).toFixed(2));
+            totalGst = parseFloat((cgstVal + sgstVal).toFixed(2));
             lines.push("➕ *ADD CGST @ 2.5%: ₹" + U.fm(cgstVal) + "*");
             lines.push("➕ *ADD SGST @ 2.5%: ₹" + U.fm(sgstVal) + "*");
         }
-        lines.push("📊 *Total GST: ₹" + U.fm(cgstVal + sgstVal + igstVal) + "*");
+        lines.push("📊 *Total GST (5%): ₹" + U.fm(totalGst) + "*");
         if (inv.roundOff) {
             var roSign = inv.roundOff >= 0 ? "+" : "";
             lines.push("⚖️ *Round Off:* " + roSign + U.fm(inv.roundOff));
@@ -2425,6 +2513,59 @@ var BM={
 items:[],
 editId:null, 
 _userEditedInvNo:false,
+calcMode:'qty',
+
+setCalcMode: function(mode) {
+    BM.calcMode = (mode === 'meters') ? 'meters' : 'qty';
+    var btnQty = document.getElementById("calc-btn-qty");
+    var btnMtr = document.getElementById("calc-btn-meters");
+    var lblQ = document.getElementById("lbl-pq");
+    var lblM = document.getElementById("lbl-pm");
+    var lblC = document.getElementById("lbl-pc");
+    var lblP = document.getElementById("lbl-pp");
+    var fldQ = document.getElementById("b-pq");
+    var fldM = document.getElementById("b-pm");
+    var fldC = document.getElementById("b-pc");
+    var fldP = document.getElementById("b-pp");
+
+    if (BM.calcMode === 'meters') {
+        if (btnQty) btnQty.classList.remove("active");
+        if (btnMtr) btnMtr.classList.add("active");
+        if (lblQ) lblQ.innerHTML = 'Qty / Pcs <span style="font-size:0.75rem;color:var(--tl);">(Optional)</span>';
+        if (lblM) lblM.innerHTML = 'Meters <span style="color:var(--p);font-weight:700;">★</span>';
+        if (lblC) lblC.innerHTML = 'Cms';
+        if (lblP) lblP.innerHTML = 'Rate (₹/mtr) <span style="color:var(--p);font-weight:700;">★</span>';
+        if (fldM) { fldM.style.borderColor = "var(--p)"; fldM.style.background = "#fffbf0"; }
+        if (fldQ) { fldQ.style.borderColor = ""; fldQ.style.background = ""; }
+    } else {
+        if (btnQty) btnQty.classList.add("active");
+        if (btnMtr) btnMtr.classList.remove("active");
+        if (lblQ) lblQ.innerHTML = 'Qty <span style="color:var(--p);font-weight:700;">★</span>';
+        if (lblM) lblM.innerHTML = 'Meters <span style="font-size:0.75rem;color:var(--tl);">(Optional)</span>';
+        if (lblC) lblC.innerHTML = 'Cms';
+        if (lblP) lblP.innerHTML = 'Rate (₹/pc) <span style="color:var(--p);font-weight:700;">★</span>';
+        if (fldQ) { fldQ.style.borderColor = "var(--p)"; fldQ.style.background = "#fffbf0"; }
+        if (fldM) { fldM.style.borderColor = ""; fldM.style.background = ""; }
+    }
+    BM.updateLiveCalcPreview();
+},
+
+updateLiveCalcPreview: function() {
+    var el = document.getElementById("calc-live-preview");
+    if (!el) return;
+    var rate = parseFloat(document.getElementById("b-pp") ? document.getElementById("b-pp").value : 0) || 0;
+    if (BM.calcMode === 'meters') {
+        var rawM = parseFloat(document.getElementById("b-pm") ? document.getElementById("b-pm").value : 0) || 0;
+        var rawC = parseFloat(document.getElementById("b-pc") ? document.getElementById("b-pc").value : 0) || 0;
+        var totalMeters = rawM + (rawC / 100);
+        var amt = totalMeters * rate;
+        el.innerHTML = '<span style="color:var(--tl);">Cloth:</span> ' + totalMeters.toFixed(2) + ' Mtrs × ₹' + U.fm(rate) + '/m = <span style="color:var(--p); font-size:0.92rem;">₹' + U.fm(amt) + '</span>';
+    } else {
+        var qty = parseFloat(document.getElementById("b-pq") ? document.getElementById("b-pq").value : 0) || 0;
+        var amt = qty * rate;
+        el.innerHTML = '<span style="color:var(--tl);">Quantity:</span> ' + qty + ' pcs × ₹' + U.fm(rate) + '/pc = <span style="color:var(--p); font-size:0.92rem;">₹' + U.fm(amt) + '</span>';
+    }
+},
 
 resetToAutoInvNo: function() {
     BM._userEditedInvNo = false;
@@ -2486,6 +2627,7 @@ document.getElementById("b-sst").value="Andhra Pradesh";
 document.getElementById("b-ssc").value="37";
 BM.items=[];
 BM.editId=null;
+BM.setCalcMode('qty');
 if(document.getElementById("b-pb")) document.getElementById("b-pb").value = "1";
 document.getElementById("btn-generate").innerHTML = '<i class="ph ph-check-circle"></i> Generate Invoice';
 BM.renderItems();
@@ -2510,33 +2652,64 @@ addItem:function(){
 var name=document.getElementById("b-pn").value.trim();
 if(!name){U.toast("Enter product name","error");return}
 var hsn=document.getElementById("b-ph").value.trim();
-var qty=parseFloat(document.getElementById("b-pq").value)||0;
-var meters=parseFloat(document.getElementById("b-pm").value)||0;
-var cms=parseFloat(document.getElementById("b-pc").value)||0;
 var rate=parseFloat(document.getElementById("b-pp").value)||0;
-
-var effectiveQty = qty;
-if (qty === 0 && (meters > 0 || cms > 0)) {
-    effectiveQty = meters + (cms / 100);
-}
-
-if(effectiveQty<=0){U.toast("Enter Quantity or Meters > 0","error");return}
-if(rate<=0){U.toast("Rate must be greater than 0","error");return}
-
-var amount = effectiveQty * rate;
+if(rate<=0){U.toast("Rate must be greater than 0","error");document.getElementById("b-pp").focus();return}
 
 var baleField = document.getElementById("b-pb");
 var baleNo = baleField ? baleField.value.trim() : "";
 if (!baleNo) baleNo = String(BM.items.length + 1);
 
-BM.items.push({baleNo:baleNo,description:name,hsn:hsn,qty:qty,meters:meters,cms:cms,rate:rate,amount:amount});
-document.getElementById("b-pn").value="";document.getElementById("b-ph").value="";
-document.getElementById("b-pq").value="0";document.getElementById("b-pm").value="0";
-document.getElementById("b-pc").value="0";document.getElementById("b-pp").value="";
+var itemObj = {
+    baleNo: baleNo,
+    description: name,
+    hsn: hsn,
+    calcType: BM.calcMode || 'qty',
+    rate: rate
+};
+
+if (BM.calcMode === 'meters') {
+    var rawM = parseFloat(document.getElementById("b-pm").value) || 0;
+    var rawC = parseFloat(document.getElementById("b-pc").value) || 0;
+    var totalMeters = rawM + (rawC / 100);
+    if (totalMeters <= 0) {
+        U.toast("Enter Cloth Measurement (Meters > 0, e.g. 10.5)", "error");
+        document.getElementById("b-pm").focus();
+        return;
+    }
+    var mInt = Math.floor(totalMeters);
+    var cRem = Math.round((totalMeters - mInt) * 100);
+    var qty = parseFloat(document.getElementById("b-pq").value) || 0;
+    itemObj.qty = qty > 0 ? qty : 1;
+    itemObj.meters = mInt;
+    itemObj.cms = cRem;
+    itemObj.totalMeters = totalMeters;
+    itemObj.amount = parseFloat((totalMeters * rate).toFixed(2));
+} else {
+    var qty = parseFloat(document.getElementById("b-pq").value) || 0;
+    if (qty <= 0) {
+        U.toast("Enter Quantity > 0", "error");
+        document.getElementById("b-pq").focus();
+        return;
+    }
+    itemObj.qty = qty;
+    itemObj.meters = 0;
+    itemObj.cms = 0;
+    itemObj.totalMeters = 0;
+    itemObj.amount = parseFloat((qty * rate).toFixed(2));
+}
+
+BM.items.push(itemObj);
+document.getElementById("b-pn").value="";
+document.getElementById("b-ph").value="";
+document.getElementById("b-pq").value=(BM.calcMode === 'meters') ? "1" : "0";
+document.getElementById("b-pm").value="0";
+document.getElementById("b-pc").value="0";
+document.getElementById("b-pp").value="";
 if (baleField) baleField.value = String(BM.items.length + 1);
 document.getElementById("b-pn").focus();
 BM.renderItems();
 BM.calcSummary();
+BM.updateLiveCalcPreview();
 },
 
 removeItem:function(idx){
@@ -2557,17 +2730,22 @@ if(BM.items.length===0){tb.innerHTML="";em.style.display="block";return}
 em.style.display="none";
 var h="";
 BM.items.forEach(function(it,i){
-var bVal = (it.baleNo !== undefined && it.baleNo !== null && it.baleNo !== "") ? it.baleNo : (i+1);
-h+='<tr>'+
-    '<td><input type="text" value="'+U.esc(String(bVal))+'" onchange="BM.updateBale('+i+',this.value)" style="width:52px; text-align:center; padding:3px 2px; font-weight:700; border:1px solid var(--bd); border-radius:4px; font-size:0.85rem;" title="Click to edit Bale Number"></td>'+
-    '<td class="tl">'+U.esc(it.description)+'</td>'+
-    '<td>'+U.esc(it.hsn)+'</td>'+
-    '<td>'+it.qty+'</td>'+
-    '<td>'+(it.meters||0)+'.'+String(it.cms||0).padStart(2,"0")+'</td>'+
-    '<td class="tr">'+U.fm(it.rate)+'</td>'+
-    '<td class="tr">'+U.fm(it.amount)+'</td>'+
-    '<td><button class="btn-icon" onclick="BM.removeItem('+i+')" title="Remove" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td>'+
-    '</tr>';
+    var bVal = (it.baleNo !== undefined && it.baleNo !== null && it.baleNo !== "") ? it.baleNo : (i+1);
+    var isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
+    var qtyDisplay = isCloth ? (it.qty > 0 ? it.qty : '-') : (it.qty || 0);
+    var metersDisplay = isCloth ? (Number(it.meters||0) + '.' + String(it.cms||0).padStart(2,"0")) : '-';
+    var rateDisplay = U.fm(it.rate) + (isCloth ? '/m' : '');
+    var typeTag = isCloth ? ' <span style="font-size:0.68rem; color:#0369a1; background:#e0f2fe; padding:1px 5px; border-radius:3px; font-weight:600;">Cloth</span>' : '';
+    h+='<tr>'+
+        '<td><input type="text" value="'+U.esc(String(bVal))+'" onchange="BM.updateBale('+i+',this.value)" style="width:52px; text-align:center; padding:3px 2px; font-weight:700; border:1px solid var(--bd); border-radius:4px; font-size:0.85rem;" title="Click to edit Bale Number"></td>'+
+        '<td class="tl">'+U.esc(it.description)+typeTag+'</td>'+
+        '<td>'+U.esc(it.hsn)+'</td>'+
+        '<td>'+qtyDisplay+'</td>'+
+        '<td>'+metersDisplay+'</td>'+
+        '<td class="tr">'+rateDisplay+'</td>'+
+        '<td class="tr" style="font-weight:700;">'+U.fm(it.amount)+'</td>'+
+        '<td><button class="btn-icon" onclick="BM.removeItem('+i+')" title="Remove" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td>'+
+        '</tr>';
 });
 tb.innerHTML=h;
 },
@@ -2575,46 +2753,55 @@ tb.innerHTML=h;
 calcSummary:function(){
 var taxable=0;
 BM.items.forEach(function(it){taxable+=it.amount});
+taxable = parseFloat(taxable.toFixed(2));
 
-var sc=document.getElementById("b-sc").value.trim()||"37";
-var isInter = (sc !== "37");
+var sc = (document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "") || (document.getElementById("b-rsc") ? document.getElementById("b-rsc").value.trim() : "") || "37";
+var pos = (document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : "") || (document.getElementById("b-rst") ? document.getElementById("b-rst").value.trim() : "") || "Andhra Pradesh";
+var isWithinAP = U.isAndhraPradesh(sc, pos);
+var isInter = !isWithinAP;
 
-var cgst = parseFloat((taxable * CR / 100).toFixed(2));
-var sgst = parseFloat((taxable * SR / 100).toFixed(2));
-var igst = parseFloat((taxable * IR / 100).toFixed(2));
+var cgst = 0, sgst = 0, igst = 0, totalGst = 0;
+if (isInter) {
+    igst = parseFloat((taxable * IR / 100).toFixed(2));
+    totalGst = igst;
+} else {
+    cgst = parseFloat((taxable * CR / 100).toFixed(2));
+    sgst = parseFloat((taxable * SR / 100).toFixed(2));
+    totalGst = parseFloat((cgst + sgst).toFixed(2));
+}
 
-// rawTotal = Grand Total with 10% total GST (CGST 2.5% + SGST 2.5% + IGST 5%)
-var rawTotal = parseFloat((taxable + cgst + sgst + igst).toFixed(2));
-// roundedTotal = Net Payable (whole rupees)
+var rawTotal = parseFloat((taxable + totalGst).toFixed(2));
 var roundedTotal = Math.round(rawTotal);
-// roundOff = difference between rounded and raw
 var roundOff = parseFloat((roundedTotal - rawTotal).toFixed(2));
 
 var roSign = roundOff >= 0 ? '+\u202F\u20B9' : '-\u202F\u20B9';
 var formattedRoundOff = roSign + Math.abs(roundOff).toFixed(2);
 
 var h = '';
-// Taxable value row
 h += '<div class="sum-row"><span style="font-weight:600">Taxable Value</span><span>'+U.fm(taxable)+'</span></div>';
-// GST breakdown box: ADD CGST (2.5%) + ADD SGST (2.5%) + ADD IGST (5%) = 10% GST
+
 h += '<div class="tax-box">';
-h += '<div class="sum-row"><span>ADD CGST @ '+CR+'%</span><span>'+U.fm(cgst)+'</span></div>';
-h += '<div class="sum-row"><span>ADD SGST @ '+SR+'%</span><span>'+U.fm(sgst)+'</span></div>';
-h += '<div class="sum-row"><span>ADD IGST @ '+IR+'%</span><span>'+U.fm(igst)+'</span></div>';
-h += '<div class="sum-row" style="border-top:1px dashed #cbd5e1; margin-top:4px; padding-top:4px; font-weight:600; color:var(--p)"><span>Total GST</span><span>'+U.fm(cgst + sgst + igst)+'</span></div>';
+if (isInter) {
+    h += '<div class="sum-row" style="color:#d97706; font-size:0.78rem; font-weight:700;"><i class="ph ph-globe" style="vertical-align:middle;"></i> Inter-State (State Code: ' + U.esc(sc) + ')</div>';
+    h += '<div class="sum-row"><span>ADD IGST @ '+IR+'%</span><span>'+U.fm(igst)+'</span></div>';
+    h += '<div class="sum-row" style="border-top:1px dashed #cbd5e1; margin-top:4px; padding-top:4px; font-weight:600; color:var(--p)"><span>Total GST (5%)</span><span>'+U.fm(totalGst)+'</span></div>';
+} else {
+    h += '<div class="sum-row" style="color:#059669; font-size:0.78rem; font-weight:700;"><i class="ph ph-map-pin" style="vertical-align:middle;"></i> Intra-State (Andhra Pradesh - 37)</div>';
+    h += '<div class="sum-row"><span>ADD CGST @ '+CR+'%</span><span>'+U.fm(cgst)+'</span></div>';
+    h += '<div class="sum-row"><span>ADD SGST @ '+SR+'%</span><span>'+U.fm(sgst)+'</span></div>';
+    h += '<div class="sum-row" style="border-top:1px dashed #cbd5e1; margin-top:4px; padding-top:4px; font-weight:600; color:var(--p)"><span>Total GST (5%)</span><span>'+U.fm(totalGst)+'</span></div>';
+}
 h += '</div>';
-// Round Off
+
 h += '<div class="sum-row" style="font-size:.82rem; color:var(--tl);"><span>Round Off</span><span>'+formattedRoundOff+'</span></div>';
-// Total Amount after Tax (bold, large, highlighted)
 h += '<div style="display:flex; justify-content:space-between; border-top:2px solid var(--p); border-bottom:2px solid var(--p); padding:.5rem .1rem; margin-top:.35rem; background:rgba(139,69,19,.06); border-radius:.3rem;">';
 h += '<span style="font-weight:800; font-size:1.05rem; color:var(--p)">Total Amount after Tax</span>';
 h += '<span style="font-weight:800; font-size:1.1rem; color:var(--td)">'+U.fm(roundedTotal)+'</span>';
 h += '</div>';
-// Amount in words
 h += '<div style="font-size:.72rem; color:var(--tl); margin-top:.45rem; line-height:1.4; font-style:italic;">'+U.numWords(roundedTotal)+'</div>';
 
 document.getElementById("b-tot").innerHTML=h;
-BM._calc={taxable:taxable,cgst:cgst,sgst:sgst,igst:igst,rawTotal:rawTotal,roundOff:roundOff,total:roundedTotal,isInter:isInter};
+BM._calc={taxable:taxable,cgst:cgst,sgst:sgst,igst:igst,totalGst:totalGst,rawTotal:rawTotal,roundOff:roundOff,total:roundedTotal,isInter:isInter};
 
 var mTotalEl = document.getElementById("m-grand-total");
 if (mTotalEl) mTotalEl.textContent = U.fm(roundedTotal);
@@ -2672,17 +2859,26 @@ editInvoice: function(id) {
     }
     
     BM.items = inv.items ? inv.items.map(function(it, idx) {
+        var isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
+        var totalM = Number(it.meters || 0) + (Number(it.cms || 0) / 100);
         return {
             baleNo: (it.baleNo !== undefined && it.baleNo !== null && it.baleNo !== "") ? String(it.baleNo) : String(idx + 1),
             description: it.description || "",
             hsn: it.hsn || "",
-            qty: it.qty || 0,
-            meters: it.meters || 0,
-            cms: it.cms || 0,
-            rate: it.rate || 0,
-            amount: it.amount || 0
+            calcType: isCloth ? 'meters' : 'qty',
+            qty: it.qty || (isCloth ? 1 : 0),
+            meters: Number(it.meters || 0),
+            cms: Number(it.cms || 0),
+            totalMeters: totalM,
+            rate: Number(it.rate || 0),
+            amount: Number(it.amount || 0)
         };
     }) : [];
+    if(BM.items.length > 0 && BM.items[0].calcType === 'meters') {
+        BM.setCalcMode('meters');
+    } else {
+        BM.setCalcMode('qty');
+    }
     if(document.getElementById("b-pb")) document.getElementById("b-pb").value = String(BM.items.length + 1);
     BM.renderItems();
     BM.calcSummary();
@@ -2894,10 +3090,13 @@ q=q.toLowerCase();PDM._draw(PDM._all.filter(function(p){return p.name.toLowerCas
 
 _draw:function(list){
 var tb=document.getElementById("pt");
-if(!list.length){tb.innerHTML='<tr><td colspan="4"><div class="empty-state"><i class="ph ph-t-shirt"></i>No products found.</div></td></tr>';return}
+if(!list.length){tb.innerHTML='<tr><td colspan="5"><div class="empty-state"><i class="ph ph-t-shirt"></i>No products found.</div></td></tr>';return}
 var h="";
 list.forEach(function(p){
-h+='<tr><td>'+U.esc(p.name)+'</td><td>'+U.esc(p.hsn)+'</td><td>'+U.fm(p.price)+'</td><td class="text-right"><button class="btn-icon" onclick="PDM.edit('+p.id+')" title="Edit"><i class="ph ph-pencil-simple"></i></button> <button class="btn-icon" onclick="PDM.del('+p.id+')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td></tr>';
+    var isMeters = (p.calcType === 'meters' || p.billingType === 'meters');
+    var badge = isMeters ? '<span style="font-size:0.75rem; color:#0369a1; background:#e0f2fe; padding:2px 8px; border-radius:4px; font-weight:600;"><i class="ph ph-ruler"></i> Cloth (Meters)</span>' : '<span style="font-size:0.75rem; color:#475569; background:#f1f5f9; padding:2px 8px; border-radius:4px; font-weight:600;"><i class="ph ph-hash"></i> By Qty</span>';
+    var rateUnit = isMeters ? ' / mtr' : ' / pc';
+    h+='<tr><td>'+U.esc(p.name)+'</td><td>'+U.esc(p.hsn)+'</td><td>'+badge+'</td><td>'+U.fm(p.price)+'<span style="font-size:0.75rem; color:var(--tl);">'+rateUnit+'</span></td><td class="text-right"><button class="btn-icon" onclick="PDM.edit('+p.id+')" title="Edit"><i class="ph ph-pencil-simple"></i></button> <button class="btn-icon" onclick="PDM.del('+p.id+')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td></tr>';
 });
 tb.innerHTML=h;
 },
@@ -2908,6 +3107,7 @@ document.getElementById("p-id").value=p.id;
 document.getElementById("p-n").value=p.name;
 document.getElementById("p-h").value=p.hsn;
 document.getElementById("p-pr").value=p.price;
+if(document.getElementById("p-bt")) document.getElementById("p-bt").value=p.calcType || p.billingType || "qty";
 UI.om("pm");
 },
 
@@ -2931,7 +3131,8 @@ await PDM.render();
 save:async function(e){
 e.preventDefault();
 var id=document.getElementById("p-id").value;
-var obj={name:document.getElementById("p-n").value.trim(),hsn:document.getElementById("p-h").value.trim(),price:parseFloat(document.getElementById("p-pr").value)||0};
+var calcType = document.getElementById("p-bt") ? document.getElementById("p-bt").value : "qty";
+var obj={name:document.getElementById("p-n").value.trim(),hsn:document.getElementById("p-h").value.trim(),price:parseFloat(document.getElementById("p-pr").value)||0,calcType:calcType};
 if(id){
     obj.id=parseInt(id);
 } else {
