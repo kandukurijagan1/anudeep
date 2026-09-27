@@ -27,6 +27,16 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/akb_billin
 const zlib = require('zlib');
 
 app.use(cors());
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -290,33 +300,36 @@ function findChromeExecutable() {
 }
 
 async function safeDestroyClient() {
-  if (!client) return;
-  const tempClient = client;
-  client = null;
+  if (client) {
+    const tempClient = client;
+    client = null;
 
-  try {
-    if (tempClient.pupBrowser) {
-      const proc = tempClient.pupBrowser.process();
-      if (proc && proc.pid) {
-        try {
-          process.kill(proc.pid, 'SIGKILL');
-        } catch (_) {}
+    try {
+      if (tempClient.pupBrowser) {
+        const proc = tempClient.pupBrowser.process();
+        if (proc && proc.pid) {
+          try {
+            process.kill(proc.pid, 'SIGKILL');
+          } catch (_) {}
+        }
       }
-    }
-  } catch (_) {}
+    } catch (_) {}
 
-  try {
-    await Promise.race([
-      tempClient.destroy().catch(() => {}),
-      new Promise(resolve => setTimeout(resolve, 2000))
-    ]);
-  } catch (_) {}
+    try {
+      await Promise.race([
+        tempClient.destroy().catch(() => {}),
+        new Promise(resolve => setTimeout(resolve, 2000))
+      ]);
+    } catch (_) {}
+  }
+  killOrphanAuthBrowsers();
 }
 
 function killOrphanAuthBrowsers() {
   if (process.platform !== 'win32') return;
   try {
-    execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*wwebjs_auth*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`, { stdio: 'ignore', timeout: 5000 });
+    // Fast path: kill only Puppeteer's internal Chrome instances, preserving the user's regular browser
+    execSync(`powershell -NoProfile -Command "Get-Process -Name chrome,msedge -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*puppeteer*' } | Stop-Process -Force -ErrorAction SilentlyContinue"`, { stdio: 'ignore', timeout: 3000 });
   } catch (_) {}
 }
 
@@ -338,15 +351,34 @@ async function resolveChatId(cl, phone) {
   if (clean.length === 10) clean = '91' + clean;
   if (!clean || clean.length < 10) return null;
 
+  // 1. Direct match with current logged-in bot account (notes to self / message yourself)
+  const botWid = cl.info && cl.info.wid && cl.info.wid.user;
+  const loggedPhone = (whatsappUserInfo && whatsappUserInfo.phone) ? String(whatsappUserInfo.phone).replace(/\D/g, '') : null;
+  if ((botWid && (clean === botWid || clean.endsWith(botWid) || botWid.endsWith(clean))) ||
+      (loggedPhone && (clean === loggedPhone || clean.endsWith(loggedPhone) || loggedPhone.endsWith(clean)))) {
+    return (cl.info && cl.info.wid && cl.info.wid._serialized) || (clean + '@c.us');
+  }
+
+  // 2. Query with strict 3.5-second timeout, falling back directly to clean@c.us
   try {
-    const numberId = await cl.getNumberId(clean);
+    const getNumPromise = cl.getNumberId(clean);
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('getNumberId timeout')), 3500));
+    const numberId = await Promise.race([getNumPromise, timeoutPromise]);
     if (numberId && numberId._serialized && !numberId._serialized.endsWith('@lid')) {
       return numberId._serialized;
     }
   } catch (e) {
-    console.warn(`[WhatsApp] getNumberId note for ${clean}:`, e.message);
+    console.warn(`[WhatsApp] resolveChatId fallback to @c.us for ${clean}:`, e.message);
   }
   return clean + '@c.us';
+}
+
+async function sendWhatsappMessageWithTimeout(cl, targetChatId, content, options = {}, timeoutMs = 20000) {
+  if (!cl) throw new Error('WhatsApp client is not available');
+  return await Promise.race([
+    cl.sendMessage(targetChatId, content, options),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`WhatsApp message send timed out after ${Math.round(timeoutMs / 1000)}s`)), timeoutMs))
+  ]);
 }
 
 function initWhatsappClient(forceClean = false) {
@@ -381,6 +413,8 @@ function initWhatsappClient(forceClean = false) {
 
     if (forceClean) {
       cleanAuthDirectory();
+    } else {
+      killOrphanAuthBrowsers();
     }
 
     client = new Client({
@@ -1299,7 +1333,7 @@ app.post('/api/whatsapp/sendTest', async (req, res) => {
       `Invoices created in the billing app will be delivered automatically.\n\n` +
       `📅 ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`;
 
-    await client.sendMessage(targetChatId, testMsg);
+    await sendWhatsappMessageWithTimeout(client, targetChatId, testMsg, {}, 18000);
     console.log(`[WhatsApp] Test message sent to ${targetChatId}`);
     res.json({ success: true, message: `Test message delivered to ${phone}!` });
   } catch (err) {
@@ -1426,10 +1460,10 @@ app.post('/api/whatsapp/sendPdf', upload.single('file'), async (req, res) => {
     const caption = req.body.caption || 'Here is your invoice from Anudeep Khadi Bandar. Thank you for your business!';
     console.log(`Sending WhatsApp invoice PDF to ${targetChatId}...`);
 
-    await client.sendMessage(targetChatId, media, {
+    await sendWhatsappMessageWithTimeout(client, targetChatId, media, {
       caption: caption,
       sendMediaAsDocument: true
-    });
+    }, 25000);
 
     cleanup();
     console.log(`✅ WhatsApp invoice PDF sent successfully to ${targetChatId}`);
@@ -1453,7 +1487,7 @@ app.post('/api/whatsapp/sendMessage', async (req, res) => {
     const targetChatId = await resolveChatId(client, phone);
     if (!targetChatId) return res.status(400).json({ error: 'Invalid phone number format.' });
 
-    await client.sendMessage(targetChatId, message);
+    await sendWhatsappMessageWithTimeout(client, targetChatId, message, {}, 18000);
     console.log(`[WhatsApp] Message sent successfully to ${targetChatId}`);
     res.json({ success: true, message: 'WhatsApp message sent successfully!' });
   } catch (err) {
@@ -1633,7 +1667,7 @@ async function autoDispatchBots(inv) {
         const targetChatId = await resolveChatId(client, phone);
         if (targetChatId) {
           try {
-            await client.sendMessage(targetChatId, waText);
+            await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 15000);
             console.log(`[Auto-WhatsApp] Dispatched invoice #${invNo} text to ${targetChatId}`);
           } catch (waErr) {
             console.warn(`[Auto-WhatsApp] Send to ${targetChatId} warning:`, waErr.message);

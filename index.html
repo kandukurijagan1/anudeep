@@ -4327,13 +4327,17 @@ async function sendWhatsappTestMessage() {
     var phone = pEl ? pEl.value.trim() : "";
     var btn = document.getElementById("btn-wa-send-test");
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner"></i> Sending...'; }
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, 20000);
     try {
         var base = getWaApiUrl();
         var res = await originalFetch(base + '/whatsapp/sendTest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: phone })
+            body: JSON.stringify({ phone: phone }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         var data = await res.json();
         if (data && data.success) {
             U.toast("✅ Test message delivered to " + (phone || "your WhatsApp") + "!", "success");
@@ -4341,7 +4345,12 @@ async function sendWhatsappTestMessage() {
             U.toast("❌ Failed to send: " + (data.error || "Unknown error"), "error");
         }
     } catch(err) {
-        U.toast("Network error sending test: " + err.message, "error");
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+            U.toast("⏱️ WhatsApp send timed out (20s). Please check bot connection or try again.", "warning");
+        } else {
+            U.toast("Network error sending test: " + err.message, "error");
+        }
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-paper-plane"></i> Test Send'; }
     }
