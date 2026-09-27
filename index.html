@@ -981,9 +981,9 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 <div class="share-text">Send via WhatsApp Bot<span>Send PDF directly to customer</span></div>
 <div class="share-spinner"></div>
 </button>
-<button class="share-btn" onclick="SM.openDirectWhatsapp(SM.currentInv)" style="background:#128C7E;color:#fff;">
-<div class="share-icon"><i class="ph ph-chat-circle-dots"></i></div>
-<div class="share-text">Direct WhatsApp Chat<span>Send invoice text via WhatsApp Web/App</span></div>
+<button class="share-btn" onclick="SM.autoSendWhatsapp(SM.currentInv)" style="background:#128C7E;color:#fff;">
+<div class="share-icon"><i class="ph ph-paper-plane-tilt"></i></div>
+<div class="share-text">Send WhatsApp Automatically<span>Sends text & PDF directly without opening tabs</span></div>
 </button>
 
 <button class="share-btn share-btn-pdf" onclick="SM.downloadPDF()">
@@ -2082,31 +2082,8 @@ generatePrintHTML:function(inv){
     },
 
     openDirectWhatsapp: function(inv, explicitPhone) {
-        if (!inv) return false;
-        var phone = explicitPhone || (inv.consignee && inv.consignee.phone) || (inv.receiver && inv.receiver.phone) || inv.customerPhone || "";
-        var cleanPhone = phone ? phone.replace(/\D/g, '') : "";
-        if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-        if (!cleanPhone) cleanPhone = '919441753678';
-
-        var text = SM.formatWhatsAppText(inv);
-        var waUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(text);
-        
-        var win = null;
-        try {
-            win = window.open(waUrl, '_blank');
-        } catch(e) {}
-
-        if (!win || win.closed || typeof win.closed === 'undefined') {
-            var link = document.createElement('a');
-            link.href = waUrl;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-        U.toast("📱 WhatsApp opened for " + cleanPhone, "success");
-        return true;
+        // Automatically dispatch in background via WhatsApp bot - ABSOLUTELY NO MANUAL TABS
+        return SM.autoSendWhatsapp(inv, explicitPhone);
     },
 
     autoSendWhatsapp: function(inv, explicitPhone) {
@@ -2126,65 +2103,58 @@ generatePrintHTML:function(inv){
         var textMsg = SM.formatWhatsAppText(inv);
 
         // 1. Resolve WhatsApp API base URL
-        var waApiBase = (typeof getWaApiUrl === 'function') ? getWaApiUrl() : ((API_URL && !API_URL.includes("script.google.com")) ? API_URL : '');
-        if (!waApiBase && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-            waApiBase = 'http://localhost:3000/api';
-        }
-        if (!waApiBase && location.origin && location.origin.startsWith('http') && !location.origin.includes('github.io')) {
-            waApiBase = location.origin + '/api';
-        }
+        var waApiBase = (typeof getWaApiUrl === 'function') ? getWaApiUrl() : 'http://localhost:3000/api';
 
-        var isBotConnected = !!(_waStatusState && _waStatusState.connected);
+        U.toast("🚀 Auto-dispatching invoice #" + invNo + " to WhatsApp " + cleanPhone + "...", "info");
 
-        // 2. Headless background dispatch (ABSOLUTELY NO NEW TAB!)
-        if (isBotConnected && waApiBase) {
-            fetch(waApiBase + '/whatsapp/sendMessage', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: cleanPhone, message: textMsg })
-            }).then(function(r){ return r.json(); }).then(function(d){
-                if (d && d.success) {
-                    U.toast("📱 WhatsApp: Invoice #" + invNo + " delivered automatically to " + cleanPhone, "success");
-                } else if (d && d.error) {
+        // 2. Headless background dispatch for formatted text (ABSOLUTELY NO NEW TAB EVER!)
+        fetch(waApiBase + '/whatsapp/sendMessage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: cleanPhone, message: textMsg })
+        }).then(function(r){ return r.json(); }).then(function(d){
+            if (d && d.success) {
+                U.toast("📱 WhatsApp: Invoice #" + invNo + " delivered automatically to " + cleanPhone, "success");
+            } else if (d && d.error) {
+                if (d.error.toLowerCase().includes("not connected")) {
+                    U.toast("⚠️ WhatsApp Bot not linked! Click 'WhatsApp Status' in sidebar to link.", "warning");
+                    if (typeof openWhatsappModal === 'function') openWhatsappModal();
+                } else {
                     U.toast("⚠️ WhatsApp: " + d.error, "warning");
                 }
-            }).catch(function(err){
-                console.warn("WhatsApp background send err:", err);
-            });
+            }
+        }).catch(function(err){
+            console.warn("WhatsApp background send err:", err);
+            U.toast("⚠️ WhatsApp Bot offline. Ensure backend is running.", "warning");
+        });
 
-            if (typeof html2pdf !== 'undefined') {
-                try {
-                    var html = SM.generatePrintHTML(inv);
-                    var pdfName = 'Invoice_' + invNo + '.pdf';
-                    var parsed = new DOMParser().parseFromString(html, 'text/html').body;
-                    var opt = {
-                        margin: [8, 8, 8, 8],
-                        filename: pdfName,
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, backgroundColor: '#ffffff' },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                    };
-                    html2pdf().set(opt).from(parsed).outputPdf('blob').then(async function(blob){
-                        var fd = new FormData();
-                        fd.append('file', blob, pdfName);
-                        fd.append('phone', cleanPhone);
-                        fd.append('caption', 'Anudeep Khadi Bandar - Tax Invoice #' + invNo);
-                        try {
-                            var res = await fetch(waApiBase + '/whatsapp/sendPdf', { method: 'POST', body: fd });
-                            var data = await res.json();
-                            if (data && data.success) {
-                                U.toast("✅ WhatsApp PDF delivered automatically!", "success");
-                            }
-                        } catch(e) {}
-                    }).catch(function(){});
-                } catch(e) {}
-            }
-        } else {
-            var st = D.go("settings") || {};
-            var waSettings = (st && st.whatsapp) || (STM._settings && STM._settings.whatsapp) || {};
-            if (waSettings.enabled !== false) {
-                U.toast("⚠️ WhatsApp Bot not linked! Click 'WhatsApp Status' in sidebar to scan QR or enter pairing code.", "warning");
-            }
+        // 3. Dispatch PDF document automatically in background
+        if (typeof html2pdf !== 'undefined') {
+            try {
+                var html = SM.generatePrintHTML(inv);
+                var pdfName = 'Invoice_' + invNo + '.pdf';
+                var parsed = new DOMParser().parseFromString(html, 'text/html').body;
+                var opt = {
+                    margin: [8, 8, 8, 8],
+                    filename: pdfName,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, backgroundColor: '#ffffff' },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().set(opt).from(parsed).outputPdf('blob').then(async function(blob){
+                    var fd = new FormData();
+                    fd.append('file', blob, pdfName);
+                    fd.append('phone', cleanPhone);
+                    fd.append('caption', 'Anudeep Khadi Bandar - Tax Invoice #' + invNo);
+                    try {
+                        var res = await fetch(waApiBase + '/whatsapp/sendPdf', { method: 'POST', body: fd });
+                        var data = await res.json();
+                        if (data && data.success) {
+                            U.toast("✅ WhatsApp PDF delivered automatically!", "success");
+                        }
+                    } catch(e) {}
+                }).catch(function(){});
+            } catch(e) {}
         }
     },
 
@@ -2306,12 +2276,7 @@ generatePrintHTML:function(inv){
             return;
         }
         SM.currentInv = inv;
-        var isBotConnected = !!(_waStatusState && _waStatusState.connected);
-        if (isBotConnected) {
-            SM.autoSendWhatsapp(inv);
-        } else {
-            SM.openDirectWhatsapp(inv);
-        }
+        SM.autoSendWhatsapp(inv);
     },
 
     manualSendWhatsapp: function() {
