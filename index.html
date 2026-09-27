@@ -4648,6 +4648,9 @@ async function fetchWhatsappStatus(showToast) {
             updateWhatsappSidebarDot(true, false);
             renderWhatsappModal("connected", data);
             if (showToast) U.toast("WhatsApp Bot is connected & active", "success");
+        } else if (data.status === 'loading' || data.status === 'authenticated') {
+            updateWhatsappSidebarDot(true, false);
+            renderWhatsappModal("loading", { message: data.message || "WhatsApp Linked! Syncing messages..." });
         } else if (data.qr || data.pairingCode) {
             updateWhatsappSidebarDot(false, true);
             renderWhatsappModal("login", data);

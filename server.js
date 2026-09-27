@@ -491,9 +491,40 @@ function initWhatsappClient(forceClean = false) {
       broadcastRealtime('whatsapp_status', { connected: true, status: 'ready', user: whatsappUserInfo });
     });
 
-    client.on('authenticated', () => {
-      console.log('[WhatsApp] Authenticated successfully!');
+    client.on('loading_screen', (percent, message) => {
+      console.log(`[WhatsApp] Loading screen: ${percent}% - ${message}`);
+      qrCodeDataUrl = null;
       lastPairingCode = null;
+      isWhatsappConnected = true;
+      broadcastRealtime('whatsapp_status', {
+        connected: true,
+        status: 'loading',
+        percent: percent,
+        message: message || 'Syncing chats...'
+      });
+    });
+
+    client.on('authenticated', () => {
+      if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+      console.log('⚡ [WhatsApp] Authenticated successfully! Device is linked.');
+      isWhatsappConnected = true;
+      qrCodeDataUrl = null;
+      lastPairingCode = null;
+      isWhatsappInitializing = false;
+      try {
+        if (client && client.info) {
+          whatsappUserInfo = {
+            phone: (client.info.wid && client.info.wid.user) ? client.info.wid.user : '',
+            name: client.info.pushname || 'Anudeep Khadi Bandar'
+          };
+        }
+      } catch (_) {}
+      broadcastRealtime('whatsapp_status', { 
+        connected: true, 
+        status: 'authenticated', 
+        user: whatsappUserInfo,
+        message: 'WhatsApp linked successfully! Ready for billing.'
+      });
     });
 
     client.on('auth_failure', msg => {
@@ -1286,10 +1317,30 @@ app.put('/api/settings', async (req, res) => {
 // ==========================================
 // 5. WHATSAPP ENDPOINTS
 // ==========================================
-app.get('/api/whatsapp/status', (req, res) => {
+app.get('/api/whatsapp/status', async (req, res) => {
+  if (client && !isWhatsappConnected) {
+    try {
+      const state = await Promise.race([
+        client.getState(),
+        new Promise(resolve => setTimeout(() => resolve(null), 800))
+      ]);
+      if (state === 'CONNECTED' || (client.info && client.info.wid)) {
+        isWhatsappConnected = true;
+        qrCodeDataUrl = null;
+        lastPairingCode = null;
+        if (!whatsappUserInfo && client.info) {
+          whatsappUserInfo = {
+            phone: (client.info.wid && client.info.wid.user) ? client.info.wid.user : '',
+            name: client.info.pushname || 'Anudeep Khadi Bandar'
+          };
+        }
+      }
+    } catch (_) {}
+  }
+
   res.json({
     connected: isWhatsappConnected,
-    qr: qrCodeDataUrl,
+    qr: isWhatsappConnected ? null : qrCodeDataUrl,
     pairingCode: lastPairingCode,
     user: whatsappUserInfo,
     status: isWhatsappConnected ? 'connected' : (lastPairingCode ? 'pairing_code_ready' : (qrCodeDataUrl ? 'qr_ready' : (isWhatsappInitializing ? 'initializing' : 'disconnected')))
