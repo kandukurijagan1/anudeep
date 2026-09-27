@@ -461,7 +461,12 @@ function initWhatsappClient(forceClean = false) {
       whatsappUserInfo = null;
       isWhatsappInitializing = false;
       try {
-        qrCodeDataUrl = await qrcode.toDataURL(qr);
+        qrCodeDataUrl = await qrcode.toDataURL(qr, {
+          errorCorrectionLevel: 'M',
+          margin: 2,
+          width: 320,
+          color: { dark: '#000000', light: '#ffffff' }
+        });
         broadcastRealtime('whatsapp_status', {
           connected: false,
           status: 'qr_ready',
@@ -1344,6 +1349,39 @@ app.get('/api/whatsapp/status', async (req, res) => {
     pairingCode: lastPairingCode,
     user: whatsappUserInfo,
     status: isWhatsappConnected ? 'connected' : (lastPairingCode ? 'pairing_code_ready' : (qrCodeDataUrl ? 'qr_ready' : (isWhatsappInitializing ? 'initializing' : 'disconnected')))
+  });
+});
+
+app.post('/api/whatsapp/qr-mode', async (req, res) => {
+  lastPairingCode = null;
+  if (isWhatsappConnected) {
+    return res.json({ success: true, connected: true, message: 'Already connected', user: whatsappUserInfo });
+  }
+  if (client && client.pupPage) {
+    try {
+      if (typeof client.cancelPairingCode === 'function') {
+        await client.cancelPairingCode();
+      }
+    } catch (_) {}
+    try {
+      await client.pupPage.evaluate(() => {
+        try {
+          if (window.require && window.require('WAWebLaunchSocketUtils')) {
+            window.require('WAWebLaunchSocketUtils').refreshQR();
+          } else if (window.require && window.require('WAWebCmd')) {
+            window.require('WAWebCmd').Cmd.refreshQR();
+          }
+        } catch (_) {}
+      });
+    } catch (_) {}
+  } else {
+    initWhatsappClient();
+  }
+  res.json({
+    success: true,
+    connected: isWhatsappConnected,
+    qr: qrCodeDataUrl,
+    status: isWhatsappConnected ? 'connected' : (qrCodeDataUrl ? 'qr_ready' : 'initializing')
   });
 });
 

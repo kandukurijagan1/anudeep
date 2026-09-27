@@ -4357,10 +4357,49 @@ function updateWhatsappSidebarDot(connected, isPending) {
     }
 }
 
-function setWaTab(tab) {
+async function setWaTab(tab) {
     _waActiveTab = tab;
     if (_waStatusState) {
         renderWhatsappModal("login", _waStatusState);
+    }
+    if (tab === 'qr') {
+        try {
+            var base = getWaApiUrl();
+            var res = await originalFetch(base + '/whatsapp/qr-mode', { method: 'POST' });
+            var data = await res.json();
+            if (data && data.qr) {
+                if (_waStatusState) {
+                    _waStatusState.qr = data.qr;
+                    _waStatusState.pairingCode = null;
+                }
+                renderWhatsappModal("login", _waStatusState);
+            }
+        } catch (_) {}
+    }
+}
+
+async function refreshWhatsappQR() {
+    var btn = document.getElementById("btn-refresh-qr");
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner"></i> Refreshing...'; }
+    try {
+        var base = getWaApiUrl();
+        var res = await originalFetch(base + '/whatsapp/qr-mode', { method: 'POST' });
+        var data = await res.json();
+        if (data && data.qr) {
+            if (_waStatusState) {
+                _waStatusState.qr = data.qr;
+                _waStatusState.pairingCode = null;
+            }
+            renderWhatsappModal("login", _waStatusState);
+            U.toast("Fresh QR Code generated! Point your camera.", "success");
+        } else {
+            fetchWhatsappStatus(false);
+            U.toast("Updating QR code...", "info");
+        }
+    } catch(err) {
+        fetchWhatsappStatus(false);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-arrows-clockwise"></i> Refresh QR Code'; }
     }
 }
 
@@ -4444,8 +4483,15 @@ function renderWhatsappModal(state, data) {
             if (data && data.qr) {
                 tabContent = 
                     '<div style="margin-bottom:12px; padding:12px; background:#fff; border:2px solid #25D366; border-radius:12px; text-align:center;">' +
-                        '<div style="font-size:0.84rem; font-weight:700; color:#15803d; margin-bottom:8px;"><i class="ph ph-camera"></i> Point your WhatsApp Camera at this QR Code:</div>' +
-                        '<img src="' + data.qr + '" style="width:200px; height:200px; object-fit:contain; display:block; margin:0 auto 10px; border-radius:6px;" alt="WhatsApp Login QR Code" />' +
+                        '<div style="font-size:0.86rem; font-weight:700; color:#15803d; margin-bottom:8px;"><i class="ph ph-camera"></i> Point your WhatsApp Camera at this QR Code:</div>' +
+                        '<div style="display:inline-block; padding:8px; background:#fff; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.08); margin-bottom:8px;">' +
+                            '<img src="' + data.qr + '" style="width:250px; height:250px; object-fit:contain; display:block; border-radius:6px; image-rendering:pixelated;" alt="WhatsApp Login QR Code" />' +
+                        '</div>' +
+                        '<div style="display:flex; justify-content:center; gap:8px; margin-bottom:10px;">' +
+                            '<button type="button" id="btn-refresh-qr" onclick="refreshWhatsappQR()" class="btn btn-secondary" style="font-size:0.8rem; padding:6px 14px; font-weight:700; color:#15803d; border-color:#86efac; background:#f0fdf4; display:inline-flex; align-items:center; gap:5px;">' +
+                                '<i class="ph ph-arrows-clockwise"></i> Refresh QR Code' +
+                            '</button>' +
+                        '</div>' +
                         '<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:8px 10px; font-size:0.78rem; text-align:left; color:#166534; line-height:1.4;">' +
                             '<b>Instructions:</b><br/>' +
                             '1. Open <b>WhatsApp</b> on your phone.<br/>' +
