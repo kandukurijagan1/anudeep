@@ -4433,9 +4433,9 @@ function renderWhatsappModal(state, data) {
         var activeTab = _waActiveTab || 'qr';
 
         var tabNav = 
-            '<div style="display:flex; background:#f1f5f9; border-radius:8px; padding:3px; margin-bottom:14px;">' +
-                '<button type="button" onclick="setWaTab(\'qr\')" style="flex:1; border:none; padding:7px; border-radius:6px; font-size:0.84rem; font-weight:700; cursor:pointer; background:' + (activeTab === 'qr' ? '#fff; color:#0f172a; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'transparent; color:#64748b;') + '"><i class="ph ph-qr-code"></i> Scan QR Code</button>' +
-                '<button type="button" onclick="setWaTab(\'phone\')" style="flex:1; border:none; padding:7px; border-radius:6px; font-size:0.84rem; font-weight:700; cursor:pointer; background:' + (activeTab === 'phone' ? '#fff; color:#0f172a; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'transparent; color:#64748b;') + '"><i class="ph ph-hash"></i> Link with Phone Number</button>' +
+            '<div style="display:flex; background:#f1f5f9; border-radius:8px; padding:3px; margin-bottom:14px; gap:4px;">' +
+                '<button type="button" onclick="setWaTab(\'qr\')" style="flex:1; border:none; padding:8px; border-radius:6px; font-size:0.84rem; font-weight:700; cursor:pointer; background:' + (activeTab === 'qr' ? '#fff; color:#0f172a; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'transparent; color:#64748b;') + '"><i class="ph ph-qr-code"></i> 1. Scan QR Code</button>' +
+                '<button type="button" onclick="setWaTab(\'phone\')" style="flex:1; border:none; padding:8px; border-radius:6px; font-size:0.84rem; font-weight:700; cursor:pointer; background:' + (activeTab === 'phone' ? '#fff; color:#0f172a; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'transparent; color:#64748b;') + '"><i class="ph ph-hash"></i> 2. Link with Phone Number</button>' +
             '</div>';
 
         var tabContent = '';
@@ -4449,8 +4449,14 @@ function renderWhatsappModal(state, data) {
                         '<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:8px 10px; font-size:0.78rem; text-align:left; color:#166534; line-height:1.4;">' +
                             '<b>Instructions:</b><br/>' +
                             '1. Open <b>WhatsApp</b> on your phone.<br/>' +
-                            '2. Tap <b>⋮ (Settings)</b> &rarr; <b>Linked Devices</b>.<br/>' +
-                            '3. Tap <b>Link a Device</b> and point camera here.' +
+                            '2. Tap <b>⋮ (Settings)</b> &rarr; <b>Linked Devices</b> &rarr; <b>Link a Device</b>.<br/>' +
+                            '3. Point camera at this QR code.' +
+                        '</div>' +
+                        '<div style="margin-top:8px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 10px; font-size:0.75rem; text-align:left; color:#92400e; line-height:1.4;">' +
+                            '<b>⚠️ If phone shows "Couldn\'t link device":</b><br/>' +
+                            '• <b>Limit:</b> Check <b>Linked Devices</b> on your phone. If 4 devices are linked, tap and remove one old device.<br/>' +
+                            '• <b>Easiest Solution:</b> Click the <b>"2. Link with Phone Number"</b> tab above (no camera needed!).<br/>' +
+                            '• Or click <b>"Switch Number"</b> below to refresh.' +
                         '</div>' +
                     '</div>';
             } else {
@@ -4472,9 +4478,9 @@ function renderWhatsappModal(state, data) {
             var codeDisplay = existingCode ? 
                 '<div style="background:#ecfdf5; border:2px dashed #10b981; border-radius:10px; padding:12px; margin-bottom:12px; text-align:center;">' +
                     '<div style="font-size:0.75rem; color:#065f46; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Your 8-Digit Pairing Code:</div>' +
-                    '<div style="font-family:monospace; font-size:1.6rem; font-weight:800; color:#047857; letter-spacing:4px; margin:6px 0;">' + U.esc(existingCode) + '</div>' +
+                    '<div style="font-family:monospace; font-size:1.8rem; font-weight:800; color:#047857; letter-spacing:4px; margin:6px 0; user-select:all;">' + U.esc(existingCode) + '</div>' +
                     '<div style="font-size:0.78rem; color:#065f46; line-height:1.4;">' +
-                        'Open WhatsApp on your phone &rarr; <b>Linked Devices</b> &rarr; <b>Link with phone number instead</b> &rarr; Enter this code.' +
+                        'Open WhatsApp &rarr; <b>Linked Devices</b> &rarr; tap <b>"Link with phone number instead"</b> (at bottom of camera screen) &rarr; Enter this code.' +
                     '</div>' +
                 '</div>' : '';
 
@@ -4486,7 +4492,7 @@ function renderWhatsappModal(state, data) {
                         '<input type="text" id="wa-pairing-phone" value="9441753678" placeholder="91XXXXXXXXXX" style="flex:1; padding:8px 10px; font-size:0.88rem; border:1px solid var(--bd); border-radius:6px;" />' +
                         '<button type="button" id="btn-request-pairing" onclick="requestWhatsappPairingCode()" class="btn btn-primary" style="white-space:nowrap; padding:8px 14px; background:#25D366; border-color:#25D366; font-weight:700;"><i class="ph ph-key"></i> Get Code</button>' +
                     '</div>' +
-                    '<div style="font-size:0.74rem; color:var(--tl); line-height:1.35;">No camera required. WhatsApp will show an alert on your phone to link using this code.</div>' +
+                    '<div style="font-size:0.74rem; color:var(--tl); line-height:1.35;">No camera required! On your phone, tap <b>"Link with phone number instead"</b> at the bottom of the camera screen and type the 8-digit code.</div>' +
                 '</div>';
         }
 

@@ -328,8 +328,15 @@ async function safeDestroyClient() {
 function killOrphanAuthBrowsers() {
   if (process.platform !== 'win32') return;
   try {
-    // Fast path: kill only Puppeteer's internal Chrome instances, preserving the user's regular browser
-    execSync(`powershell -NoProfile -Command "Get-Process -Name chrome,msedge -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*puppeteer*' } | Stop-Process -Force -ErrorAction SilentlyContinue"`, { stdio: 'ignore', timeout: 3000 });
+    const script = `
+      Get-CimInstance Win32_Process | Where-Object { 
+        ($_.Name -eq 'chrome.exe' -or $_.Name -eq 'msedge.exe') -and 
+        ($_.CommandLine -like '*anudeep-kadir-bandi*.wwebjs_auth*' -or $_.CommandLine -like '*puppeteer*')
+      } | ForEach-Object { 
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue 
+      }
+    `;
+    execSync(`powershell -NoProfile -Command "${script.replace(/\\r?\\n/g, ' ')}"`, { stdio: 'ignore', timeout: 5000 });
   } catch (_) {}
 }
 
@@ -338,11 +345,17 @@ function cleanAuthDirectory() {
   const authDir = path.join(__dirname, '.wwebjs_auth');
   try {
     if (fs.existsSync(authDir)) {
-      fs.rmSync(authDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+      fs.rmSync(authDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
     }
   } catch (err) {
     console.warn('[WhatsApp] auth directory cleanup note:', err.message);
   }
+  const cacheDir = path.join(__dirname, '.wwebjs_cache');
+  try {
+    if (fs.existsSync(cacheDir)) {
+      fs.rmSync(cacheDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+    }
+  } catch (_) {}
 }
 
 async function resolveChatId(cl, phone) {
@@ -421,10 +434,12 @@ function initWhatsappClient(forceClean = false) {
       authStrategy: new LocalAuth({
         dataPath: path.join(__dirname, '.wwebjs_auth')
       }),
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+      bypassCSP: true,
       puppeteer: {
         headless: true,
         executablePath: detectedChrome,
-        timeout: 45000,
+        timeout: 60000,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -433,7 +448,8 @@ function initWhatsappClient(forceClean = false) {
           '--disable-gpu',
           '--no-first-run',
           '--no-default-browser-check',
-          '--disable-session-crashed-bubble'
+          '--disable-session-crashed-bubble',
+          '--disable-blink-features=AutomationControlled'
         ]
       }
     });
