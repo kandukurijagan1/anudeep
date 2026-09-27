@@ -2,11 +2,13 @@
   "name": "akb-billing-backend",
   "version": "1.0.0",
   "description": "Backend for AKB billing app with invoice history persistence",
-  "main": "server.js",
+  "main": "electron-main.js",
   "scripts": {
     "start": "node server.js",
-    "app": "powershell -WindowStyle Hidden -Command \"Start-Process .\\AKB-Billing.exe\"",
-    "electron": "electron electron-main.js",
+    "app": "powershell -WindowStyle Hidden -Command \"Start-Process .\\Launch-AKB-App.bat\"",
+    "electron": "electron .",
+    "dev:electron": "electron .",
+    "package:app": "electron-packager . \"AKB-Billing\" --platform=win32 --arch=x64 --icon=icon.ico --out=dist --overwrite --prune=true --ignore=\"^(dist|tmp|test|\\.git|\\.wwebjs_cache|\\.wwebjs_auth)\"",
     "build:exe": "powershell -ExecutionPolicy Bypass -Command \"& 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe' /target:winexe /out:AKB-Billing.exe /win32icon:icon.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll Launcher.cs\"",
     "setup:shortcut": "powershell -ExecutionPolicy Bypass -File .\\create-desktop-shortcut.ps1"
   },

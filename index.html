@@ -540,6 +540,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
     <a class="nav-item" data-target="parties-view"><i class="ph ph-address-book"></i> Parties</a>
     <a class="nav-item" data-target="reports-view"><i class="ph ph-chart-line"></i> Reports</a>
     <a class="nav-item" data-target="settings-view"><i class="ph ph-gear-six"></i> Settings</a>
+    <a class="nav-item" id="nav-dedicated-app-item" onclick="openDedicatedAppModal()" style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:.65rem;"><i class="ph ph-desktop" style="color:var(--p);"></i> <span id="nav-dedicated-text">Dedicated App</span></span><span id="nav-dedicated-badge" style="font-size:0.68rem;padding:2px 7px;border-radius:10px;background:#e0f2fe;color:#0369a1;font-weight:700;">Install</span></a>
     <a class="nav-item" id="nav-wa-item" onclick="openWhatsappModal()" style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:.65rem;"><i class="ph ph-whatsapp-logo" style="color:#25D366;"></i> WhatsApp Status</span><span id="wa-nav-dot" style="width:8px;height:8px;border-radius:50%;background:#9ca3af;display:inline-block;transition:background .3s;" title="WhatsApp Status"></span></a>
   </div>
   <div class="user-profile">
@@ -555,6 +556,9 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
   <button id="btn-sidebar-toggle" class="mobile-toggle"><i class="ph ph-list"></i></button>
   <h2 id="page-title">Dashboard</h2>
   <div style="display:flex;align-items:center;gap:.75rem">
+    <div id="dedicated-mode-badge" style="font-size:.78rem;font-weight:600;padding:.3rem .65rem;border-radius:2rem;background:#ecfdf5;border:1px solid #a7f3d0;display:none;align-items:center;gap:.35rem;color:#047857;cursor:pointer" onclick="openDedicatedAppModal()" title="Dedicated Workstation Mode Active - Click for shortcuts & options">
+      <i class="ph ph-desktop" style="color:#10b981"></i> <span>Dedicated POS</span>
+    </div>
     <div id="cloud-update-badge" style="font-size:.78rem;font-weight:600;padding:.3rem .65rem;border-radius:2rem;background:#f0fdf4;border:1px solid #86efac;display:none;align-items:center;gap:.35rem;color:#166534;cursor:pointer" onclick="UI.show('settings-view')" title="Cloud Auto-Updater Active - Click to view">
       <i class="ph ph-sparkle" style="color:#16a34a"></i> <span id="cloud-update-text">v1.3.6</span>
     </div>
@@ -825,6 +829,27 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
   <button class="btn btn-primary" id="btn-apply-update" onclick="UpdaterUI.applyUpdate()" style="display:none;background:#10b981;border-color:#10b981;"><i class="ph ph-download-simple"></i> Install Latest Cloud Version</button>
 </div>
 </div>
+<div class="settings-card">
+<div class="settings-card-head"><i class="ph ph-desktop"></i> Dedicated Workstation & App</div>
+<div class="settings-card-body">
+<div class="form-group">
+<label>Application Mode</label>
+<div id="s-workstation-mode-status" style="font-size:.85rem;padding:.5rem;border-radius:6px;background:#f9fafb;border:1px solid var(--bd);margin-bottom:.5rem;">
+  Detecting...
+</div>
+</div>
+<div class="form-group">
+<label>Dedicated App Actions</label>
+<div style="font-size:.8rem;color:var(--tl);margin-bottom:.65rem;line-height:1.4;">
+  Run as a standalone native desktop window with high-speed printing, isolated profile, and counter hotkeys.
+</div>
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+  <button class="btn btn-primary" onclick="openDedicatedAppModal()"><i class="ph ph-desktop"></i> Dedicated App Manager</button>
+  <button class="btn btn-secondary" onclick="triggerPwaInstall()"><i class="ph ph-download-simple"></i> Install PWA App</button>
+</div>
+</div>
+</div>
+</div>
 </div>
 </div>
 </main>
@@ -854,6 +879,84 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 
 
 <div id="pm" class="modal-overlay"><div class="modal"><h3 class="modal-title">Product Details</h3><form id="fp"><input type="hidden" id="p-id"><div class="form-group"><label>Name</label><input type="text" id="p-n" required></div><div class="form-group"><label>HSN Code</label><input type="text" id="p-h" required></div><div class="form-group"><label>Price</label><input type="number" id="p-pr" step="0.01" min="0" required></div><div class="flex mt-4" style="justify-content:space-between"><button type="button" class="btn btn-secondary" onclick="UI.cl('pm')">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div>
+
+<!-- DEDICATED APP / WORKSTATION MODAL -->
+<div class="modal-overlay" id="dedicated-app-modal" onclick="if(event.target===this) closeDedicatedAppModal()">
+  <div class="modal" style="max-width:540px; padding:1.8rem; border-radius:1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.2rem; border-bottom:1px solid var(--bd); padding-bottom:1rem;">
+      <div style="display:flex; align-items:center; gap:0.75rem;">
+        <div style="width:42px; height:42px; border-radius:10px; background:var(--pl); display:flex; align-items:center; justify-content:center; color:var(--p); font-size:1.4rem;">
+          <i class="ph ph-desktop"></i>
+        </div>
+        <div>
+          <h3 style="margin:0; font-size:1.15rem; color:var(--p); font-weight:800;">Dedicated POS Workstation</h3>
+          <div style="font-size:0.8rem; color:var(--tl);">High-Speed Counter Billing & Native App Experience</div>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-icon" onclick="closeDedicatedAppModal()" style="font-size:1.2rem; padding:4px 8px;"><i class="ph ph-x"></i></button>
+    </div>
+
+    <!-- Status banner -->
+    <div id="dedicated-status-banner" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between;">
+      <div>
+        <div style="font-size:0.76rem; font-weight:700; color:var(--tl); text-transform:uppercase;">Running Mode</div>
+        <div id="dedicated-mode-text" style="font-size:0.92rem; font-weight:700; color:var(--fg);">Detecting Workstation Mode...</div>
+      </div>
+      <span id="dedicated-mode-pill" style="font-size:0.75rem; font-weight:700; padding:3px 10px; border-radius:20px; background:#e2e8f0; color:#475569;">Browser</span>
+    </div>
+
+    <!-- Option 1: PWA Install -->
+    <div style="background:#fff; border:1.5px solid var(--bd); border-radius:10px; padding:14px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:0.92rem; color:var(--fg); display:flex; align-items:center; gap:6px;">
+          <i class="ph ph-browsers" style="color:var(--p);"></i> <span>Install Dedicated App (PWA)</span>
+        </div>
+        <div style="font-size:0.78rem; color:var(--tl); margin-top:2px;">Runs in its own standalone window without browser tabs. Works 100% offline.</div>
+      </div>
+      <button id="btn-pwa-install-modal" class="btn btn-primary" onclick="triggerPwaInstall()" style="white-space:nowrap; padding:8px 14px; font-weight:700;">
+        <i class="ph ph-download-simple"></i> Install App
+      </button>
+    </div>
+
+    <!-- Option 2: Windows Native Launcher (.exe) -->
+    <div style="background:#fff; border:1.5px solid var(--bd); border-radius:10px; padding:14px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:0.92rem; color:var(--fg); display:flex; align-items:center; gap:6px;">
+          <i class="ph ph-windows-logo" style="color:#0078d4;"></i> <span>Windows Desktop Launcher (.exe)</span>
+        </div>
+        <div style="font-size:0.78rem; color:var(--tl); margin-top:2px;">Includes System Tray, background Node engine, and instant desktop shortcut.</div>
+      </div>
+      <button class="btn btn-secondary" onclick="triggerDesktopLauncherAction()" style="white-space:nowrap; padding:8px 14px; font-weight:700;">
+        <i class="ph ph-arrow-square-out"></i> Launch / Info
+      </button>
+    </div>
+
+    <!-- Workstation Keyboard Shortcuts Grid -->
+    <div style="background:#fafafa; border:1px solid #e5e7eb; border-radius:10px; padding:12px 14px; margin-top:12px;">
+      <div style="font-size:0.78rem; font-weight:800; color:var(--p); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+        <i class="ph ph-keyboard"></i> Workstation Speed Keys
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:0.8rem;">
+        <div style="display:flex; justify-content:space-between; padding:3px 6px; background:#fff; border-radius:4px; border:1px solid #eee;">
+          <span>New Invoice:</span> <kbd style="background:#f1f5f9; padding:1px 5px; border-radius:3px; font-weight:700; font-size:0.75rem;">F2</kbd>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:3px 6px; background:#fff; border-radius:4px; border:1px solid #eee;">
+          <span>Product Search:</span> <kbd style="background:#f1f5f9; padding:1px 5px; border-radius:3px; font-weight:700; font-size:0.75rem;">F4</kbd>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:3px 6px; background:#fff; border-radius:4px; border:1px solid #eee;">
+          <span>Save Invoice:</span> <kbd style="background:#f1f5f9; padding:1px 5px; border-radius:3px; font-weight:700; font-size:0.75rem;">F8</kbd>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:3px 6px; background:#fff; border-radius:4px; border:1px solid #eee;">
+          <span>Print Document:</span> <kbd style="background:#f1f5f9; padding:1px 5px; border-radius:3px; font-weight:700; font-size:0.75rem;">Ctrl + P</kbd>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+      <button class="btn btn-secondary" onclick="closeDedicatedAppModal()">Close</button>
+    </div>
+  </div>
+</div>
 
 <div id="pym" class="modal-overlay"><div class="modal"><h3 class="modal-title" id="pyt">Add Receiver</h3><form id="fpy"><input type="hidden" id="py-id"><input type="hidden" id="py-tp"><div class="form-group"><label>Name *</label><input type="text" id="py-n" required></div><div class="form-group"><label>WhatsApp / Phone No.</label><input type="text" id="py-ph" placeholder="91XXXXXXXXXX or 10-digit number"></div><div class="form-group"><label>Address</label><input type="text" id="py-a"></div><div class="form-group"><label>State Name</label><input type="text" id="py-st" placeholder="State Name"></div><div class="form-row"><div class="form-group"><label>GSTIN</label><input type="text" id="py-g"></div><div class="form-group"><label>State Code</label><input type="text" id="py-sc" maxlength="2"></div></div><div class="flex mt-4" style="justify-content:space-between"><button type="button" class="btn btn-secondary" onclick="UI.cl('pym')">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div>
 
@@ -4408,6 +4511,129 @@ window.addEventListener('resize', function() {
         }
     }
 });
+
+/* ===== DEDICATED APP & PWA WORKSTATION ENGINE ===== */
+var _deferredPwaPrompt = null;
+
+window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    _deferredPwaPrompt = e;
+    var btn = document.getElementById('btn-pwa-install-modal');
+    if (btn) {
+        btn.innerHTML = '<i class="ph ph-download-simple"></i> Install PWA Now';
+        btn.disabled = false;
+    }
+    var badge = document.getElementById('nav-dedicated-badge');
+    if (badge && !isDedicatedAppMode()) {
+        badge.textContent = 'Install';
+        badge.style.background = '#dcfce7';
+        badge.style.color = '#15803d';
+    }
+});
+
+window.addEventListener('appinstalled', function() {
+    _deferredPwaPrompt = null;
+    U.toast('🎉 Anudeep Khadi Bandar Dedicated App installed successfully!', 'success');
+    updateDedicatedAppUi();
+});
+
+function isDedicatedAppMode() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true ||
+           location.search.includes('mode=dedicated_app') ||
+           location.search.includes('mode=app') ||
+           (typeof window.process !== 'undefined' && window.process.type === 'renderer');
+}
+
+function updateDedicatedAppUi() {
+    var isApp = isDedicatedAppMode();
+    var modeBadge = document.getElementById('dedicated-mode-badge');
+    var navBadge = document.getElementById('nav-dedicated-badge');
+    var bannerText = document.getElementById('dedicated-mode-text');
+    var bannerPill = document.getElementById('dedicated-mode-pill');
+    var btnPwa = document.getElementById('btn-pwa-install-modal');
+    var sModeStatus = document.getElementById('s-workstation-mode-status');
+
+    if (modeBadge) modeBadge.style.display = isApp ? 'inline-flex' : 'none';
+
+    if (isApp) {
+        if (navBadge) {
+            navBadge.textContent = 'Active';
+            navBadge.style.background = '#dcfce7';
+            navBadge.style.color = '#15803d';
+        }
+        if (bannerText) bannerText.innerHTML = '<span style="color:#16a34a">⚡ Dedicated POS Workstation Active</span>';
+        if (bannerPill) {
+            bannerPill.textContent = 'Dedicated Mode';
+            bannerPill.style.background = '#dcfce7';
+            bannerPill.style.color = '#166534';
+        }
+        if (btnPwa) {
+            btnPwa.innerHTML = '<i class="ph ph-check-circle"></i> Already Installed';
+            btnPwa.disabled = true;
+            btnPwa.classList.remove('btn-primary');
+            btnPwa.classList.add('btn-secondary');
+        }
+        if (sModeStatus) {
+            sModeStatus.innerHTML = '<span style="color:#16a34a; font-weight:700;">🟢 Dedicated Workstation Mode Active</span> (No browser frames, hardware accelerated)';
+        }
+    } else {
+        if (bannerText) bannerText.textContent = 'Running in Standard Web Browser';
+        if (bannerPill) {
+            bannerPill.textContent = 'Browser Mode';
+            bannerPill.style.background = '#f1f5f9';
+            bannerPill.style.color = '#475569';
+        }
+        if (btnPwa && !_deferredPwaPrompt) {
+            btnPwa.innerHTML = '<i class="ph ph-download-simple"></i> Install App';
+        }
+        if (sModeStatus) {
+            sModeStatus.innerHTML = '<span style="color:#475569; font-weight:700;">Standard Browser Mode</span> (Install as PWA or launch .exe for dedicated workstation)';
+        }
+    }
+}
+
+function openDedicatedAppModal() {
+    var modal = document.getElementById('dedicated-app-modal');
+    if (modal) modal.classList.add('active');
+    updateDedicatedAppUi();
+}
+
+function closeDedicatedAppModal() {
+    var modal = document.getElementById('dedicated-app-modal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function triggerPwaInstall() {
+    if (_deferredPwaPrompt) {
+        _deferredPwaPrompt.prompt();
+        var choice = await _deferredPwaPrompt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+            U.toast('Installing dedicated app to your workstation...', 'success');
+        } else {
+            U.toast('App installation cancelled', 'info');
+        }
+        _deferredPwaPrompt = null;
+        updateDedicatedAppUi();
+    } else if (isDedicatedAppMode()) {
+        U.toast('You are already running the dedicated workstation app!', 'success');
+    } else {
+        U.toast('In Chrome or Edge: Click the (Install) icon in your browser address bar or menu.', 'info');
+    }
+}
+
+function triggerDesktopLauncherAction() {
+    if (location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        U.toast('To launch the native workstation app, open Launch-AKB-App.bat or AKB-Billing.exe from your desktop.', 'info');
+    } else {
+        U.toast('Desktop launcher is available in your local repository folder (Launch-AKB-App.bat).', 'info');
+    }
+}
+
+// Initialize on page load
+setTimeout(function() {
+    updateDedicatedAppUi();
+}, 600);
 </script>
 </body>
 </html>

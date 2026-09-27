@@ -2,17 +2,36 @@
 
 A high-speed, modern GST billing and tax invoice web application with automated WhatsApp invoice delivery, Telegram backup, customer autocomplete, and dual-database support (Local MongoDB & Cloud Google Apps Script).
 
-## 🖥️ Windows Desktop Application (.exe)
+## 🖥️ Dedicated POS Workstation Application
 
-A standalone native Windows desktop application has been built for the system:
-- **Executable**: `AKB-Billing.exe` (located in the root folder, only ~52 KB)
-- **Desktop Shortcut**: An icon shortcut named **`Anudeep Khadi Bandar - GST Billing`** is installed on your Desktop.
-- **Features**:
-  - Distraction-free native desktop window with official AKB icon and maximized workstation view.
-  - Dedicated isolated user profile keeping login credentials ("Remember password") and invoice drafts permanently saved.
-  - Smart Backend Connector: Automatically launches and connects to your local Node/MongoDB backend if available, or seamlessly connects to the Cloud Google Apps Script backend if offline.
-  - Direct printing to thermal and laser printers via Windows Print Spooler.
-  - To rebuild the executable at any time: `npm run build:exe`
+The system provides multiple ways to run as a dedicated, high-speed POS workstation application:
+
+### 1. Windows Native Launcher (.exe & .bat)
+- **Launchers**: `Launch-AKB-App.bat` and `AKB-Billing.exe`
+- **Desktop Shortcut**: **`Anudeep Khadi Bandar - GST Billing.lnk`** on your Windows Desktop.
+- **Key Capabilities**:
+  - Full-screen distraction-free native desktop workstation window with official AKB branding.
+  - Dedicated isolated user profile keeping credentials and drafts permanently remembered.
+  - Automatic background Node server auto-healing and fallback to Cloud GAS if offline.
+  - System Tray menu (Open, New Bill `F2`, Invoice History, Sync).
+  - To rebuild: `npm run build:exe` and `npm run setup:shortcut`
+
+### 2. Standalone Electron Dedicated App
+- **Run Locally**: `npm run electron`
+- **Package as Standalone Windows Executable**: `npm run package:app`
+- Features single-instance locking, native print spooling, and hardware-accelerated rendering.
+
+### 3. In-Browser Dedicated PWA App
+- Open the application in Chrome or Edge and click **"Dedicated App"** in the sidebar navigation or **"Install PWA App"** in Settings.
+- Installs directly to Windows Apps, taskbar, and start menu with 100% offline support.
+
+### ⚡ Workstation Billing Hotkeys:
+- **`F2`** &rarr; Quick New Invoice (focuses customer name)
+- **`F4`** &rarr; Focus Product Selection
+- **`F8` / `Ctrl + S`** &rarr; Save & Generate Invoice
+- **`Ctrl + P`** &rarr; Direct Print Spooler
+- **`Ctrl + H`** &rarr; Open Invoice History
+- **`Esc`** &rarr; Dismiss any modal or overlay
 
 ---
 
