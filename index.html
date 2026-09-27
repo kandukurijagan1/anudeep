@@ -4214,10 +4214,15 @@ function renderWhatsappModal(state, data) {
                     '</div>';
             } else {
                 tabContent = 
-                    '<div style="padding:24px 12px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:10px; text-align:center; margin-bottom:12px;">' +
+                    '<div style="padding:20px 12px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:10px; text-align:center; margin-bottom:12px;">' +
                         '<div class="spinner" style="width:32px; height:32px; border:3px solid #e2e8f0; border-top:3px solid #25D366; border-radius:50%; margin:0 auto 12px; animation:spin 0.8s linear infinite;"></div>' +
                         '<div style="font-weight:700; font-size:0.9rem; color:var(--fg);">Generating QR Code...</div>' +
                         '<div style="font-size:0.78rem; color:var(--tl); margin-top:4px;">Starting WhatsApp client in background. Please wait.</div>' +
+                        '<div style="margin-top:12px;">' +
+                            '<button type="button" class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.78rem; padding:6px 12px; color:#b91c1c; border-color:#fca5a5; background:#fef2f2; font-weight:700;">' +
+                                '<i class="ph ph-arrows-counter-clockwise"></i> Reset / Switch to Different Number' +
+                            '</button>' +
+                        '</div>' +
                     '</div>';
             }
         } else {
@@ -4267,6 +4272,7 @@ function renderWhatsappModal(state, data) {
 
                 '<div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:8px;">' +
                     '<a href="https://web.whatsapp.com" target="_blank" class="btn btn-secondary" style="font-size:0.84rem; text-decoration:none; display:inline-flex; align-items:center; gap:5px;"><i class="ph ph-arrow-square-out"></i> WhatsApp Web</a>' +
+                    '<button class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.84rem; color:#b91c1c; border-color:#fca5a5; display:inline-flex; align-items:center; gap:5px;" title="Reset session to login with a different number"><i class="ph ph-arrows-counter-clockwise"></i> Switch Number</button>' +
                     '<button class="btn btn-secondary" onclick="fetchWhatsappStatus(true)" style="font-size:0.84rem;"><i class="ph ph-arrows-clockwise"></i> Refresh</button>' +
                     '<button class="btn btn-secondary" onclick="closeWhatsappModal()" style="font-size:0.84rem;">Close</button>' +
                 '</div>' +
@@ -4339,6 +4345,25 @@ async function sendWhatsappTestMessage() {
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-paper-plane"></i> Test Send'; }
     }
+}
+
+async function resetWhatsappSession() {
+    if (!confirm("Do you want to reset the WhatsApp session? This will clear any stuck background session and allow logging in with a new/different phone number.")) return;
+    localStorage.removeItem("akb_wa_logged_in");
+    localStorage.removeItem("akb_wa_phone");
+    renderWhatsappModal("loading", { message: "Resetting session and clearing background data..." });
+    U.toast("Resetting WhatsApp session...", "info");
+    try {
+        var base = getWaApiUrl();
+        var res = await originalFetch(base + '/whatsapp/reset', { method: 'POST' });
+        var data = await res.json();
+        U.toast(data.message || "Fresh session ready! Generating QR code...", "success");
+    } catch (e) {
+        U.toast("Reset command sent. Reconnecting...", "info");
+    }
+    setTimeout(function() {
+        fetchWhatsappStatus(false);
+    }, 2000);
 }
 
 async function logoutWhatsapp() {

@@ -7,6 +7,7 @@ const path = require('path');
 const https = require('https');
 const multer = require('multer');
 const qrcode = require('qrcode');
+const { execSync } = require('child_process');
 
 // Disable TLS verification to resolve corporate/local firewall certificate blocks
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -269,22 +270,66 @@ let isWhatsappConnected = false;
 let client = null;
 let whatsappUserInfo = null;
 let isWhatsappInitializing = false;
+let initWatchdogTimer = null;
 
 function findChromeExecutable() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
   const possiblePaths = [
-    path.join(process.env.USERPROFILE || 'C:\\Users\\ADMIN', '.cache', 'puppeteer', 'chrome', 'win64-146.0.7680.31', 'chrome-win64', 'chrome.exe'),
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    path.join(process.env.USERPROFILE || 'C:\\Users\\ADMIN', '.cache', 'puppeteer', 'chrome', 'win64-146.0.7680.31', 'chrome-win64', 'chrome.exe')
   ];
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) return p;
   }
   return undefined;
+}
+
+async function safeDestroyClient() {
+  if (!client) return;
+  const tempClient = client;
+  client = null;
+
+  try {
+    if (tempClient.pupBrowser) {
+      const proc = tempClient.pupBrowser.process();
+      if (proc && proc.pid) {
+        try {
+          process.kill(proc.pid, 'SIGKILL');
+        } catch (_) {}
+      }
+    }
+  } catch (_) {}
+
+  try {
+    await Promise.race([
+      tempClient.destroy().catch(() => {}),
+      new Promise(resolve => setTimeout(resolve, 2000))
+    ]);
+  } catch (_) {}
+}
+
+function killOrphanAuthBrowsers() {
+  if (process.platform !== 'win32') return;
+  try {
+    execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*wwebjs_auth*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`, { stdio: 'ignore', timeout: 5000 });
+  } catch (_) {}
+}
+
+function cleanAuthDirectory() {
+  killOrphanAuthBrowsers();
+  const authDir = path.join(__dirname, '.wwebjs_auth');
+  try {
+    if (fs.existsSync(authDir)) {
+      fs.rmSync(authDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+    }
+  } catch (err) {
+    console.warn('[WhatsApp] auth directory cleanup note:', err.message);
+  }
 }
 
 async function resolveChatId(cl, phone) {
@@ -304,43 +349,63 @@ async function resolveChatId(cl, phone) {
   return clean + '@c.us';
 }
 
-function initWhatsappClient() {
+function initWhatsappClient(forceClean = false) {
   if (isWhatsappInitializing) {
-    console.log('[WhatsApp] Initialization already in progress, skipping duplicate init.');
+    console.log('[WhatsApp] Initialization already in progress.');
     return;
   }
   isWhatsappInitializing = true;
+  qrCodeDataUrl = null;
+  lastPairingCode = null;
+
+  // Set 35-second watchdog timer to break out of infinite stalls
+  if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+  initWatchdogTimer = setTimeout(async () => {
+    if (isWhatsappInitializing && !isWhatsappConnected && !qrCodeDataUrl) {
+      console.warn('⚠️ [WhatsApp] Initialization watchdog triggered (stalled for 35s). Resetting...');
+      isWhatsappInitializing = false;
+      await safeDestroyClient();
+      broadcastRealtime('whatsapp_status', {
+        connected: false,
+        status: 'timeout',
+        message: 'WhatsApp loading timed out. Please click "Switch Number / Reset" to start fresh.'
+      });
+    }
+  }, 35000);
+
   try {
     const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
     console.log('[WhatsApp] Initializing WhatsApp Client in background...');
     const detectedChrome = findChromeExecutable();
     console.log('[WhatsApp] Using Browser Executable:', detectedChrome || 'Bundled Puppeteer Default');
 
-    if (client) {
-      try { client.destroy().catch(() => {}); } catch (_) {}
-      client = null;
+    if (forceClean) {
+      cleanAuthDirectory();
     }
 
     client = new Client({
       authStrategy: new LocalAuth({
         dataPath: path.join(__dirname, '.wwebjs_auth')
       }),
-      qrMaxRetries: 0,
       puppeteer: {
         headless: true,
         executablePath: detectedChrome,
+        timeout: 45000,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-extensions',
           '--disable-dev-shm-usage',
           '--disable-gpu',
-          '--no-first-run'
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--disable-session-crashed-bubble'
         ]
       }
     });
 
     client.on('qr', async (qr) => {
+      if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       console.log('[WhatsApp] QR Code received.');
       isWhatsappConnected = false;
       whatsappUserInfo = null;
@@ -359,6 +424,7 @@ function initWhatsappClient() {
     });
 
     client.on('ready', () => {
+      if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       console.log('⚡ [WhatsApp] Client is ready and connected!');
       isWhatsappConnected = true;
       qrCodeDataUrl = null;
@@ -381,6 +447,7 @@ function initWhatsappClient() {
     });
 
     client.on('auth_failure', msg => {
+      if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       console.error('[WhatsApp] Authentication failure', msg);
       isWhatsappConnected = false;
       whatsappUserInfo = null;
@@ -390,6 +457,7 @@ function initWhatsappClient() {
     });
 
     client.on('disconnected', (reason) => {
+      if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       console.log('[WhatsApp] Client disconnected', reason);
       isWhatsappConnected = false;
       whatsappUserInfo = null;
@@ -397,21 +465,15 @@ function initWhatsappClient() {
       lastPairingCode = null;
       isWhatsappInitializing = false;
       broadcastRealtime('whatsapp_status', { connected: false, status: 'disconnected', reason });
-
-      // Automatically attempt auto-reconnect after 3 seconds
-      setTimeout(() => {
-        if (!isWhatsappConnected && !isWhatsappInitializing) {
-          console.log('[WhatsApp] Auto-reconnecting after disconnect...');
-          initWhatsappClient();
-        }
-      }, 3000);
     });
 
     client.initialize().catch(e => {
+      if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       isWhatsappInitializing = false;
       console.warn('[WhatsApp] Initial launch warning (Puppeteer may be missing or busy):', e.message);
     });
   } catch (e) {
+    if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
     isWhatsappInitializing = false;
     console.warn('[WhatsApp] Client module error:', e.message);
   }
@@ -1251,58 +1313,74 @@ app.post('/api/whatsapp/login', async (req, res) => {
     if (isWhatsappConnected) {
       return res.json({ success: true, message: 'Already connected', connected: true, user: whatsappUserInfo });
     }
-    if (client) {
-      try { await client.destroy(); } catch(e){}
-      client = null;
-    }
     isWhatsappInitializing = false;
-    initWhatsappClient();
+    await safeDestroyClient();
+    initWhatsappClient(false);
     res.json({ success: true, message: 'WhatsApp client initializing. QR code will appear shortly.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to initialize WhatsApp: ' + err.message });
   }
 });
 
-app.post('/api/whatsapp/logout', async (req, res) => {
+app.post('/api/whatsapp/reset', async (req, res) => {
   try {
-    console.log('[WhatsApp] Logout requested by user...');
-    if (client) {
-      if (isWhatsappConnected) {
-        try {
-          await client.logout();
-        } catch (e) {
-          console.warn('[WhatsApp] client.logout warn:', e.message);
-        }
-      }
-      try {
-        await client.destroy();
-      } catch (e) {
-        console.warn('[WhatsApp] client.destroy warn:', e.message);
-      }
-      client = null;
-    }
+    console.log('[WhatsApp] Reset requested by user to clear old session / switch number...');
     isWhatsappConnected = false;
+    isWhatsappInitializing = false;
     qrCodeDataUrl = null;
     lastPairingCode = null;
     whatsappUserInfo = null;
-    isWhatsappInitializing = false;
 
-    // Clean up cached auth session directory so device is fully unlinked
-    const authDir = path.join(__dirname, '.wwebjs_auth');
-    try {
-      if (fs.existsSync(authDir)) {
-        fs.rmSync(authDir, { recursive: true, force: true });
-      }
-    } catch(rmErr) {
-      console.warn('[WhatsApp] Auth session cleanup warning:', rmErr.message);
+    if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+
+    await safeDestroyClient();
+    cleanAuthDirectory();
+
+    broadcastRealtime('whatsapp_status', {
+      connected: false,
+      status: 'resetting',
+      message: 'Session cleared. Starting fresh WhatsApp client...'
+    });
+
+    setTimeout(() => {
+      initWhatsappClient(false);
+    }, 1200);
+
+    res.json({ success: true, message: 'Session reset! A fresh QR code will appear in seconds.' });
+  } catch (err) {
+    console.error('[WhatsApp] Reset endpoint error:', err);
+    res.status(500).json({ error: 'Failed to reset WhatsApp session: ' + err.message });
+  }
+});
+
+app.post('/api/whatsapp/logout', async (req, res) => {
+  try {
+    console.log('[WhatsApp] Logout requested by user...');
+    isWhatsappConnected = false;
+    isWhatsappInitializing = false;
+    qrCodeDataUrl = null;
+    lastPairingCode = null;
+    whatsappUserInfo = null;
+
+    if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+
+    if (client && typeof client.logout === 'function') {
+      try {
+        await Promise.race([
+          client.logout().catch(() => {}),
+          new Promise(resolve => setTimeout(resolve, 2000))
+        ]);
+      } catch (_) {}
     }
+
+    await safeDestroyClient();
+    cleanAuthDirectory();
 
     broadcastRealtime('whatsapp_status', { connected: false, status: 'logged_out' });
 
-    // Automatically reinitialize client so a fresh QR code is produced for login
     setTimeout(() => {
-      initWhatsappClient();
-    }, 1000);
+      initWhatsappClient(false);
+    }, 1200);
 
     res.json({ success: true, message: 'Logged out successfully. Generating new login QR code.' });
   } catch (err) {
