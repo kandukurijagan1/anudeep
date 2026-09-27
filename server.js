@@ -328,6 +328,39 @@ async function safeDestroyClient() {
 function killOrphanAuthBrowsers() {
   if (process.platform !== 'win32') return;
   try {
+    const devToolsFile = path.join(__dirname, '.wwebjs_auth', 'session', 'DevToolsActivePort');
+    if (fs.existsSync(devToolsFile)) {
+      try {
+        const content = fs.readFileSync(devToolsFile, 'utf8').trim();
+        const port = content.split(/\r?\n/)[0];
+        if (port && /^\d+$/.test(port)) {
+          const netstatOut = execSync(`netstat -ano`, { encoding: 'utf8', timeout: 3000 });
+          const lines = netstatOut.split('\n');
+          for (const line of lines) {
+            if (line.includes(`:${port} `) && line.includes('LISTENING')) {
+              const parts = line.trim().split(/\s+/);
+              const pid = parts[parts.length - 1];
+              if (pid && pid !== '0' && /^\d+$/.test(pid)) {
+                console.log(`[WhatsApp] Terminating orphan Chrome PID ${pid} from DevTools port ${port}...`);
+                try { execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore', timeout: 2000 }); } catch (_) {}
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[WhatsApp] DevToolsActivePort cleanup note:', err.message);
+      }
+      try { fs.unlinkSync(devToolsFile); } catch (_) {}
+    }
+  } catch (_) {}
+
+  // Also remove lockfile if present
+  try {
+    const lockfile = path.join(__dirname, '.wwebjs_auth', 'session', 'lockfile');
+    if (fs.existsSync(lockfile)) fs.unlinkSync(lockfile);
+  } catch (_) {}
+
+  try {
     const script = `
       Get-CimInstance Win32_Process | Where-Object { 
         ($_.Name -eq 'chrome.exe' -or $_.Name -eq 'msedge.exe') -and 
@@ -336,7 +369,7 @@ function killOrphanAuthBrowsers() {
         Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue 
       }
     `;
-    execSync(`powershell -NoProfile -Command "${script.replace(/\\r?\\n/g, ' ')}"`, { stdio: 'ignore', timeout: 5000 });
+    execSync(`powershell -NoProfile -Command "${script.replace(/\r?\n/g, ' ')}"`, { stdio: 'ignore', timeout: 5000 });
   } catch (_) {}
 }
 
@@ -386,12 +419,56 @@ async function resolveChatId(cl, phone) {
   return clean + '@c.us';
 }
 
-async function sendWhatsappMessageWithTimeout(cl, targetChatId, content, options = {}, timeoutMs = 20000) {
+async function ensureWWebJSReady(cl, timeoutMs = 15000) {
+  if (!cl || !cl.pupPage) return false;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const ok = await cl.pupPage.evaluate(() => {
+        return typeof window !== 'undefined' && 
+               typeof window.WWebJS !== 'undefined' && 
+               typeof window.WWebJS.getChat === 'function';
+      });
+      if (ok) return true;
+
+      // If page is loaded, try evaluating LoadUtils from whatsapp-web.js
+      try {
+        const { LoadUtils } = require('whatsapp-web.js/src/util/Injected/Utils');
+        await cl.pupPage.evaluate(LoadUtils);
+      } catch (_) {}
+    } catch (_) {}
+    await new Promise(r => setTimeout(r, 400));
+  }
+  return false;
+}
+
+async function sendWhatsappMessageWithTimeout(cl, targetChatId, content, options = {}, timeoutMs = 25000) {
   if (!cl) throw new Error('WhatsApp client is not available');
-  return await Promise.race([
-    cl.sendMessage(targetChatId, content, options),
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`WhatsApp message send timed out after ${Math.round(timeoutMs / 1000)}s`)), timeoutMs))
-  ]);
+
+  const ready = await ensureWWebJSReady(cl, 12000);
+  if (!ready) {
+    throw new Error('WhatsApp is still syncing initial data with your phone. Please try again in 5 seconds.');
+  }
+
+  try {
+    return await Promise.race([
+      cl.sendMessage(targetChatId, content, options),
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`WhatsApp message send timed out after ${Math.round(timeoutMs / 1000)}s`)), timeoutMs))
+    ]);
+  } catch (err) {
+    if (err && err.message && err.message.includes('getChat') && cl.pupPage) {
+      console.warn('[WhatsApp] getChat missing on evaluate, injecting LoadUtils and retrying once...');
+      try {
+        const { LoadUtils } = require('whatsapp-web.js/src/util/Injected/Utils');
+        await cl.pupPage.evaluate(LoadUtils);
+        await new Promise(r => setTimeout(r, 600));
+        return await cl.sendMessage(targetChatId, content, options);
+      } catch (retryErr) {
+        throw new Error('WhatsApp is still syncing initial chats. Please try again in 5 seconds.');
+      }
+    }
+    throw err;
+  }
 }
 
 function initWhatsappClient(forceClean = false) {
@@ -500,9 +577,8 @@ function initWhatsappClient(forceClean = false) {
       console.log(`[WhatsApp] Loading screen: ${percent}% - ${message}`);
       qrCodeDataUrl = null;
       lastPairingCode = null;
-      isWhatsappConnected = true;
       broadcastRealtime('whatsapp_status', {
-        connected: true,
+        connected: false,
         status: 'loading',
         percent: percent,
         message: message || 'Syncing chats...'
@@ -512,7 +588,6 @@ function initWhatsappClient(forceClean = false) {
     client.on('authenticated', () => {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       console.log('⚡ [WhatsApp] Authenticated successfully! Device is linked.');
-      isWhatsappConnected = true;
       qrCodeDataUrl = null;
       lastPairingCode = null;
       isWhatsappInitializing = false;
@@ -525,10 +600,10 @@ function initWhatsappClient(forceClean = false) {
         }
       } catch (_) {}
       broadcastRealtime('whatsapp_status', { 
-        connected: true, 
+        connected: false, 
         status: 'authenticated', 
         user: whatsappUserInfo,
-        message: 'WhatsApp linked successfully! Ready for billing.'
+        message: 'Device linked! Finalizing sync with WhatsApp...'
       });
     });
 
@@ -1438,12 +1513,16 @@ app.post('/api/whatsapp/sendTest', async (req, res) => {
       `Invoices created in the billing app will be delivered automatically.\n\n` +
       `📅 ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`;
 
-    await sendWhatsappMessageWithTimeout(client, targetChatId, testMsg, {}, 18000);
+    await sendWhatsappMessageWithTimeout(client, targetChatId, testMsg, {}, 25000);
     console.log(`[WhatsApp] Test message sent to ${targetChatId}`);
     res.json({ success: true, message: `Test message delivered to ${phone}!` });
   } catch (err) {
     console.error('[WhatsApp] Test message error:', err);
-    res.status(500).json({ error: 'Failed to send test message: ' + err.message });
+    let errorMsg = err.message || 'Failed to send test message';
+    if (errorMsg.includes('getChat') || errorMsg.includes('syncing')) {
+      errorMsg = 'WhatsApp is still syncing initial chats with your phone. Please wait a few seconds and try again.';
+    }
+    res.status(500).json({ error: errorMsg });
   }
 });
 
@@ -1576,7 +1655,11 @@ app.post('/api/whatsapp/sendPdf', upload.single('file'), async (req, res) => {
   } catch (err) {
     console.error('Error sending WhatsApp message:', err);
     cleanup();
-    res.status(500).json({ error: 'Failed to send WhatsApp message', details: err.message });
+    let errorMsg = err.message || 'Failed to send WhatsApp message';
+    if (errorMsg.includes('getChat') || errorMsg.includes('syncing')) {
+      errorMsg = 'WhatsApp is still syncing initial chats with your phone. Please try again in 5 seconds.';
+    }
+    res.status(500).json({ error: errorMsg, details: err.message });
   }
 });
 
@@ -1592,12 +1675,16 @@ app.post('/api/whatsapp/sendMessage', async (req, res) => {
     const targetChatId = await resolveChatId(client, phone);
     if (!targetChatId) return res.status(400).json({ error: 'Invalid phone number format.' });
 
-    await sendWhatsappMessageWithTimeout(client, targetChatId, message, {}, 18000);
+    await sendWhatsappMessageWithTimeout(client, targetChatId, message, {}, 25000);
     console.log(`[WhatsApp] Message sent successfully to ${targetChatId}`);
     res.json({ success: true, message: 'WhatsApp message sent successfully!' });
   } catch (err) {
     console.error('Error sending WhatsApp text message:', err);
-    res.status(500).json({ error: 'Failed to send message', details: err.message });
+    let errorMsg = err.message || 'Failed to send message';
+    if (errorMsg.includes('getChat') || errorMsg.includes('syncing')) {
+      errorMsg = 'WhatsApp is still syncing initial chats with your phone. Please try again in 5 seconds.';
+    }
+    res.status(500).json({ error: errorMsg, details: err.message });
   }
 });
 

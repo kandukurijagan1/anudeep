@@ -4621,7 +4621,7 @@ async function sendWhatsappTestMessage() {
     var btn = document.getElementById("btn-wa-send-test");
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner"></i> Sending...'; }
     var controller = new AbortController();
-    var timeoutId = setTimeout(function() { controller.abort(); }, 20000);
+    var timeoutId = setTimeout(function() { controller.abort(); }, 25000);
     try {
         var base = getWaApiUrl();
         var res = await originalFetch(base + '/whatsapp/sendTest', {
@@ -4635,12 +4635,17 @@ async function sendWhatsappTestMessage() {
         if (data && data.success) {
             U.toast("✅ Test message delivered to " + (phone || "your WhatsApp") + "!", "success");
         } else {
-            U.toast("❌ Failed to send: " + (data.error || "Unknown error"), "error");
+            var errMsg = data && data.error ? data.error : "Unknown error";
+            if (errMsg.includes("syncing") || errMsg.includes("getChat")) {
+                U.toast("⏳ WhatsApp is syncing with phone. Please wait a few seconds and retry.", "warning");
+            } else {
+                U.toast("❌ " + errMsg, "error");
+            }
         }
     } catch(err) {
         clearTimeout(timeoutId);
         if (err.name === 'AbortError') {
-            U.toast("⏱️ WhatsApp send timed out (20s). Please check bot connection or try again.", "warning");
+            U.toast("⏱️ WhatsApp send timed out (25s). Please check bot connection or try again.", "warning");
         } else {
             U.toast("Network error sending test: " + err.message, "error");
         }

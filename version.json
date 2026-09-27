@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
   "version": "1.3.9",
-  "build": 110,
+  "build": 112,
   "commit": "latest",
-  "releaseDate": "2026-09-26",
+  "releaseDate": "2026-09-27",
   "repo": "nenduku644-hash/anudeep-deploy",
   "branch": "main",
-  "description": "Dedicated Desktop App & Workstation POS Billing System for Anudeep Khadi Bandar"
+  "description": "fix(whatsapp): ensure robust auth recovery, clean orphan DevTools ports, and reliable sync handling"
 }
