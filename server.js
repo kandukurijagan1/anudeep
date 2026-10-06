@@ -111,7 +111,7 @@ async function fetchWithRetry(url, options, retries = 3, timeoutMs = 20000) {
 let isDbConnected = false;
 
 mongoose.connect(MONGO_URI, {
-  serverSelectionTimeoutMS: 1000,
+  serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 30000,
   maxPoolSize: 50,
   minPoolSize: 5,
@@ -396,26 +396,17 @@ async function resolveChatId(cl, phone) {
   let clean = String(phone).replace(/\D/g, '');
   if (clean.length === 10) clean = '91' + clean;
   if (!clean || clean.length < 10) return null;
-
-  // 1. Direct match with current logged-in bot account (notes to self / message yourself)
-  const botWid = cl.info && cl.info.wid && cl.info.wid.user;
-  const loggedPhone = (whatsappUserInfo && whatsappUserInfo.phone) ? String(whatsappUserInfo.phone).replace(/\D/g, '') : null;
-  if ((botWid && (clean === botWid || clean.endsWith(botWid) || botWid.endsWith(clean))) ||
-      (loggedPhone && (clean === loggedPhone || clean.endsWith(loggedPhone) || loggedPhone.endsWith(clean)))) {
-    return (cl.info && cl.info.wid && cl.info.wid._serialized) || (clean + '@c.us');
-  }
-
-  // 2. Query with strict 3.5-second timeout, falling back directly to clean@c.us
+  
   try {
-    const getNumPromise = cl.getNumberId(clean);
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('getNumberId timeout')), 3500));
-    const numberId = await Promise.race([getNumPromise, timeoutPromise]);
-    if (numberId && numberId._serialized && !numberId._serialized.endsWith('@lid')) {
-      return numberId._serialized;
+    // This officially registers the number in WhatsApp's internal DB preventing "Lid is missing" error
+    const contactId = await cl.getNumberId(clean);
+    if (contactId && contactId._serialized) {
+      return contactId._serialized;
     }
   } catch (e) {
-    console.warn(`[WhatsApp] resolveChatId fallback to @c.us for ${clean}:`, e.message);
+    console.warn("[WhatsApp] getNumberId failed, falling back:", e.message);
   }
+  
   return clean + '@c.us';
 }
 
@@ -511,6 +502,10 @@ function initWhatsappClient(forceClean = false) {
       authStrategy: new LocalAuth({
         dataPath: path.join(__dirname, '.wwebjs_auth')
       }),
+      webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+      },
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
       bypassCSP: true,
       puppeteer: {
@@ -563,8 +558,13 @@ function initWhatsappClient(forceClean = false) {
       lastPairingCode = null;
       isWhatsappInitializing = false;
       try {
+        let phoneStr = '';
+        if (client.info) {
+          if (client.info.wid && client.info.wid.user) phoneStr = client.info.wid.user;
+          else if (client.info.me && client.info.me.user) phoneStr = client.info.me.user;
+        }
         whatsappUserInfo = {
-          phone: (client.info && client.info.wid && client.info.wid.user) ? client.info.wid.user : '',
+          phone: phoneStr,
           name: (client.info && client.info.pushname) ? client.info.pushname : 'Anudeep Khadi Bandar'
         };
       } catch (e) {
@@ -593,8 +593,11 @@ function initWhatsappClient(forceClean = false) {
       isWhatsappInitializing = false;
       try {
         if (client && client.info) {
+          let phoneStr = '';
+          if (client.info.wid && client.info.wid.user) phoneStr = client.info.wid.user;
+          else if (client.info.me && client.info.me.user) phoneStr = client.info.me.user;
           whatsappUserInfo = {
-            phone: (client.info.wid && client.info.wid.user) ? client.info.wid.user : '',
+            phone: phoneStr,
             name: client.info.pushname || 'Anudeep Khadi Bandar'
           };
         }
@@ -969,7 +972,8 @@ function normalizeInvoice(doc) {
 function buildInvoiceQuery(idParam) {
   const idStr = String(idParam || '').trim();
   const conditions = [
-    { id: idStr }
+    { id: idStr },
+    { invoiceNo: idStr }
   ];
   const num = Number(idStr);
   if (!isNaN(num) && num > 0) {
@@ -1020,7 +1024,7 @@ app.get('/api/invoices/:id', async (req, res) => {
 });
 
 app.post('/api/invoices', async (req, res) => {
-  cache.invalidate('invoice');
+  cache.invalidate('invoices');
   cache.invalidate('bootstrap');
   try {
     const body = { ...req.body };
@@ -1066,7 +1070,7 @@ app.post('/api/invoices', async (req, res) => {
 });
 
 app.put('/api/invoices/:id', async (req, res) => {
-  cache.invalidate('invoice');
+  cache.invalidate('invoices');
   cache.invalidate('bootstrap');
   try {
     const idParam = req.params.id;
@@ -1093,7 +1097,7 @@ app.put('/api/invoices/:id', async (req, res) => {
 });
 
 app.delete('/api/invoices/:id', async (req, res) => {
-  cache.invalidate('invoice');
+  cache.invalidate('invoices');
   cache.invalidate('bootstrap');
   try {
     const idParam = req.params.id;
@@ -1607,6 +1611,27 @@ app.post('/api/whatsapp/logout', async (req, res) => {
   }
 });
 
+app.post('/api/savePdfLocally', upload.single('file'), (req, res) => {
+  const filePath = req.file && req.file.path;
+  const fileName = req.body.filename || 'Invoice.pdf';
+  if (!filePath) return res.status(400).json({ error: 'No file uploaded' });
+
+  try {
+    const downloadsDir = path.join(require('os').homedir(), 'Downloads');
+    if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
+    
+    const destPath = path.join(downloadsDir, fileName);
+    fs.copyFileSync(filePath, destPath);
+    fs.unlinkSync(filePath); // Cleanup temp file
+    
+    console.log(`Silently saved PDF to: ${destPath}`);
+    res.json({ success: true, path: destPath });
+  } catch (err) {
+    console.error('Error saving PDF locally:', err);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.status(500).json({ error: err.message });
+  }
+});
 app.post('/api/whatsapp/sendPdf', upload.single('file'), async (req, res) => {
   const filePath = req.file && req.file.path;
   const cleanup = () => { if (filePath && fs.existsSync(filePath)) fs.unlink(filePath, () => {}); };

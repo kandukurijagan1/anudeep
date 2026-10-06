@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, shell, ipcMain } = require('electron');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
@@ -17,6 +17,12 @@ let splashWindow = null;
 let tray = null;
 let serverChild = null;
 let isQuitting = false;
+
+ipcMain.on('print-silent', (event) => {
+    if (mainWindow) {
+        mainWindow.webContents.print({ silent: true, printBackground: true, color: false });
+    }
+});
 
 // Check if local HTTP server is healthy
 function checkServer(url, timeout = 800) {
@@ -212,7 +218,9 @@ function setupApplicationMenu() {
                     label: 'Print Active Document',
                     accelerator: 'CmdOrCtrl+P',
                     click: () => {
-                        if (mainWindow) mainWindow.webContents.print({ silent: false, printBackground: true });
+                        if (mainWindow) {
+                            mainWindow.webContents.executeJavaScript("if (typeof handleCtrlP === 'function') { handleCtrlP(); } else { window.print(); }");
+                        }
                     }
                 },
                 {
@@ -270,7 +278,8 @@ async function createMainWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: false
+            webSecurity: false,
+            preload: path.join(__dirname, 'preload.js')
         }
     });
 

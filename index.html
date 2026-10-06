@@ -17,6 +17,16 @@
 <style>
 :root{--p:#8B4513;--pd:#5e2f0d;--pl:#fef2e6;--bg:#f3f4f6;--sf:#fff;--td:#1f2937;--tl:#6b7280;--dg:#ef4444;--sc:#10b981;--bd:#e5e7eb;--sw:260px;--tg:#0088cc;--em:#D44638}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--td)}
+body.dark-theme { --bg: #111827; --c-bg: #1f2937; --td: #f3f4f6; --tl: #9ca3af; --bd: #374151; --pl: #1e1e1e; }
+body.dark-theme input, body.dark-theme select, body.dark-theme textarea { background: #374151; color: #f3f4f6; border-color: #4b5563; }
+body.dark-theme .card, body.dark-theme aside, body.dark-theme .modal { background: #1f2937; color: #f3f4f6; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5); border-color: #374151; }
+body.dark-theme .nav-item { color: #d1d5db; }
+body.dark-theme .nav-item:hover, body.dark-theme .nav-item.active { background: #374151; color: #fff; }
+body.dark-theme .data-table th { background: #374151; color: #f3f4f6; border-bottom-color: #4b5563; }
+body.dark-theme .data-table td { border-bottom-color: #374151; }
+body.dark-theme .btn-secondary { background: #374151; color: #f3f4f6; border-color: #4b5563; }
+body.dark-theme .btn-secondary:hover { background: #4b5563; }
+body.dark-theme #btn-theme-toggle { background: #374151 !important; color: #fbbf24 !important; border-color: #4b5563 !important; }
 .hidden{display:none!important}.flex{display:flex}.w-full{width:100%}.mt-4{margin-bottom:1rem;margin-top:1rem}.text-sm{font-size:.875rem}.text-right{text-align:right}
 button{cursor:pointer;border:none;outline:none;transition:all .2s;font-family:inherit}
 input,select,textarea{outline:none;border:1px solid var(--bd);padding:.55rem .6rem;border-radius:.375rem;width:100%;font-size:.875rem;background:#fff;transition:border-color .2s,box-shadow .2s}
@@ -81,7 +91,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 .party-list{max-height:520px;overflow-y:auto}
 .party-entry{padding:.75rem 1rem;border-bottom:1px solid #000;display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem}.party-entry:hover{background:rgba(139,69,19,.04)}.party-entry:last-child{border-bottom:none}
 .party-info{flex:1;font-size:.85rem;line-height:1.55}.party-info .pn{font-weight:700;font-size:.9rem}.party-info .pd{color:var(--tl);font-size:.8rem}
-.inv-form{background:#fff;border:2px solid #000;overflow:hidden}
+.inv-form{background:#fff;border:2px solid #000;overflow-x:auto}
 .inv-form-section{border-bottom:1px solid #000}.inv-form-section:last-child{border-bottom:none}
 .inv-form-pad{padding:.75rem 1.1rem}.inv-form-row{display:flex;gap:.65rem;align-items:flex-end;flex-wrap:wrap}
 .inv-form-field{display:flex;flex-direction:column;gap:.2rem}
@@ -95,13 +105,14 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 .inv-items-table th,.inv-items-table td{border:1px solid #000;padding:.45rem .5rem;text-align:center;vertical-align:middle}
 .inv-items-table th{background:#f0f0f0;font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.3px}
 .inv-items-table .tl{text-align:left}.inv-items-table .tr{text-align:right}
-.add-item-row{display:grid;grid-template-columns:85px 2fr .65fr .45fr .6fr .6fr .8fr auto;gap:.35rem;align-items:end;padding:.6rem 1.1rem;background:#fafafa;border-bottom:1px solid #000}
+.add-item-row{display:grid;grid-template-columns:85px minmax(180px,2fr) minmax(80px,.65fr) minmax(70px,.45fr) minmax(75px,.6fr) minmax(70px,.6fr) minmax(90px,.8fr) auto;gap:.35rem;align-items:end;padding:.6rem 1.1rem;background:#fafafa;border-bottom:1px solid #000;overflow-x:auto}
 .add-item-row .inv-form-field input{font-size:.8rem;padding:.4rem}
 .item-calc-type-bar{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem; padding:.55rem 1.1rem; background:linear-gradient(to right, #f8fafc, #f1f5f9); border-bottom:1px solid #e2e8f0; font-size:.83rem}
 .btn-calc-mode{padding:5px 12px; font-size:.8rem; font-weight:600; border:none; border-radius:4px; cursor:pointer; background:transparent; color:var(--td); display:inline-flex; align-items:center; gap:5px; transition:all .2s ease}
 .btn-calc-mode:hover{background:rgba(255,255,255,.6)}
 .btn-calc-mode.active{background:var(--p)!important; color:#fff!important; box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .billing-wrap{display:grid;grid-template-columns:1fr 300px;gap:1.25rem;align-items:start}
+.billing-wrap > div:first-child{min-width:0}
 .inv-summary{background:rgba(255,255,255,.9);border:1px solid var(--bd);border-radius:.75rem;padding:1.25rem;position:sticky;top:0}
 .inv-summary h3{margin:0 0 .75rem;font-size:1rem;color:var(--p)}
 .sum-row{display:flex;justify-content:space-between;margin-bottom:.4rem;font-size:.875rem}
@@ -447,9 +458,13 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
     }
 }
 @media print{
-@page{size:A4;margin:0}body{margin:0;padding:0}
+@page{size:A4;margin:12mm}body{margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
 #app-container,#login-screen,.no-print,.modal-overlay,#toast-container{display:none!important}
-#print-area{display:block!important;width:100%;background:#fff;color:#000}
+#print-area{display:block!important;width:100%;background:#fff;color:#000;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+#print-area img{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;display:inline-block!important}
+#print-area *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+.inv-paper{overflow:visible!important;position:relative!important}
+}
 /* Smart Autocomplete & Advanced UI */
 .smart-autocomplete-dropdown {
   position: absolute;
@@ -507,6 +522,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
   box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -519,7 +535,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 </div>
 <form id="login-form">
 <div class="form-group"><label>User ID</label><input type="text" id="username" placeholder="Enter User ID" required autocomplete="off"></div>
-<div class="form-group"><label>Password</label><input type="password" id="password" placeholder="Enter Password" required></div>
+<div class="form-group"><label>Password</label><input type="password" id="password" placeholder="Enter Password"></div>
 <div style="display:flex; align-items:center; gap:8px; margin-top:8px; margin-bottom:12px;">
     <input type="checkbox" id="login-remember" style="width:16px; height:16px; cursor:pointer;">
     <label for="login-remember" style="font-size:0.85rem; color:var(--mg); cursor:pointer; user-select:none; margin:0;">Remember password</label>
@@ -560,6 +576,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
   <button id="btn-sidebar-toggle" class="mobile-toggle"><i class="ph ph-list"></i></button>
   <h2 id="page-title">Dashboard</h2>
   <div style="display:flex;align-items:center;gap:.75rem">
+    <button id="btn-theme-toggle" class="btn-icon" style="background:#fff;border:1px solid #e5e7eb;color:#4b5563;border-radius:2rem;padding:4px 10px;" onclick="UI.toggleTheme()" title="Toggle Dark Mode"><i class="ph ph-moon"></i> Theme</button>
     <div id="dedicated-mode-badge" style="font-size:.78rem;font-weight:600;padding:.3rem .65rem;border-radius:2rem;background:#ecfdf5;border:1px solid #a7f3d0;display:none;align-items:center;gap:.35rem;color:#047857;cursor:pointer" onclick="openDedicatedAppModal()" title="Dedicated Workstation Mode Active - Click for shortcuts & options">
       <i class="ph ph-desktop" style="color:#10b981"></i> <span>Dedicated POS</span>
     </div>
@@ -674,7 +691,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
     Calculation: 0 Qty × ₹0.00 = ₹0.00
   </div>
 </div>
-<div class="add-item-row" id="add-item-row">
+<div class="add-item-row" id="add-item-row" style="overflow-x:auto;">
 <div class="inv-form-field"><label>Bale No</label><input type="text" id="b-pb" placeholder="1" value="1"></div>
 <div class="inv-form-field"><label>Product</label><select id="b-pn"><option value="">Select product...</option></select></div>
 <div class="inv-form-field"><label>HSN CODE</label><input type="text" id="b-ph" readonly style="background:#f3f4f6"></div>
@@ -705,7 +722,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
   <div class="table-container">
     <div class="table-header"><h3>Products</h3><input type="text" id="ps" placeholder="Search product..." onkeyup="PDM.search(this.value)"></div>
     <div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Name</th><th>HSN</th><th>Calculation Type</th><th>Price / Rate</th><th class="text-right">Actions</th></tr></thead><tbody id="pt"></tbody></table></div>
-    <div style="margin-top:1rem"><button class="btn btn-primary" onclick="UI.om('pm')"><i class="ph ph-plus"></i> Add Product</button></div>
+    <div style="margin-top:1rem"><button class="btn btn-primary" onclick="PDM.openAdd()"><i class="ph ph-plus"></i> Add Product</button></div>
   </div>
 </section>
 <section id="parties-view" class="content-section">
@@ -729,9 +746,10 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 </section>
 <section id="invoices-view" class="content-section">
 <div class="table-container">
-<div class="table-header"><h3>Invoice History <span id="inv-count-badge"></span></h3><input type="text" id="is" placeholder="Search Invoice # or Customer..." onkeyup="IM.search(this.value)"></div>
+<div class="table-header"><h3>Invoice History <span id="inv-count-badge"></span></h3><div style="display:flex;gap:10px;"><button class="btn btn-secondary" onclick="SM.exportCSV()" style="padding:0.4rem 0.8rem;font-size:0.85rem"><i class="ph ph-export"></i> Export CSV</button><input type="text" id="is" placeholder="Search Invoice # or Customer..." onkeyup="IM.search(this.value)"></div></div>
 <div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Invoice #</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th class="text-right">Actions</th></tr></thead><tbody id="it"></tbody></table></div>
 </div>
+
 </section>
 
 <section id="reports-view" class="content-section">
@@ -741,6 +759,43 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 
 <section id="settings-view" class="content-section">
 <div class="settings-grid">
+
+<div class="settings-card">
+<div class="settings-card-head"><i class="ph ph-printer"></i> Invoice / Bill Print Settings</div>
+<div class="settings-card-body">
+<div class="form-group">
+  <label>Watermark Logo Opacity</label>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <input type="range" id="s-wm-opacity" min="0" max="30" value="10" style="flex:1;cursor:pointer;" oninput="document.getElementById('s-wm-opacity-val').textContent=this.value+'%'">
+    <span id="s-wm-opacity-val" style="font-weight:700;min-width:40px;">10%</span>
+  </div>
+  <div class="settings-hint">Controls how visible the background AKB logo watermark appears on printed bills. 0% = invisible, 30% = very visible.</div>
+</div>
+<div class="form-group">
+  <label>Bill Copy Type</label>
+  <select id="s-copy-type" class="form-control">
+    <option value="ORIGINAL">ORIGINAL</option>
+    <option value="DUPLICATE">DUPLICATE</option>
+    <option value="TRIPLICATE">TRIPLICATE</option>
+  </select>
+  <div class="settings-hint">Stamps each printed bill with "ORIGINAL FOR BUYER" / "DUPLICATE FOR SUPPLIER" / "TRIPLICATE" label. Required for GST compliance.</div>
+</div>
+<div class="form-group">
+  <label>Terms & Conditions (Line 1)</label>
+  <input type="text" id="s-tc-line1" class="form-control" value="Goods once sold cannot be taken back or exchanged">
+</div>
+<div class="form-group">
+  <label>Terms & Conditions (Line 2)</label>
+  <input type="text" id="s-tc-line2" class="form-control" value="SUBJECT TO TENALI JURISDICTION">
+</div>
+<div class="form-group">
+  <label>Terms & Conditions (Line 3 — optional)</label>
+  <input type="text" id="s-tc-line3" class="form-control" value="Interest @ 24% p.a. will be charged on overdue bills">
+</div>
+<button class="btn btn-primary" onclick="STM.savePrintSettings()" style="margin-top:.75rem"><i class="ph ph-floppy-disk"></i> Save Print Settings</button>
+</div>
+</div>
+
 <div class="settings-card">
 <div class="settings-card-head"><i class="ph ph-telegram-logo"></i> Telegram Bot Integration</div>
 <div class="settings-card-body">
@@ -820,6 +875,11 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 </select>
 <div class="settings-hint">Local MongoDB delivers sub-10ms response times; Cloud Google Apps Script is for remote deployments without local Node server.</div>
 </div>
+</div>
+<div class="form-group" style="margin-top:.75rem">
+<label>Cloud Apps Script API Key (Optional)</label>
+<input type="password" id="s-db-apikey" class="form-control" placeholder="Required for Google Apps Script Cloud Backend" autocomplete="off">
+</div>
 <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem;">
   <button class="btn btn-secondary" onclick="STM.testDbLatency()"><i class="ph ph-gauge"></i> Test Latency</button>
   <button class="btn btn-primary" onclick="STM.saveDbConfig()"><i class="ph ph-floppy-disk"></i> Save Mode & Reload</button>
@@ -898,7 +958,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 
 
 
-<div id="pm" class="modal-overlay"><div class="modal"><h3 class="modal-title">Product Details</h3><form id="fp"><input type="hidden" id="p-id"><div class="form-group"><label>Name</label><input type="text" id="p-n" required></div><div class="form-group"><label>HSN Code</label><input type="text" id="p-h" required></div><div class="form-group"><label>Price (Rate)</label><input type="number" id="p-pr" step="0.01" min="0" required></div><div class="form-group"><label>Calculation Type</label><select id="p-bt"><option value="qty">🔢 By Quantity &amp; Price (Qty × Rate)</option><option value="meters">📏 By Cloth / Meters (Meters × Rate)</option></select></div><div class="flex mt-4" style="justify-content:space-between"><button type="button" class="btn btn-secondary" onclick="UI.cl('pm')">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div>
+<div id="pm" class="modal-overlay"><div class="modal"><h3 class="modal-title">Product Details</h3><form id="fp"><input type="hidden" id="p-id"><div class="form-group"><label>Name</label><input type="text" id="p-n"></div><div class="form-group"><label>HSN Code</label><input type="text" id="p-h"></div><div class="form-group"><label>Price (Rate)</label><input type="number" id="p-pr" step="0.01" min="0"></div><div class="form-group"><label>Calculation Type</label><select id="p-bt"><option value="qty">🔢 By Quantity &amp; Price (Qty × Rate)</option><option value="meters">📏 By Cloth / Meters (Meters × Rate)</option></select></div><div class="flex mt-4" style="justify-content:space-between"><button type="button" class="btn btn-secondary" onclick="UI.cl('pm')">Cancel</button><button type="button" class="btn btn-primary" onclick="PDM.save(event)">Save</button></div></form></div></div>
 
 <!-- DEDICATED APP / WORKSTATION MODAL -->
 <div class="modal-overlay" id="dedicated-app-modal" onclick="if(event.target===this) closeDedicatedAppModal()">
@@ -978,7 +1038,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
   </div>
 </div>
 
-<div id="pym" class="modal-overlay"><div class="modal"><h3 class="modal-title" id="pyt">Add Receiver</h3><form id="fpy"><input type="hidden" id="py-id"><input type="hidden" id="py-tp"><div class="form-group"><label>Name *</label><input type="text" id="py-n" required></div><div class="form-group"><label>WhatsApp / Phone No.</label><input type="text" id="py-ph" placeholder="91XXXXXXXXXX or 10-digit number"></div><div class="form-group"><label>Address</label><input type="text" id="py-a"></div><div class="form-group"><label>State Name</label><input type="text" id="py-st" placeholder="State Name"></div><div class="form-row"><div class="form-group"><label>GSTIN</label><input type="text" id="py-g"></div><div class="form-group"><label>State Code</label><input type="text" id="py-sc" maxlength="2"></div></div><div class="flex mt-4" style="justify-content:space-between"><button type="button" class="btn btn-secondary" onclick="UI.cl('pym')">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div>
+<div id="pym" class="modal-overlay"><div class="modal"><h3 class="modal-title" id="pyt">Add Receiver</h3><form id="fpy"><input type="hidden" id="py-id"><input type="hidden" id="py-tp"><div class="form-group"><label>Name *</label><input type="text" id="py-n"></div><div class="form-group"><label>WhatsApp / Phone No.</label><input type="text" id="py-ph" placeholder="91XXXXXXXXXX or 10-digit number"></div><div class="form-group"><label>Address</label><input type="text" id="py-a"></div><div class="form-group"><label>State Name</label><input type="text" id="py-st" placeholder="State Name"></div><div class="form-row"><div class="form-group"><label>GSTIN</label><input type="text" id="py-g"></div><div class="form-group"><label>State Code</label><input type="text" id="py-sc" maxlength="2"></div></div><div class="flex mt-4" style="justify-content:space-between"><button type="button" class="btn btn-secondary" onclick="UI.cl('pym')">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div>
 
 <div id="ppm" class="modal-overlay"><div class="modal"><h3 class="modal-title" id="ppt">Select Receiver</h3><div class="form-group"><input type="text" id="pps" placeholder="Search name or GSTIN..." oninput="PM.filterP(this.value)"></div><div id="ppl" style="max-height:350px;overflow-y:auto;border:1px solid var(--bd);border-radius:.375rem"></div><div class="flex mt-4" style="justify-content:space-between"><button type="button" class="btn btn-secondary" onclick="UI.cl('ppm')">Cancel</button></div></div></div>
 
@@ -1025,6 +1085,27 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 <div id="toast-container"></div>
 <div id="print-area"></div>
 
+<!-- Bill Preview Modal -->
+<div class="modal-overlay" id="bill-preview-modal" style="z-index:100001;">
+  <div class="modal" style="width:850px;max-width:95%;max-height:92vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
+      <h3 style="margin:0;font-size:1rem;"><i class="ph ph-eye" style="color:var(--p)"></i> Bill Preview</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="preview-copy-type" style="padding:4px 8px;border-radius:4px;border:1px solid #d1d5db;font-size:.8rem;" onchange="BillPreview.updateCopyType(this.value)">
+          <option value="original">ORIGINAL</option>
+          <option value="duplicate">DUPLICATE</option>
+          <option value="triplicate">TRIPLICATE</option>
+          <option value="none">No Label</option>
+        </select>
+        <button class="btn btn-primary" onclick="BillPreview.print()" style="padding:6px 14px;font-size:.85rem;"><i class="ph ph-printer"></i> Print</button>
+        <button class="btn btn-secondary" onclick="BillPreview.downloadPdf()" style="padding:6px 14px;font-size:.85rem;"><i class="ph ph-file-pdf"></i> PDF</button>
+        <button class="btn-icon" onclick="UI.cl('bill-preview-modal')" style="font-size:1.2rem;"><i class="ph ph-x"></i></button>
+      </div>
+    </div>
+    <div id="bill-preview-body" style="flex:1;overflow-y:auto;padding:16px;background:#f3f4f6;"></div>
+  </div>
+</div>
+
 <script>
 /* ===== CONSTANTS ===== */
 var SG="37BTMPS9234C1ZA",SP="BTMPS9234C",SN="Anudeep Khadi Bandar";
@@ -1035,19 +1116,18 @@ var BN="AXIS BANK, TENALI",BA="914020009962721",BI="UTIB0000556",BAN="Anudeep Kh
 var GU="left-god.jpg";
 var HU="right-god.jpg";
 var CR=2.5,SR=2.5,IR=5;
-var CLOUD_GAS_URL = "https://script.google.com/macros/s/AKfycbyRmF00PY9ipLoFifC2ZOGWI8zKmouOEho8IvntPphdS9vtLaAXzfsi5TWkRlGmj3SC/exec";
+var CLOUD_GAS_URL = "https://script.google.com/macros/s/AKfycbwQ7p_7xWmKTPMxo6KW20HtCeetKik85x9-EFi1xrO7Z8oMQ1Fpbet3SQfQk4KfBI2q/exec";
 var isLocalHost = location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === "" || location.protocol === "file:";
-var API_URL = isLocalHost ? ((location.origin && location.origin.startsWith("http")) ? (location.origin + "/api") : "http://localhost:3000/api") : CLOUD_GAS_URL;
-var API_MODE = localStorage.getItem("akb_db_mode") || (isLocalHost ? "auto" : "cloud");
+var API_URL = ((location.origin && location.origin.startsWith("http")) ? (location.origin + "/api") : "http://localhost:3000/api");
+var API_MODE = localStorage.getItem("akb_db_mode") || "local";
 var API_LATENCY_MS = 0;
 
 async function resolveApiUrl(forceRefresh) {
-    var storedMode = localStorage.getItem("akb_db_mode") || "auto";
+    var storedMode = localStorage.getItem("akb_db_mode") || "local";
     API_MODE = storedMode;
 
     if (API_MODE === "cloud") {
-        API_URL = CLOUD_GAS_URL;
-        return API_URL;
+        API_MODE = "local"; // Force upgrade to local DB for speed
     }
 
     // 1. Instant session cache hit (0ms)
@@ -1081,7 +1161,7 @@ async function resolveApiUrl(forceRefresh) {
             var fastest = await Promise.any(candidates.map(async function(cand) {
                 var t0 = performance.now();
                 var ctrl = new AbortController();
-                var timer = setTimeout(function(){ ctrl.abort(); }, 400);
+                var timer = setTimeout(function(){ ctrl.abort(); }, 2000);
                 var res = await originalFetch(cand + "/health", { signal: ctrl.signal });
                 clearTimeout(timer);
                 if (res.ok) {
@@ -1148,7 +1228,9 @@ window.fetch = async function(resource, config) {
             if (type === 'consignees') action = 'deleteConsignee';
         }
         
-        var targetUrl = API_URL + "?action=" + action;
+        var apiKey = localStorage.getItem("akb_api_key") || "";
+        
+        var targetUrl = API_URL + "?action=" + action + (apiKey ? "&apiKey=" + encodeURIComponent(apiKey) : "");
         if (id) targetUrl += "&id=" + id;
 
         if (method !== 'GET') {
@@ -1156,6 +1238,11 @@ window.fetch = async function(resource, config) {
             // but fetch API handles it. If it's a FormData (PDF upload), do not change headers.
             var newConfig = { method: 'POST', body: config ? config.body : null };
             if (newConfig.body && typeof newConfig.body === 'string') {
+                try {
+                    var parsedBody = JSON.parse(newConfig.body);
+                    parsedBody.apiKey = apiKey; // Inject API key into payload for safety
+                    newConfig.body = JSON.stringify(parsedBody);
+                } catch(e) {}
                 newConfig.headers = { 'Content-Type': 'text/plain' }; // prevents CORS preflight issue in GAS
             }
             return originalFetch(targetUrl, newConfig);
@@ -1180,7 +1267,7 @@ D.s("invoices",[]); // kept for fallback purposes
 D.s("settings",{nextInvoiceNo:1});
 D.s("receivers",[]);
 D.s("consignees",[]);
-D.s("telegram",{token:"8799482746:AAGiDi8HEoV7KGQNyer4772H_d1qv9fznac",chatId:"6877857251"}); 
+D.s("telegram",{token:"",chatId:""}); 
 D.s("emailSettings",{defaultCC:"",subjectPrefix:"Tax Invoice"});
 localStorage.setItem(D.k("init"),"1");
 }}};
@@ -1223,15 +1310,26 @@ var activityTimer = null;
 var warningTimer = null;
 var countdownInterval = null;
 
+var _activityThrottle = null;
+
 function resetActivityTimer() {
+    if (_activityThrottle) return;
+    _activityThrottle = setTimeout(function() { _activityThrottle = null; }, 2000);
+
     hideInactivityWarning();
     clearTimeout(activityTimer);
     clearTimeout(warningTimer);
     clearInterval(countdownInterval);
     
     if (sessionStorage.getItem("akb_auth") === "1") {
-        var st = D.go("settings");
-        var timeout = st.inactivityTimeout !== undefined ? st.inactivityTimeout : 300000;
+        var stTimeout;
+        if (typeof STM !== 'undefined' && STM._settings && STM._settings.inactivityTimeout !== undefined) {
+            stTimeout = STM._settings.inactivityTimeout;
+        } else {
+            var st = D.go("settings") || {};
+            stTimeout = st.inactivityTimeout;
+        }
+        var timeout = stTimeout !== undefined ? stTimeout : 300000;
         
         if (timeout > 0) {
             var warningTime = Math.min(30000, timeout / 5);
@@ -1595,6 +1693,8 @@ function bindPartyAutocomplete(inputId, dropdownId, partyType) {
 }
 bindPartyAutocomplete("b-rn", "rn-autocomplete", "receiver");
 bindPartyAutocomplete("b-sn", "sn-autocomplete", "consignee");
+
+UI.loadTheme();
 },
 show:function(id){
 document.querySelectorAll(".content-section").forEach(function(s){s.classList.remove("active")});
@@ -1627,6 +1727,23 @@ cl:function(id){
 document.getElementById(id).classList.remove("active");
 if(id==="pm")document.getElementById("fp").reset();
 if(id==="pym")document.getElementById("fpy").reset();if(id==="ppm")document.getElementById("pps").value="";
+},
+loadTheme: function() {
+    var theme = localStorage.getItem('akb_theme');
+    if (theme === 'dark') {
+        document.body.classList.add('dark-theme');
+    } else {
+        document.body.classList.remove('dark-theme');
+    }
+},
+toggleTheme: function() {
+    if (document.body.classList.contains('dark-theme')) {
+        document.body.classList.remove('dark-theme');
+        localStorage.setItem('akb_theme', 'light');
+    } else {
+        document.body.classList.add('dark-theme');
+        localStorage.setItem('akb_theme', 'dark');
+    }
 }
 };
 
@@ -1734,17 +1851,37 @@ loadUI:function(){
     // Database UI status
     var dbStatusEl = document.getElementById("s-db-status");
     var dbModeEl = document.getElementById("s-db-mode");
+    var dbApiEl = document.getElementById("s-db-apikey");
     if (dbModeEl) dbModeEl.value = localStorage.getItem("akb_db_mode") || "auto";
+    if (dbApiEl) dbApiEl.value = localStorage.getItem("akb_api_key") || "";
     if (dbStatusEl) {
         var isLocal = API_URL && (API_URL.includes("localhost") || API_URL.startsWith("/api") || API_URL.includes("127.0.0.1"));
         dbStatusEl.innerHTML = isLocal
             ? '<span style="color:#059669;font-weight:600;"><i class="ph ph-lightning"></i> Local High-Speed Database</span> (' + (API_LATENCY_MS ? API_LATENCY_MS + 'ms latency' : 'active') + ')<br><small style="color:var(--tl)">Endpoint: ' + API_URL + '</small>'
             : '<span style="color:#2563eb;font-weight:600;"><i class="ph ph-cloud-check"></i> Google Apps Script (Cloud)</span><br><small style="color:var(--tl)">Endpoint: ' + (API_URL || 'Cloud GAS') + '</small>';
     }
+
+    // Print Settings UI
+    var printSettings = JSON.parse(localStorage.getItem('akb_print_settings') || '{}');
+    var wmOp = printSettings.watermarkOpacity !== undefined ? printSettings.watermarkOpacity : 10;
+    var wmEl = document.getElementById("s-wm-opacity");
+    if(wmEl) wmEl.value = wmOp;
+    var wmValEl = document.getElementById("s-wm-opacity-val");
+    if(wmValEl) wmValEl.textContent = wmOp + '%';
+    var cTypeEl = document.getElementById("s-bill-copy-type");
+    if(cTypeEl) cTypeEl.value = printSettings.copyType || 'original';
+    var t1El = document.getElementById("s-tc-line1");
+    if(t1El && printSettings.tcLine1) t1El.value = printSettings.tcLine1;
+    var t2El = document.getElementById("s-tc-line2");
+    if(t2El && printSettings.tcLine2) t2El.value = printSettings.tcLine2;
+    var t3El = document.getElementById("s-tc-line3");
+    if(t3El && printSettings.tcLine3 !== undefined) t3El.value = printSettings.tcLine3;
 },
 saveDbConfig:async function(){
     var mode = document.getElementById("s-db-mode").value;
+    var apikey = document.getElementById("s-db-apikey") ? document.getElementById("s-db-apikey").value.trim() : "";
     localStorage.setItem("akb_db_mode", mode);
+    localStorage.setItem("akb_api_key", apikey);
     U.toast("Database mode saved: " + mode, "success");
     await App.load();
     STM.loadUI();
@@ -1764,46 +1901,65 @@ testDbLatency:async function(){
 save:async function(){
     var token = document.getElementById("s-tg-token").value.trim();
     var chatId = document.getElementById("s-tg-chat").value.trim();
-    try {
-        let response = await fetch((API_URL || location.origin + '/api') + '/settings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ telegram: { token: token, chatId: chatId } })
-        });
-        if (!response.ok) throw new Error("Save failed");
-        U.toast("Telegram settings saved", "success");
-    } catch(e) {
-        console.error(e);
-        D.s("telegram", { token: token, chatId: chatId });
-        U.toast("Telegram settings saved locally", "warning");
-    }
-    await STM.fetchSettings();
+    
+    // ⚡ Optimistic UI Update (Instant)
+    D.s("telegram", { token: token, chatId: chatId });
     STM.loadUI();
+    U.toast("⚡ Telegram settings saved!", "success");
+
+    // ⚡ Background DB Sync
+    (async function() {
+        try {
+            await fetch((API_URL || location.origin + '/api') + '/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telegram: { token: token, chatId: chatId } })
+            });
+            await STM.fetchSettings();
+        } catch(e) {
+            console.warn("Background telegram settings sync queued:", e.message);
+        }
+    })();
+},
+savePrintSettings: function() {
+    var settings = {
+        watermarkOpacity: parseInt(document.getElementById("s-wm-opacity").value) || 10,
+        copyType: document.getElementById("s-bill-copy-type").value || 'original',
+        tcLine1: document.getElementById("s-tc-line1").value,
+        tcLine2: document.getElementById("s-tc-line2").value,
+        tcLine3: document.getElementById("s-tc-line3").value
+    };
+    localStorage.setItem('akb_print_settings', JSON.stringify(settings));
+    U.toast("Print settings saved successfully!", "success");
 },
 saveSecurity:async function(){
     var timeout = parseInt(document.getElementById("s-sec-timeout").value);
-    try {
-        let response = await fetch((API_URL || location.origin + '/api') + '/settings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ inactivityTimeout: timeout })
-        });
-        if (!response.ok) throw new Error("Save failed");
-        U.toast("Security settings saved", "success");
-    } catch(e) {
-        console.error(e);
-        var st = D.go("settings");
-        st.inactivityTimeout = timeout;
-        D.s("settings", st);
-        U.toast("Security settings saved locally", "warning");
-    }
+    
+    // ⚡ Optimistic UI Update (Instant)
+    var st = D.go("settings");
+    st.inactivityTimeout = timeout;
+    D.s("settings", st);
     if (typeof resetActivityTimer === "function") resetActivityTimer();
+    U.toast("⚡ Security settings saved!", "success");
+
+    // ⚡ Background DB Sync
+    (async function() {
+        try {
+            await fetch((API_URL || location.origin + '/api') + '/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ inactivityTimeout: timeout })
+            });
+        } catch(e) {
+            console.warn("Background security sync queued:", e.message);
+        }
+    })();
     await STM.fetchSettings();
     STM.loadUI();
 },
 testConnection:function(){
     var tg = STM._settings.telegram || D.go("telegram") || {};
-    var testToken = tg.token || "8799482746:AAGiDi8HEoV7KGQNyer4772H_d1qv9fznac";
+    var testToken = tg.token;
     if (!testToken) {
         U.toast("Please enter and save a Bot Token first", "error");
         return;
@@ -1829,6 +1985,53 @@ testConnection:function(){
 };
 
 /* ===== SHARING ===== */
+/* ===== OFFLINE QUEUE MANAGER ===== */
+var OM = {
+    q: function() { return D.g("offline_queue") || []; },
+    push: function(task) {
+        var queue = OM.q();
+        queue.push(task);
+        D.s("offline_queue", queue);
+        U.toast("Network disconnected. Task queued for auto-sync.", "info");
+    },
+    process: async function() {
+        if (!navigator.onLine) return;
+        var queue = OM.q();
+        if (queue.length === 0) return;
+        U.toast("Syncing " + queue.length + " offline tasks...", "info");
+        var remaining = [];
+        for (var i=0; i<queue.length; i++) {
+            var t = queue[i];
+            try {
+                if (t.type === 'invoice_save') {
+                    var response = await fetch(t.url, { method: t.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(t.inv) });
+                    if (!response.ok) throw new Error("Failed");
+                } else if (t.type === 'telegram_text') {
+                    var res = await fetch('https://api.telegram.org/bot' + t.token + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: t.chatId, text: t.textMsg }) });
+                    if (!res.ok) throw new Error("Failed");
+                } else if (t.type === 'whatsapp_text') {
+                    var wres = await fetch(t.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: t.to, message: t.message }) });
+                    if (!wres.ok) throw new Error("Failed");
+                } else if (t.type === 'settings_update') {
+                    var sres = await fetch((API_URL || location.origin + '/api') + '/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(t.settings) });
+                    if (!sres.ok) throw new Error("Failed");
+                } else if (t.type === 'invoice_delete') {
+                    var dres = await fetch(t.url, { method: 'DELETE' });
+                    if (!dres.ok) throw new Error("Failed");
+                }
+            } catch(e) {
+                remaining.push(t);
+            }
+        }
+        D.s("offline_queue", remaining);
+        if (remaining.length === 0) {
+            U.toast("All offline tasks synced successfully!", "success");
+        } else {
+            U.toast(remaining.length + " tasks still failed to sync.", "warning");
+        }
+    }
+};
+
 var SM={
 currentInv:null,
 
@@ -2016,9 +2219,26 @@ generatePrintHTML:function(inv){
     var rSt = (inv.receiver && inv.receiver.state) ? inv.receiver.state : getSt(inv.receiver ? inv.receiver.stateCode : '');
     var cSt = (inv.consignee && inv.consignee.state) ? inv.consignee.state : getSt(inv.consignee ? inv.consignee.stateCode : '');
 
-    var watermarkHtml = '<img src="logo.jpeg" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:400px; opacity:0.18; pointer-events:none; z-index:0;" alt="">';
-    return '<div class="inv-paper" style="position:relative; width:100%; max-width:800px; margin:0 auto; font-family:Arial, sans-serif; font-size:10pt; color:#1a237e; background:#fff; border:2px solid #1a237e; box-sizing:border-box;">'+
+    var printSettings = JSON.parse(localStorage.getItem('akb_print_settings') || '{}');
+    var wmOpacity = (printSettings.watermarkOpacity !== undefined ? printSettings.watermarkOpacity : 10) / 100;
+    var copyType = printSettings.copyType || 'original';
+    var tcLine1 = printSettings.tcLine1 || 'Goods once sold cannot be taken back or exchanged';
+    var tcLine2 = printSettings.tcLine2 || 'SUBJECT TO TENALI JURISDICTION';
+    var tcLine3 = printSettings.tcLine3 || '';
+
+    var copyStampHtml = '';
+    if (copyType !== 'none') {
+        var copyLabels = { original: '', duplicate: '', triplicate: '' };
+        copyStampHtml = '';
+    }
+
+    var watermarkHtml = '';
+    if (wmOpacity > 0) {
+        watermarkHtml = '<div style="position:absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; z-index:0; pointer-events:none; overflow:hidden;"><img src="logo.jpeg" style="width:400px; max-width:80%; opacity:' + wmOpacity + '; -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:exact;" alt="" onerror="this.parentElement.style.display=\'none\'"></div>';
+    }
+    return '<div class="inv-paper" style="position:relative; overflow:hidden; width:100%; max-width:800px; min-height:800px; margin:0 auto; font-family:Arial, sans-serif; font-size:10pt; color:#1a237e; background:#fff; border:2px solid #1a237e; box-sizing:border-box; page-break-inside:avoid;">'+
         watermarkHtml +
+        copyStampHtml +
         '<div style="position:relative; z-index:1;">'+
         '<table style="width:100%; border-collapse:collapse; font-size:9pt; font-weight:bold; border-bottom:2px solid #1a237e;">'+
             '<tr>'+
@@ -2027,18 +2247,18 @@ generatePrintHTML:function(inv){
                     '<div style="border:2px solid #1a237e; color:#1a237e !important; background:#fff; padding:6px 20px; display:inline-block; border-radius:4px; line-height:1.2; font-size:13pt; font-weight:900; letter-spacing:0.5px; -webkit-print-color-adjust:exact; print-color-adjust:exact;">TAX INVOICE<br><span style="font-size:7.5pt; font-weight:bold; color:#1a237e;">CASH / CREDIT</span></div>'+
                 '</td>'+
                 '<td style="padding:4px 10px; width:33%; text-align:right; vertical-align:middle;">'+
-                    '<div style="text-align:right; padding-right:6px;"><img src="logo.jpeg" style="max-height:46px; max-width:130px; object-fit:contain; vertical-align:middle; display:inline-block; -webkit-print-color-adjust:exact; print-color-adjust:exact;" alt="Logo" onerror="this.style.display=\'none\'"></div>'+
+                    '<div style="text-align:right; padding-right:6px;"><img src="logo.jpeg" style="max-height:80px; max-width:200px; object-fit:contain; vertical-align:middle; display:inline-block; -webkit-print-color-adjust:exact; print-color-adjust:exact;" alt="Logo" onerror="this.style.display=\'none\'"></div>'+
                 '</td>'+
             '</tr>'+
         '</table>'+
         '<table style="width:100%; border-collapse:collapse; margin:5px 0;">'+
             '<tr>'+
-                '<td style="width:100px; text-align:center; vertical-align:middle; padding-left:10px;"><img src="left-god.jpg" style="width:90px; height:90px; object-fit:cover; border:1px solid #1a237e; display:block; margin:0 auto;" alt="" onerror="this.style.display=\'none\'"></td>'+
+                '<td style="width:100px; text-align:center; vertical-align:middle; padding-left:10px;"><img src="left-god.jpg" style="width:90px; height:90px; object-fit:cover; border:1px solid #1a237e; display:block; margin:0 auto; -webkit-print-color-adjust:exact; print-color-adjust:exact;" alt="" onerror="this.style.display=\'none\'"></td>'+
                 '<td style="text-align:center; vertical-align:middle;">'+
                     '<h1 style="margin:0; font-size:26pt; font-family:\'Times New Roman\', serif; font-weight:bold;">'+SN+'</h1>'+
                     '<div style="font-size:8.5pt; font-weight:bold; margin-top:3px; color:#000; line-height:1.3;">'+SA1+'<br>'+SA2+'<br>Cell : '+SPH+'</div>'+
                 '</td>'+
-                '<td style="width:100px; text-align:center; vertical-align:middle; padding-right:10px;"><img src="right-god.jpg" style="width:90px; height:90px; object-fit:cover; border:1px solid #1a237e; display:block; margin:0 auto;" alt="" onerror="this.style.display=\'none\'"></td>'+
+                '<td style="width:100px; text-align:center; vertical-align:middle; padding-right:10px;"><img src="right-god.jpg" style="width:90px; height:90px; object-fit:cover; border:1px solid #1a237e; display:block; margin:0 auto; -webkit-print-color-adjust:exact; print-color-adjust:exact;" alt="" onerror="this.style.display=\'none\'"></td>'+
             '</tr>'+
         '</table>'+
         '<table style="width:100%; border-collapse:collapse; border-top:2px solid #1a237e; border-bottom:2px solid #1a237e; font-size:8.5pt; font-weight:bold; table-layout:fixed;">'+
@@ -2124,7 +2344,7 @@ generatePrintHTML:function(inv){
             '</tr>'+
         '</table>'+
         '<table style="width:100%; border-collapse:collapse; font-size:9pt; font-weight:bold;">'+
-            '<thead style="background:#f4f4f4;">'+
+            '<thead style="background:#f4f4f4; -webkit-print-color-adjust:exact; print-color-adjust:exact;">'+
                 '<tr>'+
                     '<th style="border:1px solid #1a237e; padding:4px; width:65px;">Bale No</th>'+
                     '<th style="border:1px solid #1a237e; padding:4px; text-align:left;">Description of Goods</th>'+
@@ -2154,8 +2374,9 @@ generatePrintHTML:function(inv){
         '</div>'+
         '<div style="border-top:1px solid #1a237e; padding:5px 10px; font-size:8.5pt; line-height:1.7; color:#000; position:relative;">'+
             '<div style="text-align:center; font-weight:bold; text-decoration:underline; margin-bottom:2px; font-size:9pt;">TERMS &amp; CONDITIONS</div>'+
-            '1.&nbsp; Goods once sold cannot be taken back or exchanged<br>'+
-            '2.&nbsp; SUBJECT TO TENALI JURISDICTION'+
+            '1.&nbsp; ' + U.esc(tcLine1) + '<br>'+
+            '2.&nbsp; ' + U.esc(tcLine2) +
+            (tcLine3 ? '<br>3.&nbsp; ' + U.esc(tcLine3) : '') +
             '<div style="position:absolute; bottom:5px; right:10px; font-size:8pt; font-weight:bold; color:#333;">E &amp; OE</div>'+
         '</div>'+
         '<div style="border-top:1px solid #1a237e; display:flex; font-size:9pt; font-weight:bold; color:#000; height:85px;">'+
@@ -2280,8 +2501,10 @@ generatePrintHTML:function(inv){
             }
         }).catch(function(err){
             console.warn("WhatsApp background send err:", err);
-            U.toast("⚠️ WhatsApp Bot offline. Ensure backend is running.", "warning");
+            OM.push({ type: 'whatsapp_text', url: waApiBase + '/whatsapp/sendMessage', to: cleanPhone, message: textMsg });
         });
+
+        // 3. Background PDF Generation and WhatsApp Upload
 
         // 3. Dispatch PDF document automatically in background
         if (typeof html2pdf !== 'undefined') {
@@ -2333,7 +2556,7 @@ generatePrintHTML:function(inv){
     autoSendTelegram: function(inv) {
         if (!inv) return;
         var tg = D.go("telegram") || {};
-        var baseToken = tg.token || "8799482746:AAGiDi8HEoV7KGQNyer4772H_d1qv9fznac";
+        var baseToken = tg.token;
         var chatIdsStr = tg.chatId || "6877857251";
 
         var chatIds = chatIdsStr.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
@@ -2359,7 +2582,9 @@ generatePrintHTML:function(inv){
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ token: botToken, chatId: cId, text: textMsg })
-                    }).catch(function(){});
+                    }).catch(function(){
+                        OM.push({ type: 'telegram_text', token: botToken, chatId: cId, textMsg: textMsg });
+                    });
                 });
             });
         });
@@ -2410,12 +2635,48 @@ generatePrintHTML:function(inv){
     autoDispatchAll: function(inv) {
         if (!inv) return;
         SM.currentInv = inv;
+        
         // ⚡ INSTANT AUTOMATIC BROADCAST TO BOTH TELEGRAM BOT AND WHATSAPP (NO NEW TAB / NO MODAL)
         SM.autoSendTelegram(inv);
+        
         var st = D.go("settings") || {};
         var waSettings = (st && st.whatsapp) || (STM._settings && STM._settings.whatsapp) || {};
         if (waSettings.enabled !== false) {
             SM.autoSendWhatsapp(inv);
+        }
+
+        // ⚡ AUTOMATIC INVOICE DOWNLOAD TO DOWNLOADS FOLDER WITHOUT PROMPT
+        if (typeof html2pdf !== 'undefined') {
+            try {
+                var invNo = U.pi(inv.invoiceNo);
+                var pdfName = 'Invoice_' + invNo + '.pdf';
+                var html = SM.generatePrintHTML(inv);
+                var parsed = new DOMParser().parseFromString(html, 'text/html').body;
+                var opt = {
+                    margin: [8, 8, 8, 8],
+                    filename: pdfName,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, backgroundColor: '#ffffff' },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().set(opt).from(parsed).outputPdf('blob').then(async function(blob){
+                    // Send to backend to save silently without the Save As popup!
+                    var fd = new FormData();
+                    fd.append('file', blob, pdfName);
+                    fd.append('filename', pdfName);
+                    
+                    try {
+                        var waApiBase = (typeof getWaApiUrl === 'function') ? getWaApiUrl() : 'http://localhost:3000/api';
+                        var res = await fetch(waApiBase.replace('/whatsapp', '') + '/savePdfLocally', { method: 'POST', body: fd });
+                        var data = await res.json();
+                        if (data && data.success) {
+                            U.toast("💾 Invoice PDF auto-saved to Downloads folder silently!", "success");
+                        }
+                    } catch (e) {
+                        console.error("Backend auto-save failed:", e);
+                    }
+                }).catch(function(e) { console.error("Auto download failed:", e); });
+            } catch(e) {}
         }
     },
 
@@ -2562,16 +2823,117 @@ try{document.execCommand("copy");U.toast("Invoice text copied!","success")}catch
 document.body.removeChild(ta);
 },
 
+BillPreview: {
+    currentInv: null,
+    show: function(invId) {
+        var target = String(invId || '').trim();
+        var inv = (IM._all || []).find(function(i){ return String(i.id) === target || String(i._id) === target || String(i.invoiceNo) === target; });
+        if(!inv){
+            var localInvoices = D.g("invoices") || [];
+            inv = localInvoices.find(function(i){ return String(i.id) === target || String(i._id) === target || String(i.invoiceNo) === target; });
+        }
+        if(!inv){ U.toast("Invoice not found","error"); return; }
+        
+        this.currentInv = inv;
+        var printSettings = JSON.parse(localStorage.getItem('akb_print_settings') || '{}');
+        document.getElementById("preview-copy-type").value = printSettings.copyType || 'original';
+        
+        this.renderPreview();
+        UI.op("bill-preview-modal");
+    },
+    
+    updateCopyType: function(type) {
+        var printSettings = JSON.parse(localStorage.getItem('akb_print_settings') || '{}');
+        printSettings.copyType = type;
+        localStorage.setItem('akb_print_settings', JSON.stringify(printSettings));
+        this.renderPreview();
+    },
+    
+    renderPreview: function() {
+        if(!this.currentInv) return;
+        var html = SM.generatePrintHTML(this.currentInv);
+        document.getElementById("bill-preview-body").innerHTML = html;
+        // Make sure preview has background #fff for accurate representation
+        var paper = document.getElementById("bill-preview-body").querySelector('.inv-paper');
+        if (paper) paper.style.boxShadow = '0 10px 25px rgba(0,0,0,0.1)';
+    },
+    
+    print: function() {
+        if(!this.currentInv) return;
+        document.getElementById("print-area").innerHTML = SM.generatePrintHTML(this.currentInv);
+        if (window.electronAPI && window.electronAPI.printSilent) {
+            window.electronAPI.printSilent();
+        } else {
+            window.print();
+        }
+    },
+    
+    downloadPdf: function() {
+        if(!this.currentInv) return;
+        var printHtml = SM.generatePrintHTML(this.currentInv);
+        var opt = {
+          margin: 5,
+          filename: 'Invoice_' + this.currentInv.invoiceNo + '.pdf',
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        var tempDiv = document.createElement("div");
+        tempDiv.innerHTML = printHtml;
+        if (typeof html2pdf !== 'undefined') {
+            html2pdf().set(opt).from(tempDiv).save();
+        } else {
+            U.toast("PDF generation library not loaded","error");
+        }
+    }
+},
+
 printInvoice:function(invId){
-var target = String(invId || '').trim();
+    BillPreview.show(invId);
+},
+
+downloadPdf: function(invId){
+    var target = String(invId || '').trim();
 var inv = (IM._all || []).find(function(i){ return String(i.id) === target || String(i._id) === target || String(i.invoiceNo) === target; });
 if(!inv){
     var localInvoices = D.g("invoices") || [];
     inv = localInvoices.find(function(i){ return String(i.id) === target || String(i._id) === target || String(i.invoiceNo) === target; });
 }
 if(!inv){U.toast("Invoice not found","error");return}
-document.getElementById("print-area").innerHTML=SM.generatePrintHTML(inv);
-window.print();
+var printHtml = SM.generatePrintHTML(inv);
+var opt = {
+  margin: 5,
+  filename: 'Invoice_' + inv.invoiceNo + '.pdf',
+  image: { type: 'jpeg', quality: 0.98 },
+  html2canvas: { scale: 2 },
+  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+};
+var tempDiv = document.createElement("div");
+tempDiv.innerHTML = printHtml;
+if (typeof html2pdf !== 'undefined') {
+    html2pdf().set(opt).from(tempDiv).save();
+    U.toast("Downloading PDF...", "info");
+} else {
+    U.toast("PDF library loading...", "error");
+}
+},
+
+exportCSV: function(){
+if(!IM._all || !IM._all.length){ U.toast("No invoices to export","error"); return; }
+var csv = "Invoice No,Date,Customer,Total Amount,Status\n";
+IM._all.forEach(function(i){
+    csv += (i.invoiceNo||"") + "," + (i.date||"") + "," + (i.receiver ? '"'+i.receiver.name.replace(/"/g,'""')+'"' : "-") + "," + (i.totalAmount||0) + ",Saved\n";
+});
+var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+var link = document.createElement("a");
+var url = URL.createObjectURL(blob);
+link.setAttribute("href", url);
+link.setAttribute("download", "Invoices_Export_" + U.td() + ".csv");
+link.style.visibility = 'hidden';
+document.body.appendChild(link);
+link.click();
+document.body.removeChild(link);
+U.toast("CSV Exported successfully", "success");
 }
 };
 
@@ -3036,6 +3398,23 @@ save: async function(){
     var savedInvId = inv.id;
     U.toast(BM.editId ? "⚡ Invoice updated!" : "⚡ Invoice #" + U.pi(inv.invoiceNo) + " generated!", "success");
     BM.clear();
+    if (typeof SM !== 'undefined' && typeof SM.printInvoice === 'function') {
+        setTimeout(function() { SM.printInvoice(savedInvId); }, 100);
+    }
+
+    // ⚡ AUTO-LEARN NEW PRODUCTS
+    if (typeof PDM !== 'undefined' && PDM._all) {
+        BM.items.forEach(function(item) {
+            var pname = String(item.product || "").trim();
+            if (pname && !PDM._all.find(function(p){ return String(p.name).trim().toLowerCase() === pname.toLowerCase(); })) {
+                var newP = { id: Date.now() + Math.random(), name: pname, hsn: item.hsnCode || "", price: item.rate || 0, calcType: BM.calcMode || "qty" };
+                PDM._all.push(newP);
+                fetch((API_URL || location.origin + '/api') + '/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newP) }).catch(function(){});
+            }
+        });
+        D.s("products", PDM._all);
+        PDM.render();
+    }
 
     // ⚡ AUTOMATIC MESSAGE TO WHATSAPP BOT AND TO TELEGRAM BOT WITHOUT WAITING AND WITHOUT ASKING
     SM.autoDispatchAll(inv);
@@ -3070,10 +3449,14 @@ save: async function(){
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ nextInvoiceNo: nextNoVal })
-                }).catch(function(){});
+                }).catch(function(){
+                    OM.push({ type: 'settings_update', settings: { nextInvoiceNo: nextNoVal } });
+                });
             }
         } catch(error) {
             console.warn("Background DB sync queued locally:", error.message);
+            OM.push({ type: 'invoice_save', url: url, method: method, inv: inv });
+            if (!BM.editId) OM.push({ type: 'settings_update', settings: { nextInvoiceNo: nextNoVal } });
         }
     })();
 },
@@ -3168,6 +3551,15 @@ list.forEach(function(p){
 tb.innerHTML=h;
 },
 
+openAdd:function(){
+    document.getElementById("p-id").value = "";
+    document.getElementById("p-n").value = "";
+    document.getElementById("p-h").value = "";
+    document.getElementById("p-pr").value = "";
+    if(document.getElementById("p-bt")) document.getElementById("p-bt").value = "qty";
+    UI.om("pm");
+},
+
 edit:function(id){
 var p=PDM._all.find(function(x){return x.id===id});if(!p)return;
 document.getElementById("p-id").value=p.id;
@@ -3180,23 +3572,31 @@ UI.om("pm");
 
 del:async function(id){
 if(!confirm("Delete this product?"))return;
-try {
-    let response = await fetch((API_URL || location.origin + '/api') + '/products/' + id, {
-        method: 'DELETE'
-    });
-    if (!response.ok) throw new Error("Delete failed");
-    U.toast("Product deleted", "info");
-} catch (e) {
-    console.error(e);
-    var list=D.g("products").filter(function(p){return p.id!==id});
-    D.s("products",list);
-    U.toast("Product deleted locally", "warning");
-}
-await PDM.render();
+var idStr = String(id || '').trim();
+
+// ⚡ Optimistic UI Update (Instant)
+var list = (D.g("products") || []).filter(function(p) {
+    return String(p.id) !== idStr && String(p._id) !== idStr;
+});
+D.s("products", list);
+PDM._draw(list);
+if(typeof BM !== 'undefined' && BM.updateProductDropdown) BM.updateProductDropdown();
+U.toast("⚡ Product deleted!", "info");
+
+// ⚡ Background DB Sync
+(async function() {
+    try {
+        await fetch((API_URL || location.origin + '/api') + '/products/' + id, {
+            method: 'DELETE'
+        });
+    } catch (e) {
+        console.warn("Background delete queued:", e.message);
+    }
+})();
 },
 
 save:async function(e){
-e.preventDefault();
+if (e && e.preventDefault) e.preventDefault();
 var id=document.getElementById("p-id").value;
 var calcType = document.getElementById("p-bt") ? document.getElementById("p-bt").value : "qty";
 var obj={name:document.getElementById("p-n").value.trim(),hsn:document.getElementById("p-h").value.trim(),price:parseFloat(document.getElementById("p-pr").value)||0,calcType:calcType};
@@ -3206,26 +3606,30 @@ if(id){
     obj.id=Date.now();
 }
 
-try {
-    var url = (API_URL || location.origin + '/api') + '/products' + (id ? '/' + id : '');
-    var method = id ? 'PUT' : 'POST';
-    var response = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(obj)
-    });
-    if (!response.ok) throw new Error("Save failed");
-    U.toast(id ? "Product updated" : "Product added", "success");
-} catch(err) {
-    console.error(err);
-    var list=D.g("products");
-    if(id){list=list.map(function(p){return p.id===parseInt(id)?obj:p})}
-    else{list.push(obj)}
-    D.s("products",list);
-    U.toast(id ? "Product updated locally" : "Product added locally", "warning");
-}
+// ⚡ Optimistic UI Update (Instant)
+var list=D.g("products");
+if(id){list=list.map(function(p){return p.id===parseInt(id)?obj:p})}
+else{list.push(obj)}
+D.s("products",list);
+PDM._draw(list);
+if(typeof BM !== 'undefined' && BM.updateProductDropdown) BM.updateProductDropdown();
+U.toast(id ? "⚡ Product updated!" : "⚡ Product added!", "success");
 UI.cl("pm");
-await PDM.render();
+
+// ⚡ Background DB Sync
+(async function() {
+    try {
+        var url = (API_URL || location.origin + '/api') + '/products' + (id ? '/' + id : '');
+        var method = id ? 'PUT' : 'POST';
+        await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(obj)
+        });
+    } catch(err) {
+        console.warn("Background product sync queued locally:", err.message);
+    }
+})();
 }
 };
 
@@ -3327,22 +3731,33 @@ UI.om("pym");
 
 del:async function(type,id){
 if(!confirm("Delete this "+type+"?"))return;
-try {
-    let response = await fetch((API_URL || location.origin + '/api') + '/' + type + 's/' + id, {
-        method: 'DELETE'
-    });
-    if (!response.ok) throw new Error("Delete failed");
-    U.toast((type==="receiver"?"Receiver":"Consignee")+" deleted","info");
-} catch(e) {
-    console.error(e);
-    var key=type+"s",list=D.g(key).filter(function(p){return p.id!==id});D.s(key,list);
-    U.toast((type==="receiver"?"Receiver":"Consignee")+" deleted locally","warning");
-}
-await PM.render();
+var idStr = String(id || '').trim();
+
+// ⚡ Optimistic UI Update (Instant)
+var key = type + "s";
+var list = (D.g(key) || []).filter(function(p) {
+    return String(p.id) !== idStr && String(p._id) !== idStr;
+});
+D.s(key, list);
+PM._parties = PM._parties || {};
+PM._parties[type] = list;
+PM._drawList(type, type + "-list");
+U.toast("⚡ " + (type==="receiver"?"Receiver":"Consignee") + " deleted!", "info");
+
+// ⚡ Background DB Sync
+(async function() {
+    try {
+        await fetch((API_URL || location.origin + '/api') + '/' + type + 's/' + id, {
+            method: 'DELETE'
+        });
+    } catch(e) {
+        console.warn("Background delete queued:", e.message);
+    }
+})();
 },
 
 save:async function(e){
-e.preventDefault();
+if (e && e.preventDefault) e.preventDefault();
 var type=document.getElementById("py-tp").value;
 var id=document.getElementById("py-id").value;
 var phoneVal = document.getElementById("py-ph") ? document.getElementById("py-ph").value.trim() : "";
@@ -3353,26 +3768,31 @@ if(id){
     obj.id=Date.now();
 }
 
-try {
-    var url = (API_URL || location.origin + '/api') + '/' + type + 's' + (id ? '/' + id : '');
-    var method = id ? 'PUT' : 'POST';
-    var response = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(obj)
-    });
-    if (!response.ok) throw new Error("Save failed");
-    U.toast(id ? "Updated" : "Added", "success");
-} catch(err) {
-    console.error(err);
-    var key=type+"s",list=D.g(key);
-    if(id){list=list.map(function(p){return p.id===parseInt(id)?obj:p})}
-    else{list.push(obj)}
-    D.s(key,list);
-    U.toast(id ? "Updated locally" : "Added locally", "warning");
-}
+// ⚡ Optimistic UI Update (Instant)
+var key=type+"s",list=D.g(key);
+if(id){list=list.map(function(p){return String(p.id)===String(id)?obj:p})}
+else{list.push(obj)}
+D.s(key,list);
+PM._parties = PM._parties || {};
+PM._parties[type] = list;
+PM._drawList(type, type + "-list");
+U.toast(id ? "⚡ Updated!" : "⚡ Added!", "success");
 UI.cl("pym");
-await PM.render();
+
+// ⚡ Background DB Sync
+(async function() {
+    try {
+        var url = (API_URL || location.origin + '/api') + '/' + type + 's' + (id ? '/' + id : '');
+        var method = id ? 'PUT' : 'POST';
+        await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(obj)
+        });
+    } catch(err) {
+        console.warn("Background party sync queued locally:", err.message);
+    }
+})();
 },
 
 saveFromBill:async function(type){
@@ -3489,6 +3909,21 @@ applyInvoices: function(data) {
         return inv;
     });
 
+    var offlineQueue = (typeof OM !== 'undefined' ? OM.q() : (D.g("offline_queue") || []));
+    
+    // Remove invoices that are queued for offline deletion so they don't resurrect
+    var deletedIds = offlineQueue.filter(function(t){ return t.type === 'invoice_delete'; }).map(function(t){ return t.id; });
+    normalized = normalized.filter(function(inv) {
+        return deletedIds.indexOf(inv.id) === -1 && deletedIds.indexOf(inv._id) === -1 && deletedIds.indexOf(inv.invoiceNo) === -1;
+    });
+
+    var offlineInvs = offlineQueue.filter(function(t){ return t.type === 'invoice_save'; }).map(function(t){ return t.inv; });
+    offlineInvs.forEach(function(oinv) {
+        if (!normalized.find(function(n){ return n.id === oinv.id; })) {
+            normalized.push(oinv);
+        }
+    });
+
     IM._all = normalized;
     D.s('invoices', IM._all);
     IM.sortAndSyncNextNo();
@@ -3576,8 +4011,8 @@ if(!list.length){tb.innerHTML='<tr><td colspan="6"><div class="empty-state"><i c
 var h="";
 list.forEach(function(inv,i){
 var totalQty=0;if(inv.items)inv.items.forEach(function(it){totalQty+=(it.qty||0)});
-var invKey = String(inv.id || inv._id || '');
-h+='<tr><td><a href="#" onclick="SM.open(\''+invKey+'\'); return false;" style="color:var(--tg);text-decoration:none;font-weight:700">#'+U.pi(inv.invoiceNo)+'</a></td><td>'+U.fd(inv.date)+'</td><td>'+(inv.receiver?U.esc(inv.receiver.name):"-")+'</td><td>'+(inv.items?inv.items.length:0)+'</td><td class="tr" style="font-weight:600">'+U.fm(inv.totalAmount)+'</td><td class="text-right"><button class="btn-icon" onclick="SM.shareInvoiceWhatsapp(\''+invKey+'\')" title="Share via WhatsApp" style="color:#25D366;font-size:1.15rem"><i class="ph ph-whatsapp-logo"></i></button> <button class="btn-icon" onclick="BM.editInvoice(\''+invKey+'\')" title="Edit"><i class="ph ph-pencil-simple"></i></button> <button class="btn-icon" onclick="SM.printInvoice(\''+invKey+'\')" title="Print"><i class="ph ph-printer"></i></button> <button class="btn-icon" onclick="SM.open(\''+invKey+'\')" title="Share"><i class="ph ph-share-network"></i></button> <button class="btn-icon" onclick="IM.del(\''+invKey+'\')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td></tr>';
+var invKey = String(inv.id || inv._id || inv.invoiceNo || '');
+h+='<tr><td><a href="#" onclick="SM.open(\''+invKey+'\'); return false;" style="color:var(--tg);text-decoration:none;font-weight:700">#'+U.pi(inv.invoiceNo)+'</a></td><td>'+U.fd(inv.date)+'</td><td>'+(inv.receiver?U.esc(inv.receiver.name):"-")+'</td><td>'+(inv.items?inv.items.length:0)+'</td><td class="tr" style="font-weight:600">'+U.fm(inv.totalAmount)+'</td><td class="text-right"><button class="btn-icon" onclick="SM.downloadPdf(\''+invKey+'\')" title="Download PDF" style="color:#e11d48"><i class="ph ph-file-pdf"></i></button> <button class="btn-icon" onclick="SM.shareInvoiceWhatsapp(\''+invKey+'\')" title="Share via WhatsApp" style="color:#25D366;font-size:1.15rem"><i class="ph ph-whatsapp-logo"></i></button> <button class="btn-icon" onclick="BM.editInvoice(\''+invKey+'\')" title="Edit"><i class="ph ph-pencil-simple"></i></button> <button class="btn-icon" onclick="SM.printInvoice(\''+invKey+'\')" title="Print"><i class="ph ph-printer"></i></button> <button class="btn-icon" onclick="SM.open(\''+invKey+'\')" title="Share"><i class="ph ph-share-network"></i></button> <button class="btn-icon" onclick="IM.del(\''+invKey+'\')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td></tr>';
 });
 tb.innerHTML=h;
 },
@@ -3622,15 +4057,22 @@ U.toast("Invoice deleted", "info");
 if (typeof RTM !== 'undefined' && RTM.broadcastLocal) RTM.broadcastLocal('invoice_deleted', { id: idStr });
 
 // 4. Background server deletion
+var deleteUrl = (API_URL || location.origin + '/api') + '/invoices/' + encodeURIComponent(idStr);
 try {
-    await fetch((API_URL || location.origin + '/api') + '/invoices/' + encodeURIComponent(idStr), { method: 'DELETE' });
+    await fetch(deleteUrl, { method: 'DELETE' });
     fetch((API_URL || location.origin + '/api') + '/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nextInvoiceNo: newNextNo })
-    }).catch(function(){});
+    }).catch(function(){
+        if (typeof OM !== 'undefined') OM.push({ type: 'settings_update', settings: { nextInvoiceNo: newNextNo } });
+    });
 } catch(err) {
     console.warn("Background server deletion warning:", err.message);
+    if (typeof OM !== 'undefined') {
+        OM.push({ type: 'invoice_delete', url: deleteUrl, id: idStr });
+        OM.push({ type: 'settings_update', settings: { nextInvoiceNo: newNextNo } });
+    }
 }
 }
 };
@@ -4257,6 +4699,21 @@ load: async function(){
         }
     }
 
+    // --- MIGRATION: Push local data to empty MongoDB ---
+    if (API_MODE === "local" && bootstrapDone && Array.isArray(data.invoices) && data.invoices.length === 0) {
+        var localInvoices = D.g("invoices") || [];
+        if (localInvoices.length > 0) {
+            console.log("Migrating " + localInvoices.length + " invoices to MongoDB...");
+            for (var i=0; i<localInvoices.length; i++) {
+                try {
+                    await fetch(API_URL + '/invoices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(localInvoices[i]) });
+                } catch(e) {}
+            }
+            App.load(); // Reload after migration
+            return;
+        }
+    }
+
     App.updateSyncStatus('synced');
 },
 
@@ -4290,6 +4747,46 @@ try{
 }
 UI.init();
 
+// Advanced Feature: Barcode Scanner Rapid-Entry Mode
+var _barcodeBuffer = "";
+var _barcodeTimeout = null;
+document.addEventListener('keypress', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'Enter') {
+        if (_barcodeBuffer.length > 2) {
+            var prod = (PDM._all || []).find(function(p) { return String(p.id) === _barcodeBuffer || String(p.hsn) === _barcodeBuffer; });
+            if (prod) {
+                if (!document.getElementById('billing-view').classList.contains('active')) {
+                    UI.show('billing-view');
+                }
+                BM.items.push({
+                    id: 'it_' + Date.now(),
+                    productId: prod.id,
+                    description: prod.name,
+                    hsn: prod.hsn || '',
+                    qty: 1,
+                    rate: prod.price || 0,
+                    amount: prod.price || 0,
+                    calcType: 'qty',
+                    meters: 0,
+                    cms: 0
+                });
+                BM._r();
+                U.toast("Scanned: " + prod.name, "success");
+            } else {
+                U.toast("Barcode not recognized: " + _barcodeBuffer, "warning");
+            }
+        }
+        _barcodeBuffer = "";
+        return;
+    }
+    
+    if (e.key.length === 1) {
+        _barcodeBuffer += e.key;
+        clearTimeout(_barcodeTimeout);
+        _barcodeTimeout = setTimeout(function() { _barcodeBuffer = ""; }, 50);
+    }
+});
 
 // Diagnostic guard: ensure proper authentication display
 window.addEventListener('load', function(){
@@ -4411,8 +4908,8 @@ function renderWhatsappModal(state, data) {
 
     if (isBotConnected) {
         updateWhatsappSidebarDot(true, false);
-        var userPhone = (data && data.user && data.user.phone) || "9441753678";
-        var userName = (data && data.user && data.user.name) || "Anudeep Khadi Bandar";
+        var userPhone = (data && data.user && data.user.phone) ? data.user.phone : "Unknown";
+        var userName = (data && data.user && data.user.name) ? data.user.name : "Anudeep Khadi Bandar";
 
         var waSt = (STM._settings && STM._settings.whatsapp) || D.go("whatsapp") || (D.go("settings") && D.go("settings").whatsapp) || { enabled: true };
         var isAutoWaEnabled = waSt.enabled !== false;
@@ -4535,7 +5032,7 @@ function renderWhatsappModal(state, data) {
                     codeDisplay +
                     '<label style="font-size:0.8rem; font-weight:700; color:var(--fg); display:block; margin-bottom:4px;">Enter your WhatsApp Phone Number:</label>' +
                     '<div style="display:flex; gap:8px; margin-bottom:8px;">' +
-                        '<input type="text" id="wa-pairing-phone" value="9441753678" placeholder="91XXXXXXXXXX" style="flex:1; padding:8px 10px; font-size:0.88rem; border:1px solid var(--bd); border-radius:6px;" />' +
+                            '<input type="text" id="wa-pairing-phone" value="" placeholder="91XXXXXXXXXX" style="flex:1; padding:8px 10px; font-size:0.88rem; border:1px solid var(--bd); border-radius:6px;" />' +
                         '<button type="button" id="btn-request-pairing" onclick="requestWhatsappPairingCode()" class="btn btn-primary" style="white-space:nowrap; padding:8px 14px; background:#25D366; border-color:#25D366; font-weight:700;"><i class="ph ph-key"></i> Get Code</button>' +
                     '</div>' +
                     '<div style="font-size:0.74rem; color:var(--tl); line-height:1.35;">No camera required! On your phone, tap <b>"Link with phone number instead"</b> at the bottom of the camera screen and type the 8-digit code.</div>' +
@@ -4793,7 +5290,32 @@ window.addEventListener('keydown', function(e) {
         e.preventDefault();
         UI.show('invoices-view');
     }
+    if (e.ctrlKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        if (typeof handleCtrlP === 'function') handleCtrlP();
+    }
 });
+
+window.handleCtrlP = function() {
+    var bView = document.getElementById('billing-view');
+    if (bView && bView.classList.contains('active')) {
+        if (typeof BM !== 'undefined' && BM.save) {
+            BM.save();
+        }
+    } else if (typeof SM !== 'undefined' && SM.currentInv) {
+        SM.printInvoice(SM.currentInv.id || SM.currentInv._id || SM.currentInv.invoiceNo);
+    } else {
+        if (typeof U !== 'undefined' && U.toast) {
+            U.toast("No active invoice to print. Open or generate one first.", "warning");
+        } else {
+            if (window.electronAPI && window.electronAPI.printSilent) {
+                window.electronAPI.printSilent();
+            } else {
+                window.print();
+            }
+        }
+    }
+};
 
 /* ===== PWA SERVICE WORKER REGISTRATION ===== */
 try {
@@ -4829,6 +5351,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 window.addEventListener('online', function() {
     U.toast("Online connection restored! Synchronizing...", "success");
     if (typeof App !== 'undefined' && App.load) App.load();
+    if (typeof OM !== 'undefined' && OM.process) setTimeout(function(){ OM.process(); }, 2000);
 });
 window.addEventListener('offline', function() {
     U.toast("Working offline. Invoices safely preserved locally.", "info");
@@ -4972,3 +5495,4 @@ setTimeout(function() {
 </script>
 </body>
 </html>
+
