@@ -76,13 +76,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static frontend files from project root
-app.use(express.static(path.join(__dirname)));
-
 const os = require('os');
 const appDataDir = process.env.APPDATA || (process.platform === 'darwin' ? path.join(os.homedir(), 'Library', 'Application Support') : path.join(os.homedir(), '.local', 'share'));
 const AKB_DIR = path.join(appDataDir, 'AnudeepKhadiBandar');
 if (!fs.existsSync(AKB_DIR)) fs.mkdirSync(AKB_DIR, { recursive: true });
+
+// Serve updated frontend files from AppData first (allows auto-updater to work)
+app.use(express.static(AKB_DIR));
+
+// Fallback to static frontend files from project root
+app.use(express.static(path.join(__dirname)));
 
 // Set up tmp dir for file uploads
 const tmpDir = path.join(AKB_DIR, 'tmp');
