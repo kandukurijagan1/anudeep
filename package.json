@@ -1,5 +1,6 @@
 {
   "name": "akb-billing-backend",
+  "homepage": "https://kandukurijagan1.github.io/anudeep/",
   "version": "1.0.0",
   "description": "Backend for AKB billing app with invoice history persistence",
   "main": "electron-main.js",
