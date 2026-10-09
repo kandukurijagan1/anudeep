@@ -14,6 +14,7 @@
 <link rel="manifest" href="manifest.json">
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 :root{--p:#8B4513;--pd:#5e2f0d;--pl:#fef2e6;--bg:#f3f4f6;--sf:#fff;--td:#1f2937;--tl:#6b7280;--dg:#ef4444;--sc:#10b981;--bd:#e5e7eb;--sw:260px;--tg:#0088cc;--em:#D44638}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--td)}
@@ -58,8 +59,9 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 .content-section{padding:1.5rem;animation:fi .3s ease;display:none;z-index:1}.content-section.active{display:block}
 @keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.25rem;margin-bottom:2rem}
-.dash-layout{display:grid;grid-template-columns:1.4fr 1fr;gap:1.5rem;margin-top:1.5rem}
-@media(max-width:992px){.dash-layout{grid-template-columns:1fr}}
+.dash-layout{display:grid;grid-template-columns:1fr;gap:1.5rem;margin-top:1.5rem}
+.charts-layout{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1.5rem}
+@media(max-width:992px){.charts-layout{grid-template-columns:1fr}}
 .card{background:rgba(255,255,255,.9);padding:1.5rem;border-radius:.75rem;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid var(--bd)}
 .card h3{margin:0 0 1rem}.stat-card{position:relative;overflow:hidden}
 .stat-card::after{content:"";position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;background:var(--pl);opacity:.5}
@@ -105,7 +107,7 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 .inv-items-table th,.inv-items-table td{border:1px solid #000;padding:.45rem .5rem;text-align:center;vertical-align:middle}
 .inv-items-table th{background:#f0f0f0;font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.3px}
 .inv-items-table .tl{text-align:left}.inv-items-table .tr{text-align:right}
-.add-item-row{display:grid;grid-template-columns:85px minmax(180px,2fr) minmax(80px,.65fr) minmax(70px,.45fr) minmax(75px,.6fr) minmax(70px,.6fr) minmax(90px,.8fr) auto;gap:.35rem;align-items:end;padding:.6rem 1.1rem;background:#fafafa;border-bottom:1px solid #000;overflow-x:auto}
+.add-item-row{display:grid;grid-template-columns:85px minmax(180px,2fr) minmax(80px,.65fr) minmax(70px,.45fr) minmax(75px,.6fr) minmax(70px,.6fr) minmax(90px,.8fr) 85px;gap:.35rem;align-items:end;padding:.6rem 1.1rem;background:#fafafa;border-bottom:1px solid #000;overflow-x:auto;min-width:850px}
 .add-item-row .inv-form-field input{font-size:.8rem;padding:.4rem}
 .item-calc-type-bar{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem; padding:.55rem 1.1rem; background:linear-gradient(to right, #f8fafc, #f1f5f9); border-bottom:1px solid #e2e8f0; font-size:.83rem}
 .btn-calc-mode{padding:5px 12px; font-size:.8rem; font-weight:600; border:none; border-radius:4px; cursor:pointer; background:transparent; color:var(--td); display:inline-flex; align-items:center; gap:5px; transition:all .2s ease}
@@ -535,13 +537,137 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 </div>
 <form id="login-form">
 <div class="form-group"><label>User ID</label><input type="text" id="username" placeholder="Enter User ID" required autocomplete="off"></div>
-<div class="form-group"><label>Password</label><input type="password" id="password" placeholder="Enter Password"></div>
+<div class="form-group">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+    <label style="margin:0;">Password</label>
+    <a href="#" onclick="showForgotPasswordModal(); return false;" style="font-size:0.8rem; color:var(--p); text-decoration:none; font-weight:500;">Forgot Password?</a>
+  </div>
+  <input type="password" id="password" placeholder="Enter Password">
+</div>
 <div style="display:flex; align-items:center; gap:8px; margin-top:8px; margin-bottom:12px;">
     <input type="checkbox" id="login-remember" style="width:16px; height:16px; cursor:pointer;">
     <label for="login-remember" style="font-size:0.85rem; color:var(--mg); cursor:pointer; user-select:none; margin:0;">Remember password</label>
 </div>
 <button type="submit" class="btn btn-primary w-full"><i class="ph ph-sign-in"></i> Login to Dashboard</button>
 </form></div></section>
+
+<!-- Forgot Password Modal -->
+<div id="modal-forgot-pwd" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; backdrop-filter: blur(2px);">
+  <div class="modal" style="max-width:400px;background:#fff;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.1);padding:25px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h3 style="margin:0;font-size:1.2rem;color:#1f2937;">Reset Password</h3>
+      <button class="btn-icon" onclick="document.getElementById('modal-forgot-pwd').style.display='none'" style="color:#6b7280;background:transparent;border:none;cursor:pointer;font-size:1.2rem;">&times;</button>
+    </div>
+    
+    <div id="fp-step-1">
+      <div class="form-group">
+        <label>Registered Admin Email</label>
+        <input type="email" id="fp-contact" class="form-control" placeholder="admin@email.com">
+      </div>
+      <button class="btn btn-primary w-full" onclick="FP.requestOTP()" id="btn-request-otp">Send OTP</button>
+    </div>
+    
+    <div id="fp-step-2" style="display:none;">
+      <div class="form-group">
+        <label>Enter OTP</label>
+        <input type="text" id="fp-otp" class="form-control" placeholder="6-digit code">
+      </div>
+      <button class="btn btn-primary w-full" onclick="FP.verifyOTP()" id="btn-verify-otp">Verify OTP</button>
+    </div>
+
+    <div id="fp-step-3" style="display:none;">
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" id="fp-new-pwd" class="form-control" placeholder="Enter new password">
+      </div>
+      <button class="btn btn-primary w-full" onclick="FP.resetPassword()" id="btn-reset-pwd">Change Password</button>
+    </div>
+  </div>
+</div>
+<script>
+function showForgotPasswordModal() {
+    document.getElementById('modal-forgot-pwd').style.display='flex';
+    document.getElementById('fp-step-1').style.display='block';
+    document.getElementById('fp-step-2').style.display='none';
+    document.getElementById('fp-step-3').style.display='none';
+    document.getElementById('fp-contact').value='';
+    document.getElementById('fp-otp').value='';
+    document.getElementById('fp-new-pwd').value='';
+}
+const FP = {
+    contact: '',
+    requestOTP: async function() {
+        const contact = document.getElementById('fp-contact').value.trim();
+        if (!contact) return U.toast('Please enter your email address', 'warning');
+        
+        const btn = document.getElementById('btn-request-otp');
+        btn.innerText = 'Sending...'; btn.disabled = true;
+        
+        try {
+            const res = await fetch('http://localhost:3000/api/auth/forgot-password', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({contact})
+            });
+            const data = await res.json();
+            btn.innerText = 'Send OTP'; btn.disabled = false;
+            
+            if (data.success) {
+                this.contact = contact;
+                U.toast(data.message, 'success');
+                document.getElementById('fp-step-1').style.display='none';
+                document.getElementById('fp-step-2').style.display='block';
+            } else {
+                U.toast(data.error || 'Failed to send OTP', 'error');
+            }
+        } catch(e) {
+            btn.innerText = 'Send OTP'; btn.disabled = false;
+            U.toast('Network error: Is the backend running?', 'error');
+        }
+    },
+    verifyOTP: async function() {
+        const otp = document.getElementById('fp-otp').value.trim();
+        if (!otp) return U.toast('Please enter OTP', 'warning');
+        
+        const btn = document.getElementById('btn-verify-otp');
+        btn.innerText = 'Verifying...'; btn.disabled = true;
+        
+        try {
+            const res = await fetch('http://localhost:3000/api/auth/verify-otp', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({contact: this.contact, otp})
+            });
+            const data = await res.json();
+            btn.innerText = 'Verify OTP'; btn.disabled = false;
+            
+            if (data.success) {
+                U.toast(data.message, 'success');
+                document.getElementById('fp-step-2').style.display='none';
+                document.getElementById('fp-step-3').style.display='block';
+            } else {
+                U.toast(data.error || 'Invalid OTP', 'error');
+            }
+        } catch(e) {
+            btn.innerText = 'Verify OTP'; btn.disabled = false;
+            U.toast('Network error', 'error');
+        }
+    },
+    resetPassword: function() {
+        const newPwd = document.getElementById('fp-new-pwd').value.trim();
+        if (!newPwd || newPwd.length < 4) return U.toast('Password must be at least 4 chars', 'warning');
+        
+        localStorage.setItem("akb_auth_pwd", newPwd);
+        
+        if (localStorage.getItem("akb_saved_pwd")) {
+            localStorage.setItem("akb_saved_pwd", newPwd);
+        }
+        
+        U.toast('Password changed successfully! You can now login.', 'success');
+        document.getElementById('modal-forgot-pwd').style.display='none';
+        
+        document.getElementById('password').value = newPwd;
+    }
+};
+</script>
 
 <!-- Dev convenience: bypass login for local testing -->
 <!-- <div style="position:fixed;right:18px;bottom:18px;z-index:9999"> 
@@ -621,11 +747,19 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
         </table>
       </div>
     </div>
-    
+    </div>
+  </div>
+  <div class="charts-layout">
     <div class="card" style="margin:0; display:flex; flex-direction:column; justify-content:space-between;">
       <h3 style="margin-bottom:0.5rem;"><i class="ph ph-chart-bar" style="color:var(--p)"></i> Weekly Sales Trend</h3>
-      <div id="dash-chart-container" style="flex-grow:1; display:flex; flex-direction:column; justify-content:center;">
-        <div class="empty-state"><i class="ph ph-chart-bar"></i>Calculating weekly stats...</div>
+      <div id="dash-chart-container" style="flex-grow:1; display:flex; flex-direction:column; justify-content:center; position:relative; min-height:220px;">
+        <canvas id="weeklySalesChart"></canvas>
+      </div>
+    </div>
+    <div class="card" style="margin:0; display:flex; flex-direction:column; justify-content:space-between;">
+      <h3 style="margin-bottom:0.5rem;"><i class="ph ph-chart-pie" style="color:var(--p)"></i> Top Products</h3>
+      <div id="dash-pie-container" style="flex-grow:1; display:flex; flex-direction:column; justify-content:center; position:relative; min-height:220px;">
+        <canvas id="topProductsChart"></canvas>
       </div>
     </div>
   </div>
@@ -691,20 +825,39 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
     Calculation: 0 Qty × ₹0.00 = ₹0.00
   </div>
 </div>
-<div class="add-item-row" id="add-item-row" style="overflow-x:auto;">
-<div class="inv-form-field"><label>Bale No</label><input type="text" id="b-pb" placeholder="1" value="1"></div>
-<div class="inv-form-field"><label>Product</label><select id="b-pn"><option value="">Select product...</option></select></div>
-<div class="inv-form-field"><label>HSN CODE</label><input type="text" id="b-ph" readonly style="background:#f3f4f6"></div>
-<div class="inv-form-field"><label id="lbl-pq">Qty <span style="color:var(--p);font-weight:700;">★</span></label><input type="number" id="b-pq" value="0" min="0"></div>
-<div class="inv-form-field"><label id="lbl-pm">Meters</label><input type="text" id="b-pm" value="0" placeholder="e.g. 10.5"></div>
-<div class="inv-form-field"><label id="lbl-pc">Cms</label><input type="text" id="b-pc" value="0" placeholder="0"></div>
-<div class="inv-form-field"><label id="lbl-pp">Rate (₹/pc)</label><input type="number" id="b-pp" step="0.01" placeholder="0"></div>
-<div class="inv-form-field" style="align-self:end"><button class="btn btn-primary" onclick="BM.addItem()" style="white-space:nowrap;padding:.45rem .8rem;font-size:.8rem"><i class="ph ph-plus"></i> Add</button></div>
-</div>
-<div class="inv-form-section" style="overflow-x:auto">
-<table class="inv-items-table"><thead><tr><th style="width:65px">Bale No</th><th class="tl">Description</th><th style="width:85px">HSN CODE</th><th style="width:42px">Qty</th><th style="width:75px">MTS.CMS</th><th style="width:80px">Rate</th><th style="width:95px">Amount</th><th style="width:32px"></th></tr></thead><tbody id="b-it"></tbody></table>
+<div class="inv-form-section" style="overflow-x:auto; background:#fff; border:1px solid var(--bd); border-radius:8px; padding:0;">
+<table class="inv-items-table" style="width:100%; min-width:850px; border-collapse:collapse;">
+  <thead style="background:#f8fafc;">
+    <tr>
+      <th style="width:75px">Bale No</th>
+      <th class="tl">Product Description</th>
+      <th style="width:95px">HSN CODE</th>
+      <th style="width:70px">Qty <span style="color:var(--p);">★</span></th>
+      <th style="width:75px">Meters</th>
+      <th style="width:70px">Cms</th>
+      <th style="width:90px">Rate (₹)</th>
+      <th style="width:70px">Action</th>
+    </tr>
+    <tr class="add-item-table-row" style="background:#fafafa; border-bottom:2px solid #cbd5e1;">
+      <td style="padding:0.4rem"><input type="text" id="b-pb" placeholder="1" value="1" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid #ccc; border-radius:4px;"></td>
+      <td style="padding:0.4rem; position:relative;">
+        <input type="text" id="b-pn" list="product-list-dl" placeholder="Select or type product..." autocomplete="off" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid #ccc; border-radius:4px;">
+        <datalist id="product-list-dl"></datalist>
+      </td>
+      <td style="padding:0.4rem"><input type="text" id="b-ph" readonly style="width:100%; padding:0.4rem; font-size:0.85rem; background:#f1f5f9; border:1px solid #ccc; border-radius:4px;"></td>
+      <td style="padding:0.4rem"><input type="number" id="b-pq" value="0" min="0" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid #ccc; border-radius:4px;"></td>
+      <td style="padding:0.4rem"><input type="text" id="b-pm" value="0" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid #ccc; border-radius:4px;"></td>
+      <td style="padding:0.4rem"><input type="text" id="b-pc" value="0" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid #ccc; border-radius:4px;"></td>
+      <td style="padding:0.4rem"><input type="number" id="b-pp" step="0.01" placeholder="0" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid #ccc; border-radius:4px;"></td>
+      <td style="padding:0.4rem"><button class="btn btn-primary" onclick="BM.addItem()" style="width:100%; padding:0.4rem; font-size:0.85rem;"><i class="ph ph-plus"></i> Add</button></td>
+    </tr>
+  </thead>
+  <tbody id="b-it"></tbody>
+</table>
 <div id="b-em" class="empty-state" style="padding:1.5rem;display:none"><i class="ph ph-shopping-bag-open"></i>No items added.</div>
-</div></div></div>
+</div>
+</div>
+</div>
 <div class="inv-summary no-print">
 <h3><i class="ph ph-calculator"></i> Summary</h3><div id="b-tot"></div>
 <button id="btn-generate" class="btn btn-success w-full mt-4" onclick="BM.save()"><i class="ph ph-check-circle"></i> Generate Invoice</button>
@@ -759,6 +912,47 @@ header{background:rgba(255,255,255,.95);backdrop-filter:blur(8px);padding:1rem 1
 
 <section id="settings-view" class="content-section">
 <div class="settings-grid">
+
+<div class="settings-card">
+<div class="settings-card-head"><i class="ph ph-lock-key"></i> Security & Login Settings</div>
+<div class="settings-card-body">
+  <button class="btn btn-secondary" id="btn-reveal-pwd-change" onclick="document.getElementById('pwd-change-form').style.display='block'; this.style.display='none';" style="width:100%; justify-content:center; margin-bottom: 1rem;"><i class="ph ph-key"></i> Change App Password</button>
+  
+  <div id="pwd-change-form" style="display:none;">
+    <div class="form-group" style="margin-bottom: 0.8rem">
+      <label>Current App Password</label>
+      <input type="password" id="s-cur-pwd" class="form-control" placeholder="Enter current password">
+    </div>
+    <div class="form-group" style="margin-bottom: 0.8rem">
+      <label>New App Password</label>
+      <input type="password" id="s-new-pwd" class="form-control" placeholder="Enter new password" oninput="STM.checkPwdMatch()">
+    </div>
+    <div class="form-group">
+      <label>Confirm New Password <span id="pwd-match-indicator" style="float:right; font-size: 0.85rem; font-weight: 600;"></span></label>
+      <input type="password" id="s-confirm-pwd" class="form-control" placeholder="Re-enter new password" oninput="STM.checkPwdMatch()">
+      <div class="settings-hint">Default initial password is sridhar@1975.</div>
+    </div>
+    <button class="btn btn-primary" onclick="STM.savePassword()" style="margin-top:.75rem"><i class="ph ph-floppy-disk"></i> Save Password</button>
+  </div>
+</div>
+</div>
+
+<div class="settings-card">
+<div class="settings-card-head"><i class="ph ph-envelope"></i> OTP Allowed Emails</div>
+<div class="settings-card-body">
+  <div class="form-group">
+    <label>Add New Email for OTP Validation</label>
+    <div style="display:flex;gap:10px;">
+      <input type="email" id="s-new-otp-email" class="form-control" placeholder="example@email.com">
+      <button class="btn btn-primary" onclick="STM.addOtpEmail()"><i class="ph ph-plus"></i> Add</button>
+    </div>
+    <div class="settings-hint">Add emails that are authorized to request OTP password resets.</div>
+  </div>
+  <div id="otp-emails-list" style="margin-top:1rem; font-size:0.9rem; background:#f9fafb; padding:10px; border-radius:6px; border:1px solid var(--bd);">
+    Loading emails...
+  </div>
+</div>
+</div>
 
 <div class="settings-card">
 <div class="settings-card-head"><i class="ph ph-printer"></i> Invoice / Bill Print Settings</div>
@@ -1116,76 +1310,16 @@ var BN="AXIS BANK, TENALI",BA="914020009962721",BI="UTIB0000556",BAN="Anudeep Kh
 var GU="left-god.jpg";
 var HU="right-god.jpg";
 var CR=2.5,SR=2.5,IR=5;
-var CLOUD_GAS_URL = "https://script.google.com/macros/s/AKfycbwQ7p_7xWmKTPMxo6KW20HtCeetKik85x9-EFi1xrO7Z8oMQ1Fpbet3SQfQk4KfBI2q/exec";
+var CLOUD_GAS_URL = "https://script.google.com/macros/s/AKfycbxEt_fGucY7fNAxpSatT4RPlvWf_bB1YsbRWELSqI0YcYG6zw9MHBXjXOF1NMQk8QVD/exec";
 var isLocalHost = location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === "" || location.protocol === "file:";
 var API_URL = ((location.origin && location.origin.startsWith("http")) ? (location.origin + "/api") : "http://localhost:3000/api");
 var API_MODE = localStorage.getItem("akb_db_mode") || "local";
 var API_LATENCY_MS = 0;
 
 async function resolveApiUrl(forceRefresh) {
-    var storedMode = localStorage.getItem("akb_db_mode") || "local";
-    API_MODE = storedMode;
-
-    if (API_MODE === "cloud") {
-        API_MODE = "local"; // Force upgrade to local DB for speed
-    }
-
-    // 1. Instant session cache hit (0ms)
-    var cached = sessionStorage.getItem("akb_cached_api_url");
-    if (!forceRefresh && cached) {
-        API_URL = cached;
-        return API_URL;
-    }
-
-    // If already initialized with a local endpoint on localhost, commit to session and return instantly
-    if (!forceRefresh && isLocalHost && API_URL && (API_URL.includes("localhost") || API_URL.startsWith(location.origin))) {
-        sessionStorage.setItem("akb_cached_api_url", API_URL);
-        return API_URL;
-    }
-
-    // 2. Parallel fastest-responder candidate race
-    var candidates = [];
-    if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app") && !location.origin.includes("script.google.com")) {
-        candidates.push(location.origin + "/api");
-    }
-    if (isLocalHost) {
-        candidates.push("http://localhost:3000/api");
-        candidates.push("http://127.0.0.1:3000/api");
-    }
-
-    // Remove duplicates
-    candidates = candidates.filter(function(v, i, a) { return a.indexOf(v) === i; });
-
-    if (candidates.length > 0) {
-        try {
-            var fastest = await Promise.any(candidates.map(async function(cand) {
-                var t0 = performance.now();
-                var ctrl = new AbortController();
-                var timer = setTimeout(function(){ ctrl.abort(); }, 2000);
-                var res = await originalFetch(cand + "/health", { signal: ctrl.signal });
-                clearTimeout(timer);
-                if (res.ok) {
-                    var json = await res.json().catch(function(){ return {}; });
-                    return { url: cand, latency: Math.max(1, Math.round(performance.now() - t0)), db: json.database };
-                }
-                throw new Error("unreachable");
-            }));
-
-            if (fastest) {
-                API_URL = fastest.url;
-                API_LATENCY_MS = fastest.latency;
-                sessionStorage.setItem("akb_cached_api_url", API_URL);
-                return API_URL;
-            }
-        } catch(e) {}
-    }
-
-    if (API_MODE === "local") {
-        API_URL = isLocalHost ? "http://localhost:3000/api" : (location.origin + "/api");
-        return API_URL;
-    }
-
     API_URL = CLOUD_GAS_URL;
+    API_MODE = "cloud";
+    sessionStorage.setItem("akb_cached_api_url", API_URL);
     return API_URL;
 }
 
@@ -1402,7 +1536,8 @@ init:function(){
         var p=document.getElementById("password").value.trim();
         var un = (u||"").toLowerCase();
         console.debug("Login attempt:",un);
-        if(un==="sridhar" && p==="sridhar@1975"){
+        var currentPwd = localStorage.getItem("akb_auth_pwd") || "sridhar@1975";
+        if(un==="sridhar" && p===currentPwd){
             if (document.getElementById("login-remember").checked) {
                 localStorage.setItem("akb_saved_user", u);
                 localStorage.setItem("akb_saved_pwd", p);
@@ -1452,7 +1587,10 @@ ok:function(){
 out:function(){
     sessionStorage.removeItem("akb_auth");
     localStorage.removeItem("akb_auth_persistent");
-    location.reload();
+    document.getElementById("app-container").classList.remove("active");
+    document.getElementById("login-screen").style.display="flex";
+    document.getElementById("l-pwd").value = "";
+    U.toast("Session locked securely", "success");
 }
 };
 
@@ -1467,7 +1605,7 @@ document.getElementById("fpy").addEventListener("submit",PM.save);
 document.getElementById("current-date").innerText=new Date().toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
 document.querySelectorAll(".modal-overlay").forEach(function(o){o.addEventListener("click",function(e){if(e.target===o)UI.cl(o.id)})});
 
-document.getElementById("b-pn").addEventListener("change",function(){
+document.getElementById("b-pn").addEventListener("input",function(){
     var v=this.value.trim().toLowerCase(),ps=PDM._all.length ? PDM._all : D.g("products"),f=ps.find(function(p){return p.name.toLowerCase()===v});
     if(f){
         document.getElementById("b-ph").value=f.hsn || "";
@@ -1475,14 +1613,11 @@ document.getElementById("b-pn").addEventListener("change",function(){
         if(f.calcType || f.billingType){
             BM.setCalcMode(f.calcType || f.billingType);
         }
-    }else{
-        document.getElementById("b-ph").value="";
-        document.getElementById("b-pp").value=""; 
     }
     BM.updateLiveCalcPreview();
 });
 
-["b-sc","b-pos","b-rsc","b-rst"].forEach(function(id){
+["b-sc","b-pos","b-rsc","b-rst","b-ssc","b-sst"].forEach(function(id){
     var el = document.getElementById(id);
     if(el) {
         el.addEventListener("input", function() { BM.calcSummary(); });
@@ -1524,7 +1659,7 @@ function bindStateAuto(codeId, nameId) {
         if(ALL_STATE_MAP[pad]) {
             ne.value = ALL_STATE_MAP[pad];
         }
-        if(codeId === "b-rsc") {
+        if(codeId === "b-rsc" || codeId === "b-ssc") {
             var bsc = document.getElementById("b-sc");
             if(bsc && sc) bsc.value = sc;
             var bpos = document.getElementById("b-pos");
@@ -1537,7 +1672,7 @@ function bindStateAuto(codeId, nameId) {
         var sn = ne.value.trim().toLowerCase();
         if(ALL_STATE_REV[sn]) {
             ce.value = ALL_STATE_REV[sn];
-            if(codeId === "b-rsc") {
+            if(codeId === "b-rsc" || codeId === "b-ssc") {
                 var bsc = document.getElementById("b-sc");
                 if(bsc) bsc.value = ALL_STATE_REV[sn];
                 var bpos = document.getElementById("b-pos");
@@ -1677,6 +1812,12 @@ function bindPartyAutocomplete(inputId, dropdownId, partyType) {
                         document.getElementById("b-sg").value = match.gstin || "";
                         document.getElementById("b-sst").value = match.state || "";
                         document.getElementById("b-ssc").value = match.stateCode || match.statecode || "";
+                        if (match.stateCode || match.statecode) {
+                            document.getElementById("b-sc").value = match.stateCode || match.statecode || "";
+                        }
+                        if (match.state) {
+                            document.getElementById("b-pos").value = match.state;
+                        }
                     }
                     dropdown.style.display = "none";
                     U.toast("Customer info auto-filled for " + match.name, "success");
@@ -1693,6 +1834,66 @@ function bindPartyAutocomplete(inputId, dropdownId, partyType) {
 }
 bindPartyAutocomplete("b-rn", "rn-autocomplete", "receiver");
 bindPartyAutocomplete("b-sn", "sn-autocomplete", "consignee");
+
+function bindProductAutocomplete(inputId, dropdownId) {
+    var input = document.getElementById(inputId);
+    var dropdown = document.getElementById(dropdownId);
+    if (!input || !dropdown) return;
+
+    function renderDropdown() {
+        var v = input.value.trim().toLowerCase();
+        var ps = PDM._all.length ? PDM._all : (D.g("products") || []);
+        var matches = ps;
+        
+        if (v) {
+            matches = ps.filter(function(p) { return p.name.toLowerCase().includes(v) || (p.hsn && String(p.hsn).toLowerCase().includes(v)); });
+        }
+        
+        matches = matches.slice(0, 30); // Show up to 30 products
+        
+        if (matches.length > 0) {
+            var h = '';
+            matches.forEach(function(p) {
+                h += '<div class="smart-autocomplete-item" data-id="' + p.id + '">' +
+                     '<div class="name">' + p.name + ' <span style="font-size:0.7rem;color:#888;">(' + (p.hsn||"") + ')</span></div>' +
+                     '<div class="meta">Rate: ₹' + p.price + '</div>' +
+                     '</div>';
+            });
+            dropdown.innerHTML = h;
+            dropdown.style.display = "block";
+            
+            dropdown.querySelectorAll(".smart-autocomplete-item").forEach(function(el) {
+                el.addEventListener("click", function() {
+                    var id = this.getAttribute("data-id");
+                    var match = ps.find(function(p) { return p.id === id; });
+                    if (match) {
+                        input.value = match.name;
+                        document.getElementById("b-ph").value = match.hsn || "";
+                        document.getElementById("b-pp").value = match.price || "";
+                        if(match.calcType || match.billingType){
+                            BM.setCalcMode(match.calcType || match.billingType);
+                        }
+                        BM.updateLiveCalcPreview();
+                    }
+                    dropdown.style.display = "none";
+                });
+            });
+        } else {
+            dropdown.style.display = "none";
+        }
+    }
+
+    input.addEventListener("input", renderDropdown);
+    input.addEventListener("focus", renderDropdown);
+    input.addEventListener("click", renderDropdown);
+
+    document.addEventListener("click", function(e) {
+        if (!dropdown.contains(e.target) && e.target !== input) {
+            dropdown.style.display = "none";
+        }
+    });
+}
+bindProductAutocomplete("b-pn", "pn-autocomplete");
 
 UI.loadTheme();
 },
@@ -1764,10 +1965,20 @@ applySettings:function(data){
     if (!STM._settings.nextInvoiceNo && localSt.nextInvoiceNo) {
         STM._settings.nextInvoiceNo = localSt.nextInvoiceNo;
     }
+    
+    // Merge local adminEmails if GAS didn't return any or returned an empty list
+    if ((!STM._settings.adminEmails || STM._settings.adminEmails.length === 0) && localSt.adminEmails && localSt.adminEmails.length > 0) {
+        STM._settings.adminEmails = localSt.adminEmails;
+    } else if (STM._settings.adminEmails && localSt.adminEmails) {
+        // Merge unique emails
+        STM._settings.adminEmails = Array.from(new Set([...STM._settings.adminEmails, ...localSt.adminEmails]));
+    }
+    
     D.s("settings", {
         nextInvoiceNo: STM._settings.nextInvoiceNo,
         inactivityTimeout: STM._settings.inactivityTimeout !== undefined ? STM._settings.inactivityTimeout : 300000,
-        whatsapp: STM._settings.whatsapp || { enabled: true }
+        whatsapp: STM._settings.whatsapp || { enabled: true },
+        adminEmails: STM._settings.adminEmails
     });
     if (STM._settings.telegram) D.s("telegram", STM._settings.telegram);
     if (STM._settings.whatsapp) D.s("whatsapp", STM._settings.whatsapp);
@@ -1820,6 +2031,11 @@ loadUI:function(){
     }
     var inactivityTimeout = STM._settings.inactivityTimeout !== undefined ? STM._settings.inactivityTimeout : (D.go("settings").inactivityTimeout !== undefined ? D.go("settings").inactivityTimeout : 300000);
     document.getElementById("s-sec-timeout").value = inactivityTimeout;
+
+    if (!STM._settings.adminEmails) {
+        STM._settings.adminEmails = ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'];
+    }
+    STM.renderOtpEmails();
 
     // WhatsApp settings UI
     var waSt = (STM._settings && STM._settings.whatsapp) || D.go("whatsapp") || (D.go("settings") && D.go("settings").whatsapp) || { enabled: true };
@@ -1932,6 +2148,144 @@ savePrintSettings: function() {
     localStorage.setItem('akb_print_settings', JSON.stringify(settings));
     U.toast("Print settings saved successfully!", "success");
 },
+checkPwdMatch: function() {
+    var newPwd = document.getElementById("s-new-pwd").value;
+    var confPwd = document.getElementById("s-confirm-pwd").value;
+    var ind = document.getElementById("pwd-match-indicator");
+    if (!newPwd && !confPwd) {
+        ind.textContent = "";
+    } else if (newPwd === confPwd) {
+        ind.innerHTML = '<span style="color:#10b981"><i class="ph ph-check-circle"></i> Matches</span>';
+    } else {
+        ind.innerHTML = '<span style="color:#ef4444"><i class="ph ph-x-circle"></i> Does not match</span>';
+    }
+},
+savePassword: function() {
+    var curPwd = document.getElementById("s-cur-pwd").value.trim();
+    var newPwd = document.getElementById("s-new-pwd").value.trim();
+    var confPwd = document.getElementById("s-confirm-pwd").value.trim();
+    
+    var actualCurPwd = localStorage.getItem('akb_auth_pwd') || "sridhar@1975";
+    
+    if (!curPwd) {
+        U.toast("Please enter your current password.", "warning");
+        return;
+    }
+    if (curPwd !== actualCurPwd) {
+        U.toast("Current password is incorrect.", "error");
+        return;
+    }
+    if (!newPwd) {
+        U.toast("Please enter a new password.", "warning");
+        return;
+    }
+    if (newPwd !== confPwd) {
+        U.toast("New passwords do not match.", "error");
+        return;
+    }
+    
+    localStorage.setItem('akb_auth_pwd', newPwd);
+    document.getElementById("s-cur-pwd").value = "";
+    document.getElementById("s-new-pwd").value = "";
+    document.getElementById("s-confirm-pwd").value = "";
+    document.getElementById("pwd-match-indicator").innerHTML = "";
+    U.toast("App password changed successfully!", "success");
+},
+saveSecurity:async function(){
+    var timeout = parseInt(document.getElementById("s-sec-timeout").value);
+    
+    // ⚡ Optimistic UI Update (Instant)
+    var st = D.go("settings");
+    st.inactivityTimeout = timeout;
+    D.s("settings", st);
+    if (typeof resetActivityTimer === "function") resetActivityTimer();
+    U.toast("⚡ Security settings saved!", "success");
+
+    // ⚡ Background DB Sync
+    (async function() {
+        try {
+            await fetch((API_URL || location.origin + '/api') + '/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ inactivityTimeout: timeout })
+            });
+        } catch(e) {
+            console.warn("Background security sync queued:", e.message);
+        }
+    })();
+    STM.loadUI();
+},
+renderOtpEmails: function() {
+    var emails = STM._settings.adminEmails || ['kandukurijagan99@gmail.com'];
+    var container = document.getElementById("otp-emails-list");
+    if (!container) return;
+    if (emails.length === 0) {
+        container.innerHTML = "<em>No emails configured.</em>";
+        return;
+    }
+    var h = '<div style="display:flex; flex-direction:column; gap:6px;">';
+    emails.forEach(function(em, idx) {
+        h += '<div style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:6px 10px; border-radius:4px; border:1px solid #e2e8f0;">' + 
+             '<span>' + U.esc(em) + '</span>' + 
+             '<button class="btn-tiny" style="color:var(--dg); padding:4px;" onclick="STM.removeOtpEmail(' + idx + ')" title="Remove"><i class="ph ph-trash"></i></button>' +
+             '</div>';
+    });
+    h += '</div>';
+    container.innerHTML = h;
+},
+addOtpEmail: async function() {
+    var emInput = document.getElementById("s-new-otp-email");
+    var em = emInput.value.trim().toLowerCase();
+    if (!em || !em.includes("@")) { U.toast("Enter a valid email", "warning"); return; }
+    if (!STM._settings.adminEmails) STM._settings.adminEmails = [];
+    if (STM._settings.adminEmails.includes(em)) { U.toast("Email already added", "info"); return; }
+    
+    STM._settings.adminEmails.push(em);
+    emInput.value = "";
+    STM.renderOtpEmails();
+    await STM.saveOtpEmails();
+},
+removeOtpEmail: async function(idx) {
+    if (!STM._settings.adminEmails) return;
+    STM._settings.adminEmails.splice(idx, 1);
+    STM.renderOtpEmails();
+    await STM.saveOtpEmails();
+},
+saveOtpEmails: async function() {
+    var emails = STM._settings.adminEmails || [];
+    var st = D.go("settings") || {};
+    st.adminEmails = emails;
+    D.s("settings", st);
+    U.toast("⚡ OTP Emails saved locally!", "success");
+
+    // ⚡ Background DB Sync
+    fetch((API_URL || location.origin + '/api') + '/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminEmails: emails })
+    }).catch(function(e){ console.warn("Background OTP emails sync queued:", e.message) });
+},
+savePrintSettings: function() {
+    var settings = {
+        watermarkOpacity: parseInt(document.getElementById("s-wm-opacity").value) || 10,
+        copyType: document.getElementById("s-bill-copy-type").value || 'original',
+        tcLine1: document.getElementById("s-tc-line1").value,
+        tcLine2: document.getElementById("s-tc-line2").value,
+        tcLine3: document.getElementById("s-tc-line3").value
+    };
+    localStorage.setItem('akb_print_settings', JSON.stringify(settings));
+    U.toast("Print settings saved successfully!", "success");
+},
+savePassword: function() {
+    var newPwd = document.getElementById("s-new-pwd").value.trim();
+    if (!newPwd) {
+        U.toast("Please enter a new password.", "warning");
+        return;
+    }
+    localStorage.setItem('akb_auth_pwd', newPwd);
+    document.getElementById("s-new-pwd").value = "";
+    U.toast("App password changed successfully!", "success");
+},
 saveSecurity:async function(){
     var timeout = parseInt(document.getElementById("s-sec-timeout").value);
     
@@ -1956,6 +2310,29 @@ saveSecurity:async function(){
     })();
     await STM.fetchSettings();
     STM.loadUI();
+},
+save:async function(){
+    var token = document.getElementById("s-tg-token").value.trim();
+    var chatId = document.getElementById("s-tg-chat").value.trim();
+    
+    // ⚡ Optimistic UI Update (Instant)
+    D.s("telegram", { token: token, chatId: chatId });
+    STM.loadUI();
+    U.toast("⚡ Telegram settings saved!", "success");
+
+    // ⚡ Background DB Sync
+    (async function() {
+        try {
+            await fetch((API_URL || location.origin + '/api') + '/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telegram: { token: token, chatId: chatId } })
+            });
+            await STM.fetchSettings();
+        } catch(e) {
+            console.warn("Background telegram settings sync queued:", e.message);
+        }
+    })();
 },
 testConnection:function(){
     var tg = STM._settings.telegram || D.go("telegram") || {};
@@ -2098,24 +2475,20 @@ inv.items.forEach(function(it,i){
 }
 lines.push("".padEnd(72,"-"));
 
-var sc = String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || '37').trim();
-var posName = String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').toLowerCase();
+var sc = String(inv.stateCode || (inv.consignee && inv.consignee.stateCode) || (inv.receiver && inv.receiver.stateCode) || '').trim();
+var posName = String(inv.placeOfSupply || (inv.consignee && inv.consignee.state) || (inv.receiver && inv.receiver.state) || '').toLowerCase();
 var isWithinAP = U.isAndhraPradesh(sc, posName);
 var isInter = inv.isInterState !== undefined ? inv.isInterState : !isWithinAP;
 
 var cgstVal = 0, sgstVal = 0, igstVal = 0, totGst = 0;
 lines.push("Taxable Value:".padEnd(58)+U.fm(inv.taxableAmount).padEnd(12));
-if (isInter) {
-    igstVal = inv.igstAmount !== undefined ? inv.igstAmount : parseFloat(((inv.taxableAmount || 0) * IR / 100).toFixed(2));
-    totGst = igstVal;
-    lines.push(("ADD IGST @ "+IR+"%:").padEnd(58)+U.fm(igstVal).padEnd(12));
-} else {
-    cgstVal = inv.cgstAmount !== undefined ? inv.cgstAmount : parseFloat(((inv.taxableAmount || 0) * CR / 100).toFixed(2));
-    sgstVal = inv.sgstAmount !== undefined ? inv.sgstAmount : parseFloat(((inv.taxableAmount || 0) * SR / 100).toFixed(2));
-    totGst = parseFloat((cgstVal + sgstVal).toFixed(2));
+    igstVal = inv.igstAmount !== undefined ? inv.igstAmount : (isInter ? parseFloat(((inv.taxableAmount || 0) * IR / 100).toFixed(2)) : 0);
+    cgstVal = inv.cgstAmount !== undefined ? inv.cgstAmount : (!isInter ? parseFloat(((inv.taxableAmount || 0) * CR / 100).toFixed(2)) : 0);
+    sgstVal = inv.sgstAmount !== undefined ? inv.sgstAmount : (!isInter ? parseFloat(((inv.taxableAmount || 0) * SR / 100).toFixed(2)) : 0);
+    totGst = parseFloat((igstVal + cgstVal + sgstVal).toFixed(2));
     lines.push(("ADD CGST @ "+CR+"%:").padEnd(58)+U.fm(cgstVal).padEnd(12));
     lines.push(("ADD SGST @ "+SR+"%:").padEnd(58)+U.fm(sgstVal).padEnd(12));
-}
+    lines.push(("ADD IGST @ "+IR+"%:").padEnd(58)+U.fm(igstVal).padEnd(12));
 lines.push(("TOTAL GST (5%):").padEnd(58)+U.fm(totGst).padEnd(12));
 var pRo = inv.roundOff !== undefined ? inv.roundOff : (inv.totalAmount - (inv.rawGrandTotal || inv.totalAmount));
 var pRoSign = pRo >= 0 ? "+" : "-";
@@ -2153,8 +2526,8 @@ copyText:function(){
 },
 
 generatePrintHTML:function(inv){
-    var sc=String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || '37').trim();
-    var posName=String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').toLowerCase();
+    var sc=String(inv.stateCode || (inv.consignee && inv.consignee.stateCode) || (inv.receiver && inv.receiver.stateCode) || '').trim();
+    var posName=String(inv.placeOfSupply || (inv.consignee && inv.consignee.state) || (inv.receiver && inv.receiver.state) || '').toLowerCase();
     var isWithinAP=U.isAndhraPradesh(sc, posName);
     var isInter=inv.isInterState !== undefined ? inv.isInterState : !isWithinAP;
 
@@ -2177,26 +2550,20 @@ generatePrintHTML:function(inv){
     }
 
     var cgstAmt = 0, sgstAmt = 0, igstAmt = 0, totalGst = 0;
-    if (isInter) {
-        igstAmt = inv.igstAmount !== undefined ? inv.igstAmount : parseFloat(((inv.taxableAmount || 0) * IR / 100).toFixed(2));
-        totalGst = igstAmt;
-    } else {
-        cgstAmt = inv.cgstAmount !== undefined ? inv.cgstAmount : parseFloat(((inv.taxableAmount || 0) * CR / 100).toFixed(2));
-        sgstAmt = inv.sgstAmount !== undefined ? inv.sgstAmount : parseFloat(((inv.taxableAmount || 0) * SR / 100).toFixed(2));
-        totalGst = parseFloat((cgstAmt + sgstAmt).toFixed(2));
-    }
 
+    igstAmt = inv.igstAmount !== undefined ? inv.igstAmount : (isInter ? parseFloat(((inv.taxableAmount || 0) * IR / 100).toFixed(2)) : 0);
+    cgstAmt = inv.cgstAmount !== undefined ? inv.cgstAmount : (!isInter ? parseFloat(((inv.taxableAmount || 0) * CR / 100).toFixed(2)) : 0);
+    sgstAmt = inv.sgstAmount !== undefined ? inv.sgstAmount : (!isInter ? parseFloat(((inv.taxableAmount || 0) * SR / 100).toFixed(2)) : 0);
+    totalGst = parseFloat((igstAmt + cgstAmt + sgstAmt).toFixed(2));
+    
     var rawGT = (inv.taxableAmount || 0) + totalGst;
     var roVal = inv.roundOff !== undefined ? inv.roundOff : (Math.round(rawGT) - rawGT);
     var roStr = (roVal >= 0 ? '+ \u20B9' : '- \u20B9') + Math.abs(roVal).toFixed(2);
     var taxRows="";
     taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>Taxable Amount</span><span style="color:#000;">'+U.fm(inv.taxableAmount)+'</span></div>';
-    if (isInter) {
-        taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD IGST ('+IR+'%)</span><span style="color:#000;">'+U.fm(igstAmt)+'</span></div>';
-    } else {
-        taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD CGST ('+CR+'%)</span><span style="color:#000;">'+U.fm(cgstAmt)+'</span></div>';
-        taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD SGST ('+SR+'%)</span><span style="color:#000;">'+U.fm(sgstAmt)+'</span></div>';
-    }
+    taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD CGST ('+CR+'%)</span><span style="color:#000;">'+U.fm(cgstAmt)+'</span></div>';
+    taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD SGST ('+SR+'%)</span><span style="color:#000;">'+U.fm(sgstAmt)+'</span></div>';
+    taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD IGST ('+IR+'%)</span><span style="color:#000;">'+U.fm(igstAmt)+'</span></div>';
     taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; font-weight:bold;"><span>Total GST (5%)</span><span style="color:#000;">'+U.fm(totalGst)+'</span></div>';
     taxRows+='<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>Round Off</span><span style="color:#000;">'+roStr+'</span></div>';
 
@@ -2419,23 +2786,19 @@ generatePrintHTML:function(inv){
             });
         }
         lines.push("--------------------------------");
-        var sc = String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || '37').trim();
-        var posName = String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').toLowerCase();
+        var sc = String(inv.stateCode || (inv.consignee && inv.consignee.stateCode) || (inv.receiver && inv.receiver.stateCode) || '').trim();
+        var posName = String(inv.placeOfSupply || (inv.consignee && inv.consignee.state) || (inv.receiver && inv.receiver.state) || '').toLowerCase();
         var isWithinAP = U.isAndhraPradesh(sc, posName);
         var isInter = inv.isInterState !== undefined ? inv.isInterState : !isWithinAP;
 
         var cgstVal = 0, sgstVal = 0, igstVal = 0, totalGst = 0;
-        if (isInter) {
-            igstVal = inv.igstAmount !== undefined ? inv.igstAmount : parseFloat(((inv.taxableAmount || 0) * (IR || 5) / 100).toFixed(2));
-            totalGst = igstVal;
-            lines.push("➕ *ADD IGST @ 5%: ₹" + U.fm(igstVal) + "*");
-        } else {
-            cgstVal = inv.cgstAmount !== undefined ? inv.cgstAmount : parseFloat(((inv.taxableAmount || 0) * (CR || 2.5) / 100).toFixed(2));
-            sgstVal = inv.sgstAmount !== undefined ? inv.sgstAmount : parseFloat(((inv.taxableAmount || 0) * (SR || 2.5) / 100).toFixed(2));
-            totalGst = parseFloat((cgstVal + sgstVal).toFixed(2));
-            lines.push("➕ *ADD CGST @ 2.5%: ₹" + U.fm(cgstVal) + "*");
-            lines.push("➕ *ADD SGST @ 2.5%: ₹" + U.fm(sgstVal) + "*");
-        }
+        igstVal = inv.igstAmount !== undefined ? inv.igstAmount : (isInter ? parseFloat(((inv.taxableAmount || 0) * (IR || 5) / 100).toFixed(2)) : 0);
+        cgstVal = inv.cgstAmount !== undefined ? inv.cgstAmount : (!isInter ? parseFloat(((inv.taxableAmount || 0) * (CR || 2.5) / 100).toFixed(2)) : 0);
+        sgstVal = inv.sgstAmount !== undefined ? inv.sgstAmount : (!isInter ? parseFloat(((inv.taxableAmount || 0) * (SR || 2.5) / 100).toFixed(2)) : 0);
+        totalGst = parseFloat((igstVal + cgstVal + sgstVal).toFixed(2));
+        lines.push("➕ *ADD CGST @ 2.5%: ₹" + U.fm(cgstVal) + "*");
+        lines.push("➕ *ADD SGST @ 2.5%: ₹" + U.fm(sgstVal) + "*");
+        lines.push("➕ *ADD IGST @ 5%: ₹" + U.fm(igstVal) + "*");
         lines.push("📊 *Total GST (5%): ₹" + U.fm(totalGst) + "*");
         if (inv.roundOff) {
             var roSign = inv.roundOff >= 0 ? "+" : "";
@@ -2578,7 +2941,7 @@ generatePrintHTML:function(inv){
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ chat_id: cId, text: textMsg })
                 }).catch(function() {
-                    fetch((API_URL || location.origin + '/api') + '/sendTelegramMessage', {
+                    fetch(waApiBase + '/sendTelegramMessage', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ token: botToken, chatId: cId, text: textMsg })
@@ -2621,7 +2984,7 @@ generatePrintHTML:function(inv){
                         proxyFd.append('token', botToken);
                         proxyFd.append('chatId', cId);
                         proxyFd.append('file', blob, pdfName);
-                        fetch((API_URL || location.origin + '/api') + '/sendTelegramDocument', { method: 'POST', body: proxyFd }).catch(function(){});
+                        fetch(waApiBase + '/sendTelegramDocument', { method: 'POST', body: proxyFd }).catch(function(){});
                       });
                 });
             });
@@ -3065,16 +3428,7 @@ BM.updateProductDropdown();
 },
 
 updateProductDropdown: function() {
-    var ps = PDM._all.length ? PDM._all : D.g("products") || [];
-    var sel = document.getElementById("b-pn");
-    if (!sel) return;
-    sel.innerHTML = '<option value="">Select product...</option>';
-    ps.forEach(function(p){
-        var o = document.createElement("option");
-        o.value = p.name;
-        o.textContent = p.name;
-        sel.appendChild(o);
-    });
+    // Deprecated: Now using autocomplete input instead of select dropdown
 },
 
 addItem:function(){
@@ -3184,20 +3538,16 @@ var taxable=0;
 BM.items.forEach(function(it){taxable+=it.amount});
 taxable = parseFloat(taxable.toFixed(2));
 
-var sc = (document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "") || (document.getElementById("b-rsc") ? document.getElementById("b-rsc").value.trim() : "") || "37";
-var pos = (document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : "") || (document.getElementById("b-rst") ? document.getElementById("b-rst").value.trim() : "") || "Andhra Pradesh";
+var sc = (document.getElementById("b-sc") && document.getElementById("b-sc").offsetParent !== null) ? document.getElementById("b-sc").value.trim() : (document.getElementById("b-rsc") ? document.getElementById("b-rsc").value.trim() : "");
+var pos = (document.getElementById("b-pos") && document.getElementById("b-pos").offsetParent !== null) ? document.getElementById("b-pos").value.trim() : (document.getElementById("b-rst") ? document.getElementById("b-rst").value.trim() : "");
 var isWithinAP = U.isAndhraPradesh(sc, pos);
 var isInter = !isWithinAP;
 
 var cgst = 0, sgst = 0, igst = 0, totalGst = 0;
-if (isInter) {
-    igst = parseFloat((taxable * IR / 100).toFixed(2));
-    totalGst = igst;
-} else {
-    cgst = parseFloat((taxable * CR / 100).toFixed(2));
-    sgst = parseFloat((taxable * SR / 100).toFixed(2));
-    totalGst = parseFloat((cgst + sgst).toFixed(2));
-}
+igst = isInter ? parseFloat((taxable * IR / 100).toFixed(2)) : 0;
+cgst = !isInter ? parseFloat((taxable * CR / 100).toFixed(2)) : 0;
+sgst = !isInter ? parseFloat((taxable * SR / 100).toFixed(2)) : 0;
+totalGst = parseFloat((igst + cgst + sgst).toFixed(2));
 
 var rawTotal = parseFloat((taxable + totalGst).toFixed(2));
 var roundedTotal = Math.round(rawTotal);
@@ -3212,14 +3562,13 @@ h += '<div class="sum-row"><span style="font-weight:600">Taxable Value</span><sp
 h += '<div class="tax-box">';
 if (isInter) {
     h += '<div class="sum-row" style="color:#d97706; font-size:0.78rem; font-weight:700;"><i class="ph ph-globe" style="vertical-align:middle;"></i> Inter-State (State Code: ' + U.esc(sc) + ')</div>';
-    h += '<div class="sum-row"><span>ADD IGST @ '+IR+'%</span><span>'+U.fm(igst)+'</span></div>';
-    h += '<div class="sum-row" style="border-top:1px dashed #cbd5e1; margin-top:4px; padding-top:4px; font-weight:600; color:var(--p)"><span>Total GST (5%)</span><span>'+U.fm(totalGst)+'</span></div>';
 } else {
     h += '<div class="sum-row" style="color:#059669; font-size:0.78rem; font-weight:700;"><i class="ph ph-map-pin" style="vertical-align:middle;"></i> Intra-State (Andhra Pradesh - 37)</div>';
-    h += '<div class="sum-row"><span>ADD CGST @ '+CR+'%</span><span>'+U.fm(cgst)+'</span></div>';
-    h += '<div class="sum-row"><span>ADD SGST @ '+SR+'%</span><span>'+U.fm(sgst)+'</span></div>';
-    h += '<div class="sum-row" style="border-top:1px dashed #cbd5e1; margin-top:4px; padding-top:4px; font-weight:600; color:var(--p)"><span>Total GST (5%)</span><span>'+U.fm(totalGst)+'</span></div>';
 }
+h += '<div class="sum-row"><span>ADD CGST @ '+CR+'%</span><span>'+U.fm(cgst)+'</span></div>';
+h += '<div class="sum-row"><span>ADD SGST @ '+SR+'%</span><span>'+U.fm(sgst)+'</span></div>';
+h += '<div class="sum-row"><span>ADD IGST @ '+IR+'%</span><span>'+U.fm(igst)+'</span></div>';
+h += '<div class="sum-row" style="border-top:1px dashed #cbd5e1; margin-top:4px; padding-top:4px; font-weight:600; color:var(--p)"><span>Total GST (5%)</span><span>'+U.fm(totalGst)+'</span></div>';
 h += '</div>';
 
 h += '<div class="sum-row" style="font-size:.82rem; color:var(--tl);"><span>Round Off</span><span>'+formattedRoundOff+'</span></div>';
@@ -3230,7 +3579,7 @@ h += '</div>';
 h += '<div style="font-size:.72rem; color:var(--tl); margin-top:.45rem; line-height:1.4; font-style:italic;">'+U.numWords(roundedTotal)+'</div>';
 
 document.getElementById("b-tot").innerHTML=h;
-BM._calc={taxable:taxable,cgst:cgst,sgst:sgst,igst:igst,totalGst:totalGst,rawTotal:rawTotal,roundOff:roundOff,total:roundedTotal,isInter:isInter};
+BM._calc={taxable:taxable,cgst:cgst,sgst:sgst,igst:igst,totalGst:totalGst,rawTotal:rawTotal,roundOff:roundOff,total:roundedTotal,isInter:isInter,sc:sc,pos:pos};
 
 var mTotalEl = document.getElementById("m-grand-total");
 if (mTotalEl) mTotalEl.textContent = U.fm(roundedTotal);
@@ -3268,7 +3617,7 @@ editInvoice: function(id) {
     document.getElementById("b-sdate").value = inv.supplyDate || "";
     document.getElementById("b-bundles").value = inv.bundles || "0";
     document.getElementById("b-pos").value = inv.placeOfSupply || "";
-    document.getElementById("b-sc").value = inv.stateCode || "37";
+    document.getElementById("b-sc").value = inv.stateCode || "";
     
     if(inv.receiver) {
         document.getElementById("b-rn").value = inv.receiver.name || "";
@@ -3347,8 +3696,8 @@ save: async function(){
         transportDate:document.getElementById("b-tdate").value,
         supplyDate:document.getElementById("b-sdate").value,
         bundles:document.getElementById("b-bundles").value,
-        placeOfSupply:document.getElementById("b-pos").value.trim(),
-        stateCode:document.getElementById("b-sc").value.trim(),
+        placeOfSupply:c.pos,
+        stateCode:c.sc,
         receiver:{
             name:rn,
             phone:rPhone || custPhone,
@@ -3540,15 +3889,24 @@ q=q.toLowerCase();PDM._draw(PDM._all.filter(function(p){return p.name.toLowerCas
 
 _draw:function(list){
 var tb=document.getElementById("pt");
-if(!list.length){tb.innerHTML='<tr><td colspan="5"><div class="empty-state"><i class="ph ph-t-shirt"></i>No products found.</div></td></tr>';return}
+if(!list.length){
+    if(tb) tb.innerHTML='<tr><td colspan="5"><div class="empty-state"><i class="ph ph-t-shirt"></i>No products found.</div></td></tr>';
+    var dl = document.getElementById("product-list-dl");
+    if(dl) dl.innerHTML = '';
+    return;
+}
 var h="";
+var dlh="";
 list.forEach(function(p){
     var isMeters = (p.calcType === 'meters' || p.billingType === 'meters');
     var badge = isMeters ? '<span style="font-size:0.75rem; color:#0369a1; background:#e0f2fe; padding:2px 8px; border-radius:4px; font-weight:600;"><i class="ph ph-ruler"></i> Cloth (Meters)</span>' : '<span style="font-size:0.75rem; color:#475569; background:#f1f5f9; padding:2px 8px; border-radius:4px; font-weight:600;"><i class="ph ph-hash"></i> By Qty</span>';
     var rateUnit = isMeters ? ' / mtr' : ' / pc';
     h+='<tr><td>'+U.esc(p.name)+'</td><td>'+U.esc(p.hsn)+'</td><td>'+badge+'</td><td>'+U.fm(p.price)+'<span style="font-size:0.75rem; color:var(--tl);">'+rateUnit+'</span></td><td class="text-right"><button class="btn-icon" onclick="PDM.edit('+p.id+')" title="Edit"><i class="ph ph-pencil-simple"></i></button> <button class="btn-icon" onclick="PDM.del('+p.id+')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td></tr>';
+    dlh+='<option value="'+U.esc(p.name)+'">HSN: '+U.esc(p.hsn)+' | ₹'+U.fm(p.price)+rateUnit+'</option>';
 });
-tb.innerHTML=h;
+if(tb) tb.innerHTML=h;
+var dl = document.getElementById("product-list-dl");
+if(dl) dl.innerHTML=dlh;
 },
 
 openAdd:function(){
@@ -3876,7 +4234,7 @@ document.getElementById(prefix+"a").value=p.address||"";
 document.getElementById(prefix+"st").value=p.state||"";
 document.getElementById(prefix+"g").value=p.gstin||"";
 document.getElementById(prefix+"sc").value=p.statecode||"37";
-if(PM._type==="receiver") {
+if(PM._type==="receiver" || PM._type==="consignee") {
     if(p.statecode) document.getElementById("b-sc").value = p.statecode;
     if(p.state) document.getElementById("b-pos").value = p.state;
 }
@@ -4118,20 +4476,70 @@ invs.forEach(function(inv) {
     }
 });
 
-var maxSales = Math.max.apply(Math, last7Days.map(function(d) { return d.sales; })) || 1;
-var chartHtml = '<div style="display:flex; justify-content:space-between; align-items:end; height:150px; padding:1.5rem 0.5rem 0.5rem 0.5rem; gap:.5rem;">';
-last7Days.forEach(function(day) {
-    var heightPct = Math.max(8, Math.round((day.sales / maxSales) * 120)); // scale height relative to container
-    var barColor = day.sales > 0 ? 'linear-gradient(180deg, #3f51b5, #1a237e)' : 'rgba(0,0,0,0.05)';
-    chartHtml += '  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:.5rem; height:100%; justify-content:end;">';
-    chartHtml += '    <div style="font-size:7.5pt; font-weight:700; color:var(--p); text-align:center;' + (day.sales > 0 ? '' : 'opacity:0;') + '">' + U.fm(day.sales).split('.')[0] + '</div>';
-    chartHtml += '    <div style="width:100%; height:' + heightPct + 'px; background:' + barColor + '; border-radius:4px; transition: height .3s ease;" title="' + day.label + ': ' + U.fm(day.sales) + '"></div>';
-    chartHtml += '    <div style="font-size:7.5pt; font-weight:600; color:var(--tl); text-align:center;">' + day.label + '</div>';
-    chartHtml += '  </div>';
-});
-chartHtml += '</div>';
-var chartContainer = document.getElementById("dash-chart-container");
-if (chartContainer) chartContainer.innerHTML = chartHtml;
+if (last7Days.length > 0) {
+    var maxSales = Math.max.apply(Math, last7Days.map(function(d) { return d.sales; })) || 1;
+    var ctxWeekly = document.getElementById("weeklySalesChart");
+    if (ctxWeekly && window.Chart) {
+        if(window.weeklyChartInstance) window.weeklyChartInstance.destroy();
+        window.weeklyChartInstance = new Chart(ctxWeekly, {
+            type: 'bar',
+            data: {
+                labels: last7Days.map(function(d){ return d.label; }),
+                datasets: [{
+                    label: 'Sales (₹)',
+                    data: last7Days.map(function(d){ return d.sales; }),
+                    backgroundColor: 'rgba(139, 69, 19, 0.7)',
+                    borderColor: 'rgba(139, 69, 19, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    var topProducts = {};
+    invs.forEach(function(inv){
+        if(inv.items){
+            inv.items.forEach(function(it){
+                if(it.description){
+                    if(!topProducts[it.description]) topProducts[it.description] = 0;
+                    topProducts[it.description] += (it.amount || 0);
+                }
+            });
+        }
+    });
+    
+    var sortedProducts = Object.keys(topProducts).map(function(k){ return {name: k, amount: topProducts[k]}; }).sort(function(a,b){ return b.amount - a.amount; }).slice(0, 5);
+    
+    var ctxPie = document.getElementById("topProductsChart");
+    if (ctxPie && window.Chart && sortedProducts.length > 0) {
+        if(window.pieChartInstance) window.pieChartInstance.destroy();
+        window.pieChartInstance = new Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: sortedProducts.map(function(p){ return p.name; }),
+                datasets: [{
+                    data: sortedProducts.map(function(p){ return p.amount; }),
+                    backgroundColor: ['#8B4513', '#A0522D', '#CD853F', '#D2B48C', '#F4A460'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } } }
+            }
+        });
+    } else if (ctxPie && sortedProducts.length === 0) {
+        var container = document.getElementById("dash-pie-container");
+        if(container) container.innerHTML = '<div class="empty-state"><i class="ph ph-chart-pie"></i>No product data yet.</div>';
+    }
+}
 }
 };
 
@@ -4210,9 +4618,9 @@ if (sortedProducts.length > 0) {
 
 h+='<div style="margin-top:1rem;padding:.75rem;background:var(--pl);border-radius:.5rem">';
 h+='<div class="sum-row"><span>Taxable Amount</span><span>'+U.fm(totalAmount-totalTax)+'</span></div>';
-if(totalIGST>0)h+='<div class="sum-row"><span>IGST</span><span>'+U.fm(totalIGST)+'</span></div>';
-if(totalCGST>0)h+='<div class="sum-row"><span>CGST</span><span>'+U.fm(totalCGST)+'</span></div>';
-if(totalSGST>0)h+='<div class="sum-row"><span>SGST</span><span>'+U.fm(totalSGST)+'</span></div>';
+h+='<div class="sum-row"><span>CGST</span><span>'+U.fm(totalCGST)+'</span></div>';
+h+='<div class="sum-row"><span>SGST</span><span>'+U.fm(totalSGST)+'</span></div>';
+h+='<div class="sum-row"><span>IGST</span><span>'+U.fm(totalIGST)+'</span></div>';
 h+='<div class="sum-row sum-total"><span>Grand Total</span><span>'+U.fm(totalAmount)+'</span></div>';
 h+='</div>';
 el.innerHTML=h;

@@ -58,26 +58,17 @@ function findNodeExecutable() {
 function startBackend() {
     return new Promise((resolve) => {
         try {
-            console.log('[Electron] Starting background Node backend...');
-            const nodeExe = findNodeExecutable();
+            console.log('[Electron] Starting background Node backend using Electron...');
             const serverJs = path.join(__dirname, 'server.js');
 
-            try {
-                serverChild = spawn(nodeExe, [serverJs], {
-                    cwd: __dirname,
-                    env: { ...process.env, PORT: '3000' },
-                    stdio: 'ignore',
-                    windowsHide: true
-                });
-            } catch (err) {
-                console.warn('[Electron] Primary spawn failed, trying process.execPath with ELECTRON_RUN_AS_NODE:', err.message);
-                serverChild = spawn(process.execPath, [serverJs], {
-                    cwd: __dirname,
-                    env: { ...process.env, PORT: '3000', ELECTRON_RUN_AS_NODE: '1' },
-                    stdio: 'ignore',
-                    windowsHide: true
-                });
-            }
+            const logPath = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'server.log');
+            const logFile = fs.openSync(logPath, 'a');
+            serverChild = spawn(process.execPath, [serverJs], {
+                cwd: __dirname,
+                env: { ...process.env, PORT: '3000', ELECTRON_RUN_AS_NODE: '1' },
+                stdio: ['ignore', logFile, logFile],
+                windowsHide: true
+            });
 
             if (serverChild) {
                 serverChild.on('error', (err) => {
@@ -286,7 +277,13 @@ async function createMainWindow() {
     // Workstation maximized desktop layout
     mainWindow.maximize();
 
-    mainWindow.once('ready-to-show', () => {
+    mainWindow.once('ready-to-show', async () => {
+        try {
+            await mainWindow.webContents.session.clearCache();
+            console.log('[Electron] Cleared web cache to ensure latest UI.');
+        } catch (e) {
+            console.warn('[Electron] Failed to clear cache', e);
+        }
         mainWindow.show();
         mainWindow.focus();
     });
@@ -323,8 +320,8 @@ async function createMainWindow() {
 
     mainWindow.on('close', (event) => {
         if (!isQuitting) {
-            // Minimize or clean close
-            // On desktop, user can exit via Tray or Menu
+            event.preventDefault();
+            mainWindow.hide();
         }
     });
 
@@ -358,12 +355,27 @@ app.on('before-quit', () => {
 
 app.on('window-all-closed', () => {
     if (serverChild) {
-        try {
-            console.log('[Electron] Terminating background server process...');
-            serverChild.kill();
-        } catch (_) {}
-    }
-    if (process.platform !== 'darwin') {
-        app.quit();
+        console.log('[Electron] Requesting graceful termination of background server...');
+        const req = http.request({
+            hostname: 'localhost',
+            port: 3000,
+            path: '/api/shutdown',
+            method: 'POST'
+        });
+        req.on('error', () => {});
+        req.end();
+
+        setTimeout(() => {
+            try {
+                serverChild.kill();
+            } catch (_) {}
+            if (process.platform !== 'darwin') {
+                app.quit();
+            }
+        }, 800);
+    } else {
+        if (process.platform !== 'darwin') {
+            app.quit();
+        }
     }
 });

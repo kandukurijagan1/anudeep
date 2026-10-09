@@ -1,5 +1,59 @@
 [
   {
+    "_id": "1791280453493",
+    "id": "1791280453493",
+    "invoiceNo": 4,
+    "date": "2026-10-06",
+    "reverseCharge": "No",
+    "transportMode": "tyghbjn",
+    "lrNo": "y7hu8ujio9",
+    "transportDate": "2026-10-06",
+    "supplyDate": "2026-10-06",
+    "bundles": "6",
+    "placeOfSupply": "Andhra Pradesh",
+    "stateCode": "37",
+    "receiver": {
+      "name": "Jagan Kandukuri",
+      "phone": "8367047947",
+      "address": "yuhj",
+      "gstin": "9876689",
+      "state": "Andhra Pradesh",
+      "stateCode": "37"
+    },
+    "consignee": {
+      "name": "Jagan Kandukuri",
+      "phone": "8367047947",
+      "address": "uhjm",
+      "gstin": "987568",
+      "state": "Andhra Pradesh",
+      "stateCode": "37"
+    },
+    "customerPhone": "8367047947",
+    "items": [
+      {
+        "baleNo": "1",
+        "description": "yiukj",
+        "hsn": "098698",
+        "calcType": "meters",
+        "rate": 7898,
+        "qty": 2,
+        "meters": 6,
+        "cms": 0,
+        "totalMeters": 6,
+        "amount": 47388
+      }
+    ],
+    "taxableAmount": 47388,
+    "cgstAmount": 1184.7,
+    "sgstAmount": 1184.7,
+    "igstAmount": 0,
+    "rawGrandTotal": 49757.4,
+    "roundOff": -0.4,
+    "totalAmount": 49757,
+    "isInterState": false,
+    "__v": 0
+  },
+  {
     "_id": "1791278392576",
     "id": "1791278392576",
     "invoiceNo": 3,

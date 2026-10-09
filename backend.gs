@@ -49,8 +49,14 @@ function authCheck(e, payload) {
 // ====== GET ROUTER ======
 function doGet(e) {
   try {
+    const action = (e && e.parameter && e.parameter.action);
+    if (!action) {
+      return HtmlService.createHtmlOutputFromFile('index')
+          .setTitle('Anudeep Khadi Bandar')
+          .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
+
     authCheck(e, null);
-    const action = (e && e.parameter && e.parameter.action) || 'bootstrap';
     let result = null;
     switch (action) {
       case 'bootstrap':
@@ -79,10 +85,12 @@ function doPost(e) {
       try { payload = JSON.parse(e.postData.contents); } catch (parseErr) { return respond({ error: 'Invalid JSON' }, 400); }
     }
     
-    // Auth Check
-    authCheck(e, payload);
-
     let action = (e && e.parameter && e.parameter.action) || payload.action || '';
+
+    // Auth Check
+    if (action !== 'sendOTP' && action !== 'getValidEmails') {
+      authCheck(e, payload);
+    }
     const idParam = (e && e.parameter && e.parameter.id) || payload.id || payload._id;
 
     let result = null;
@@ -110,6 +118,21 @@ function doPost(e) {
         
         case 'updateSettings': result = updateSettingsFast(payload); break;
         case 'batch': result = handleBatchFast(payload); break;
+        
+        case 'getValidEmails':
+          const settings = getSettingsFast();
+          result = { validEmails: settings.adminEmails || ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'] };
+          break;
+          
+        case 'sendOTP':
+          if (!payload.email) throw new Error('Email is required');
+          MailApp.sendEmail({
+            to: payload.email,
+            subject: "AKB Billing - Password Reset OTP",
+            body: `Your OTP for password reset is: ${payload.otp}. It is valid for 10 minutes.`
+          });
+          result = { success: true };
+          break;
         
         case 'uploadPdf':
           const fileBlob = e.parameter.file;

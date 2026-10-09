@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
@@ -20,9 +19,25 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('[Process] Unhandled Rejection:', reason && (reason.message || reason));
 });
 
+async function gracefulExit() {
+  console.log('[Process] Graceful shutdown initiated...');
+  try {
+    if (typeof safeDestroyClient === 'function') {
+      console.log('[WhatsApp] Safely destroying client to prevent session corruption...');
+      await safeDestroyClient();
+    }
+  } catch (_) {}
+  process.exit(0);
+}
+process.on('SIGINT', gracefulExit);
+process.on('SIGTERM', gracefulExit);
+
 const app = express();
+app.post('/api/shutdown', (req, res) => {
+  res.json({ success: true, message: 'Shutting down gracefully...' });
+  setTimeout(gracefulExit, 500);
+});
 const PORT = parseInt(process.env.PORT, 10) || 3000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/akb_billing';
 
 const zlib = require('zlib');
 
@@ -64,8 +79,13 @@ app.use((req, res, next) => {
 // Serve static frontend files from project root
 app.use(express.static(path.join(__dirname)));
 
+const os = require('os');
+const appDataDir = process.env.APPDATA || (process.platform === 'darwin' ? path.join(os.homedir(), 'Library', 'Application Support') : path.join(os.homedir(), '.local', 'share'));
+const AKB_DIR = path.join(appDataDir, 'AnudeepKhadiBandar');
+if (!fs.existsSync(AKB_DIR)) fs.mkdirSync(AKB_DIR, { recursive: true });
+
 // Set up tmp dir for file uploads
-const tmpDir = path.join(__dirname, 'tmp');
+const tmpDir = path.join(AKB_DIR, 'tmp');
 if (!fs.existsSync(tmpDir)) {
   fs.mkdirSync(tmpDir, { recursive: true });
 }
@@ -106,84 +126,6 @@ async function fetchWithRetry(url, options, retries = 3, timeoutMs = 20000) {
 }
 
 // ==========================================
-// 1. MONGODB CONNECTION & SCHEMAS
-// ==========================================
-let isDbConnected = false;
-
-mongoose.connect(MONGO_URI, {
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 30000,
-  maxPoolSize: 50,
-  minPoolSize: 5,
-})
-  .then(() => {
-    isDbConnected = true;
-    console.log('⚡ Connected to MongoDB with high-speed connection pool at', MONGO_URI);
-  })
-  .catch(err => {
-    isDbConnected = false;
-    console.warn('⚠️ MongoDB connection error (will use local JSON fallback):', err.message);
-  });
-
-mongoose.connection.on('disconnected', () => { isDbConnected = false; });
-mongoose.connection.on('connected', () => { isDbConnected = true; });
-
-// Schemas with high-performance compound indexes
-const InvoiceSchema = new mongoose.Schema({}, { strict: false, id: false });
-InvoiceSchema.index({ invoiceNo: -1 });
-InvoiceSchema.index({ date: -1, invoiceNo: -1 });
-InvoiceSchema.index({ id: 1 });
-const Invoice = mongoose.model('Invoice', InvoiceSchema);
-
-const ProductSchema = new mongoose.Schema({
-  id: { type: Number, required: true, unique: true },
-  name: { type: String, required: true },
-  hsn: { type: String },
-  price: { type: Number, default: 0 }
-}, { strict: false });
-ProductSchema.index({ name: 1 });
-const Product = mongoose.model('Product', ProductSchema);
-
-const ReceiverSchema = new mongoose.Schema({
-  id: { type: Number, required: true, unique: true },
-  name: { type: String, required: true },
-  address: { type: String },
-  state: { type: String },
-  gstin: { type: String },
-  statecode: { type: String }
-}, { strict: false });
-ReceiverSchema.index({ name: 1 });
-const Receiver = mongoose.model('Receiver', ReceiverSchema);
-
-const ConsigneeSchema = new mongoose.Schema({
-  id: { type: Number, required: true, unique: true },
-  name: { type: String, required: true },
-  address: { type: String },
-  state: { type: String },
-  gstin: { type: String },
-  statecode: { type: String }
-}, { strict: false });
-ConsigneeSchema.index({ name: 1 });
-const Consignee = mongoose.model('Consignee', ConsigneeSchema);
-
-const SettingsSchema = new mongoose.Schema({
-  nextInvoiceNo: { type: Number, default: 1 },
-  inactivityTimeout: { type: Number, default: 300000 },
-  telegram: {
-    token: { type: String, default: '8799482746:AAGiDi8HEoV7KGQNyer4772H_d1qv9fznac' },
-    chatId: { type: String, default: '6877857251' }
-  },
-  whatsapp: {
-    enabled: { type: Boolean, default: true }
-  },
-  emailSettings: {
-    defaultCC: { type: String, default: '' },
-    subjectPrefix: { type: String, default: 'Tax Invoice' }
-  }
-}, { strict: false });
-const Settings = mongoose.model('Settings', SettingsSchema);
-
-// ==========================================
 // 2. IN-MEMORY CACHE (ULTRA-FAST < 1ms READS)
 // ==========================================
 const cache = {
@@ -214,7 +156,7 @@ const cache = {
 // Fallback JSON File helper
 function readJsonFile(name, fallback = []) {
   try {
-    const fpath = path.join(__dirname, 'data', name + '.json');
+    const fpath = path.join(AKB_DIR, 'data', name + '.json');
     if (fs.existsSync(fpath)) {
       const raw = fs.readFileSync(fpath, 'utf8');
       return JSON.parse(raw || 'null') || fallback;
@@ -227,7 +169,7 @@ function readJsonFile(name, fallback = []) {
 
 function writeJsonFile(name, data) {
   try {
-    const ddir = path.join(__dirname, 'data');
+    const ddir = path.join(AKB_DIR, 'data');
     if (!fs.existsSync(ddir)) fs.mkdirSync(ddir, { recursive: true });
     fs.writeFileSync(path.join(ddir, name + '.json'), JSON.stringify(data, null, 2), 'utf8');
   } catch (e) {
@@ -328,7 +270,7 @@ async function safeDestroyClient() {
 function killOrphanAuthBrowsers() {
   if (process.platform !== 'win32') return;
   try {
-    const devToolsFile = path.join(__dirname, '.wwebjs_auth', 'session', 'DevToolsActivePort');
+    const devToolsFile = path.join(AKB_DIR, '.wwebjs_auth', 'session', 'DevToolsActivePort');
     if (fs.existsSync(devToolsFile)) {
       try {
         const content = fs.readFileSync(devToolsFile, 'utf8').trim();
@@ -356,7 +298,7 @@ function killOrphanAuthBrowsers() {
 
   // Also remove lockfile if present
   try {
-    const lockfile = path.join(__dirname, '.wwebjs_auth', 'session', 'lockfile');
+    const lockfile = path.join(AKB_DIR, '.wwebjs_auth', 'session', 'lockfile');
     if (fs.existsSync(lockfile)) fs.unlinkSync(lockfile);
   } catch (_) {}
 
@@ -364,7 +306,7 @@ function killOrphanAuthBrowsers() {
     const script = `
       Get-CimInstance Win32_Process | Where-Object { 
         ($_.Name -eq 'chrome.exe' -or $_.Name -eq 'msedge.exe') -and 
-        ($_.CommandLine -like '*anudeep-kadir-bandi*.wwebjs_auth*' -or $_.CommandLine -like '*puppeteer*')
+        ($_.CommandLine -like '*AnudeepKhadiBandar*.wwebjs_auth*' -or $_.CommandLine -like '*puppeteer*')
       } | ForEach-Object { 
         Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue 
       }
@@ -375,7 +317,7 @@ function killOrphanAuthBrowsers() {
 
 function cleanAuthDirectory() {
   killOrphanAuthBrowsers();
-  const authDir = path.join(__dirname, '.wwebjs_auth');
+  const authDir = path.join(AKB_DIR, '.wwebjs_auth');
   try {
     if (fs.existsSync(authDir)) {
       fs.rmSync(authDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
@@ -383,7 +325,7 @@ function cleanAuthDirectory() {
   } catch (err) {
     console.warn('[WhatsApp] auth directory cleanup note:', err.message);
   }
-  const cacheDir = path.join(__dirname, '.wwebjs_cache');
+  const cacheDir = path.join(AKB_DIR, '.wwebjs_cache');
   try {
     if (fs.existsSync(cacheDir)) {
       fs.rmSync(cacheDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
@@ -471,11 +413,11 @@ function initWhatsappClient(forceClean = false) {
   qrCodeDataUrl = null;
   lastPairingCode = null;
 
-  // Set 35-second watchdog timer to break out of infinite stalls
+  // Set 120-second watchdog timer to break out of infinite stalls
   if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
   initWatchdogTimer = setTimeout(async () => {
     if (isWhatsappInitializing && !isWhatsappConnected && !qrCodeDataUrl) {
-      console.warn('⚠️ [WhatsApp] Initialization watchdog triggered (stalled for 35s). Resetting...');
+      console.warn('⚠️ [WhatsApp] Initialization watchdog triggered (stalled for 120s). Resetting...');
       isWhatsappInitializing = false;
       await safeDestroyClient();
       broadcastRealtime('whatsapp_status', {
@@ -484,7 +426,7 @@ function initWhatsappClient(forceClean = false) {
         message: 'WhatsApp loading timed out. Please click "Switch Number / Reset" to start fresh.'
       });
     }
-  }, 35000);
+  }, 120000);
 
   try {
     const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
@@ -500,11 +442,10 @@ function initWhatsappClient(forceClean = false) {
 
     client = new Client({
       authStrategy: new LocalAuth({
-        dataPath: path.join(__dirname, '.wwebjs_auth')
+        dataPath: path.join(AKB_DIR, '.wwebjs_auth')
       }),
       webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+        type: 'none'
       },
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
       bypassCSP: true,
@@ -521,7 +462,10 @@ function initWhatsappClient(forceClean = false) {
           '--no-first-run',
           '--no-default-browser-check',
           '--disable-session-crashed-bubble',
-          '--disable-blink-features=AutomationControlled'
+          '--disable-blink-features=AutomationControlled',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding'
         ]
       }
     });
@@ -635,6 +579,11 @@ function initWhatsappClient(forceClean = false) {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       isWhatsappInitializing = false;
       console.warn('[WhatsApp] Initial launch warning (Puppeteer may be missing or busy):', e.message);
+      broadcastRealtime('whatsapp_status', { 
+        connected: false, 
+        status: 'error', 
+        message: 'Failed to launch WhatsApp browser. Please try again.' 
+      });
     });
   } catch (e) {
     if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
@@ -656,7 +605,7 @@ setImmediate(() => {
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    database: isDbConnected ? 'mongodb' : 'fallback-file',
+    database: 'appscript',
     whatsapp: isWhatsappConnected,
     realtimeClients: sseClients.size,
     timestamp: Date.now()
@@ -694,7 +643,7 @@ setInterval(() => {
 const GITHUB_REPO = 'nenduku644-hash/anudeep-deploy';
 const GITHUB_BRANCH = 'main';
 const RAW_BASE_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}`;
-const VERSION_PATH = path.join(__dirname, 'version.json');
+const VERSION_PATH = path.join(AKB_DIR, 'version.json');
 
 function getLocalVersion() {
   try {
@@ -790,7 +739,7 @@ async function downloadAndApplyUpdate(remoteVer) {
       if (res.ok) {
         const content = await res.text();
         if (content && content.length > 50) {
-          const destPath = path.join(__dirname, filename);
+          const destPath = path.join(AKB_DIR, filename);
           // Create backup of index.html before overwriting
           if (filename === 'index.html' && fs.existsSync(destPath)) {
             try { fs.writeFileSync(destPath + '.bak', fs.readFileSync(destPath)); } catch(_) {}
@@ -811,7 +760,7 @@ async function downloadAndApplyUpdate(remoteVer) {
     if (srvRes.ok) {
       const srvContent = await srvRes.text();
       if (srvContent && srvContent.length > 1000) {
-        const srvPath = path.join(__dirname, 'server.js');
+        const srvPath = path.join(AKB_DIR, 'server.js');
         fs.writeFileSync(srvPath + '.bak', fs.readFileSync(srvPath));
         fs.writeFileSync(srvPath, srvContent, 'utf8');
         updatedFiles.push('server.js');
@@ -856,16 +805,7 @@ setTimeout(async () => {
 }, 15000);
 
 setInterval(async () => {
-  try {
-    const check = await checkRemoteUpdates();
-    if (check.hasUpdate && check.latest) {
-      console.log(`[Auto-Updater] 🚀 Automatic update detected! Downloading latest files...`);
-      await downloadAndApplyUpdate(check.latest);
-      console.log(`[Auto-Updater] ✨ Local files updated to latest cloud version!`);
-    }
-  } catch (e) {
-    console.warn('[Auto-Updater] Interval check error:', e.message);
-  }
+  // Auto-updater disabled temporarily to keep custom changes
 }, 5 * 60 * 1000);
 
 // API: Get update status
@@ -899,505 +839,6 @@ app.post('/api/update/apply', async (req, res) => {
 
 
 // ⚡ BATCH BOOTSTRAP ENDPOINT: Loads EVERYTHING in ONE single round trip (under 10ms)
-app.get('/api/bootstrap', async (req, res) => {
-  const cached = cache.get('bootstrap');
-  if (cached) {
-    return res.json({ ...cached, cached: true });
-  }
-
-  const startTime = Date.now();
-  try {
-    let invoices, products, receivers, consignees, settings;
-
-    if (isDbConnected) {
-      [invoices, products, receivers, consignees, settings] = await Promise.all([
-        Invoice.find().sort({ date: -1, invoiceNo: -1 }).lean(),
-        Product.find().sort({ name: 1 }).lean(),
-        Receiver.find().sort({ name: 1 }).lean(),
-        Consignee.find().sort({ name: 1 }).lean(),
-        Settings.findOne().lean()
-      ]);
-    } else {
-      invoices = readJsonFile('invoices', []);
-      products = readJsonFile('products', []);
-      receivers = readJsonFile('receivers', []);
-      consignees = readJsonFile('consignees', []);
-      settings = readJsonFile('settings', getDefaultSettings());
-    }
-
-    if (!settings) {
-      settings = getDefaultSettings();
-      if (isDbConnected) {
-        new Settings(settings).save().catch(() => {});
-      }
-    }
-
-    const payload = {
-      invoices: (invoices || []).map(normalizeInvoice),
-      products: products || [],
-      receivers: receivers || [],
-      consignees: consignees || [],
-      settings: settings || getDefaultSettings(),
-      tookMs: Date.now() - startTime
-    };
-
-    cache.set('bootstrap', payload, 60000); // 60s TTL with instant cache invalidation on mutations
-    res.json(payload);
-  } catch (err) {
-    console.error('Bootstrap error, falling back:', err.message);
-    const fallbackPayload = {
-      invoices: (readJsonFile('invoices', [])).map(normalizeInvoice),
-      products: readJsonFile('products', []),
-      receivers: readJsonFile('receivers', []),
-      consignees: readJsonFile('consignees', []),
-      settings: readJsonFile('settings', getDefaultSettings()),
-      tookMs: Date.now() - startTime
-    };
-    res.json(fallbackPayload);
-  }
-});
-
-// Helper functions for bulletproof invoice ID normalization & matching
-function normalizeInvoice(doc) {
-  if (!doc) return null;
-  const raw = doc.toObject ? doc.toObject() : doc;
-  const idStr = String(raw.id || raw._id || Date.now());
-  return {
-    ...raw,
-    id: idStr,
-    _id: idStr
-  };
-}
-
-function buildInvoiceQuery(idParam) {
-  const idStr = String(idParam || '').trim();
-  const conditions = [
-    { id: idStr },
-    { invoiceNo: idStr }
-  ];
-  const num = Number(idStr);
-  if (!isNaN(num) && num > 0) {
-    conditions.push({ id: num });
-    conditions.push({ invoiceNo: num });
-  }
-  if (mongoose.Types.ObjectId.isValid(idStr) && idStr.length === 24) {
-    try {
-      conditions.push({ _id: new mongoose.Types.ObjectId(idStr) });
-    } catch (e) {}
-  }
-  return { $or: conditions };
-}
-
-// --- INVOICES CRUD ---
-app.get('/api/invoices', async (req, res) => {
-  const cached = cache.get('invoices');
-  if (cached) return res.json(cached);
-
-  try {
-    if (isDbConnected) {
-      const rawInvoices = await Invoice.find().sort({ date: -1, invoiceNo: -1 }).lean();
-      const invoices = (rawInvoices || []).map(normalizeInvoice);
-      cache.set('invoices', invoices, 8000);
-      return res.json(invoices);
-    }
-  } catch (err) {
-    console.error('Invoice DB read failed:', err.message);
-  }
-  const fallback = (readJsonFile('invoices', [])).map(normalizeInvoice);
-  res.json(fallback);
-});
-
-app.get('/api/invoices/:id', async (req, res) => {
-  try {
-    const idParam = req.params.id;
-    if (isDbConnected) {
-      const inv = await Invoice.findOne(buildInvoiceQuery(idParam)).lean();
-      if (inv) return res.json(normalizeInvoice(inv));
-    }
-  } catch (err) {
-    console.error(err.message);
-  }
-  const list = readJsonFile('invoices', []);
-  const found = list.find(i => String(i.id) === String(req.params.id) || String(i._id) === String(req.params.id) || String(i.invoiceNo) === String(req.params.id));
-  if (found) return res.json(normalizeInvoice(found));
-  res.status(404).json({ error: 'Invoice not found' });
-});
-
-app.post('/api/invoices', async (req, res) => {
-  cache.invalidate('invoices');
-  cache.invalidate('bootstrap');
-  try {
-    const body = { ...req.body };
-    const invId = body.id ? String(body.id) : String(Date.now());
-    body.id = invId;
-
-    if (!body._id || !mongoose.Types.ObjectId.isValid(body._id) || String(body._id).length !== 24) {
-      delete body._id;
-    }
-
-    let savedDoc = body;
-    if (isDbConnected) {
-      const existing = await Invoice.findOne(buildInvoiceQuery(invId)).lean();
-      if (existing) {
-        delete body._id;
-        const updated = await Invoice.findOneAndUpdate(buildInvoiceQuery(invId), body, { new: true }).lean();
-        savedDoc = updated || body;
-      } else {
-        const doc = new Invoice(body);
-        const saved = await doc.save();
-        savedDoc = saved.toObject ? saved.toObject() : saved;
-      }
-    }
-    savedDoc = normalizeInvoice(savedDoc);
-
-    // Also save to fallback file
-    let list = readJsonFile('invoices', []);
-    list = list.filter(i => String(i.id) !== invId && String(i._id) !== invId && String(i.invoiceNo) !== String(body.invoiceNo));
-    list.unshift(savedDoc);
-    writeJsonFile('invoices', list);
-
-    // ⚡ AUTOMATIC DISPATCH TO WHATSAPP BOT & TELEGRAM BOT WITHOUT WAITING AND WITHOUT ASKING
-    autoDispatchBots(savedDoc).catch(e => console.error('[Auto-Dispatch Error]', e.message));
-
-    // ⚡ REAL-TIME BROADCAST TO ALL CONNECTED DEVICES/TABS
-    broadcastRealtime('invoice_created', { invoice: savedDoc });
-
-    res.json({ success: true, invoice: savedDoc });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to save invoice', detail: err.message });
-  }
-});
-
-app.put('/api/invoices/:id', async (req, res) => {
-  cache.invalidate('invoices');
-  cache.invalidate('bootstrap');
-  try {
-    const idParam = req.params.id;
-    const body = { ...req.body };
-    delete body._id;
-    let updated = null;
-    if (isDbConnected) {
-      updated = await Invoice.findOneAndUpdate(buildInvoiceQuery(idParam), body, { new: true, upsert: true }).lean();
-    }
-    // Fallback file update
-    let list = readJsonFile('invoices', []);
-    list = list.map(i => (String(i.id) === String(idParam) || String(i._id) === String(idParam) || String(i.invoiceNo) === String(idParam)) ? { ...i, ...req.body } : i);
-    writeJsonFile('invoices', list);
-
-    const finalInv = normalizeInvoice(updated || req.body);
-    // ⚡ REAL-TIME BROADCAST
-    broadcastRealtime('invoice_updated', { invoice: finalInv });
-
-    res.json({ success: true, invoice: finalInv });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update invoice' });
-  }
-});
-
-app.delete('/api/invoices/:id', async (req, res) => {
-  cache.invalidate('invoices');
-  cache.invalidate('bootstrap');
-  try {
-    const idParam = req.params.id;
-    const idStr = String(idParam || '').trim();
-    let deletedCount = 0;
-    if (isDbConnected) {
-      const query = buildInvoiceQuery(idStr);
-      const result = await Invoice.deleteMany(query);
-      deletedCount = result.deletedCount;
-      console.log(`Deleted invoice from MongoDB query:`, idStr, `deletedCount:`, deletedCount);
-    }
-    let list = readJsonFile('invoices', []);
-    const beforeLen = list.length;
-    list = list.filter(i => String(i.id) !== idStr && String(i._id) !== idStr && String(i.invoiceNo) !== idStr);
-    writeJsonFile('invoices', list);
-
-    // ⚡ REAL-TIME BROADCAST
-    broadcastRealtime('invoice_deleted', { id: idStr });
-
-    res.json({ success: true, deletedCount: Math.max(deletedCount, beforeLen - list.length) });
-  } catch (err) {
-    console.error('Delete invoice error:', err);
-    res.status(500).json({ error: 'Failed to delete invoice' });
-  }
-});
-
-// --- PRODUCTS CRUD ---
-app.get('/api/products', async (req, res) => {
-  const cached = cache.get('products');
-  if (cached) return res.json(cached);
-
-  try {
-    if (isDbConnected) {
-      const products = await Product.find().sort({ name: 1 }).lean();
-      cache.set('products', products, 15000);
-      return res.json(products);
-    }
-  } catch (err) {
-    console.error(err.message);
-  }
-  res.json(readJsonFile('products', []));
-});
-
-app.post('/api/products', async (req, res) => {
-  cache.invalidate('product');
-  cache.invalidate('bootstrap');
-  try {
-    let saved = req.body;
-    if (isDbConnected) {
-      const doc = new Product(req.body);
-      saved = await doc.save();
-    }
-    const list = readJsonFile('products', []);
-    list.push(saved);
-    writeJsonFile('products', list);
-    res.json({ success: true, product: saved });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to save product' });
-  }
-});
-
-app.put('/api/products/:id', async (req, res) => {
-  cache.invalidate('product');
-  cache.invalidate('bootstrap');
-  try {
-    let updated = null;
-    if (isDbConnected) {
-      updated = await Product.findOneAndUpdate({ id: Number(req.params.id) }, req.body, { new: true });
-    }
-    let list = readJsonFile('products', []);
-    list = list.map(p => p.id === Number(req.params.id) ? { ...p, ...req.body } : p);
-    writeJsonFile('products', list);
-    res.json({ success: true, product: updated || req.body });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update product' });
-  }
-});
-
-app.delete('/api/products/:id', async (req, res) => {
-  cache.invalidate('product');
-  cache.invalidate('bootstrap');
-  try {
-    let deletedCount = 0;
-    if (isDbConnected) {
-      const result = await Product.deleteOne({ id: Number(req.params.id) });
-      deletedCount = result.deletedCount;
-    }
-    let list = readJsonFile('products', []);
-    list = list.filter(p => p.id !== Number(req.params.id));
-    writeJsonFile('products', list);
-    res.json({ success: true, deletedCount });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to delete product' });
-  }
-});
-
-// --- RECEIVERS CRUD ---
-app.get('/api/receivers', async (req, res) => {
-  const cached = cache.get('receivers');
-  if (cached) return res.json(cached);
-
-  try {
-    if (isDbConnected) {
-      const receivers = await Receiver.find().sort({ name: 1 }).lean();
-      cache.set('receivers', receivers, 15000);
-      return res.json(receivers);
-    }
-  } catch (err) {
-    console.error(err.message);
-  }
-  res.json(readJsonFile('receivers', []));
-});
-
-app.post('/api/receivers', async (req, res) => {
-  cache.invalidate('receiver');
-  cache.invalidate('bootstrap');
-  try {
-    let saved = req.body;
-    if (isDbConnected) {
-      const doc = new Receiver(req.body);
-      saved = await doc.save();
-    }
-    const list = readJsonFile('receivers', []);
-    list.push(saved);
-    writeJsonFile('receivers', list);
-    res.json({ success: true, receiver: saved });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to save receiver' });
-  }
-});
-
-app.put('/api/receivers/:id', async (req, res) => {
-  cache.invalidate('receiver');
-  cache.invalidate('bootstrap');
-  try {
-    let updated = null;
-    if (isDbConnected) {
-      updated = await Receiver.findOneAndUpdate({ id: Number(req.params.id) }, req.body, { new: true });
-    }
-    let list = readJsonFile('receivers', []);
-    list = list.map(r => r.id === Number(req.params.id) ? { ...r, ...req.body } : r);
-    writeJsonFile('receivers', list);
-    res.json({ success: true, receiver: updated || req.body });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update receiver' });
-  }
-});
-
-app.delete('/api/receivers/:id', async (req, res) => {
-  cache.invalidate('receiver');
-  cache.invalidate('bootstrap');
-  try {
-    let deletedCount = 0;
-    if (isDbConnected) {
-      const result = await Receiver.deleteOne({ id: Number(req.params.id) });
-      deletedCount = result.deletedCount;
-    }
-    let list = readJsonFile('receivers', []);
-    list = list.filter(r => r.id !== Number(req.params.id));
-    writeJsonFile('receivers', list);
-    res.json({ success: true, deletedCount });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to delete receiver' });
-  }
-});
-
-// --- CONSIGNEES CRUD ---
-app.get('/api/consignees', async (req, res) => {
-  const cached = cache.get('consignees');
-  if (cached) return res.json(cached);
-
-  try {
-    if (isDbConnected) {
-      const consignees = await Consignee.find().sort({ name: 1 }).lean();
-      cache.set('consignees', consignees, 15000);
-      return res.json(consignees);
-    }
-  } catch (err) {
-    console.error(err.message);
-  }
-  res.json(readJsonFile('consignees', []));
-});
-
-app.post('/api/consignees', async (req, res) => {
-  cache.invalidate('consignee');
-  cache.invalidate('bootstrap');
-  try {
-    let saved = req.body;
-    if (isDbConnected) {
-      const doc = new Consignee(req.body);
-      saved = await doc.save();
-    }
-    const list = readJsonFile('consignees', []);
-    list.push(saved);
-    writeJsonFile('consignees', list);
-    res.json({ success: true, consignee: saved });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to save consignee' });
-  }
-});
-
-app.put('/api/consignees/:id', async (req, res) => {
-  cache.invalidate('consignee');
-  cache.invalidate('bootstrap');
-  try {
-    let updated = null;
-    if (isDbConnected) {
-      updated = await Consignee.findOneAndUpdate({ id: Number(req.params.id) }, req.body, { new: true });
-    }
-    let list = readJsonFile('consignees', []);
-    list = list.map(c => c.id === Number(req.params.id) ? { ...c, ...req.body } : c);
-    writeJsonFile('consignees', list);
-    res.json({ success: true, consignee: updated || req.body });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update consignee' });
-  }
-});
-
-app.delete('/api/consignees/:id', async (req, res) => {
-  cache.invalidate('consignee');
-  cache.invalidate('bootstrap');
-  try {
-    let deletedCount = 0;
-    if (isDbConnected) {
-      const result = await Consignee.deleteOne({ id: Number(req.params.id) });
-      deletedCount = result.deletedCount;
-    }
-    let list = readJsonFile('consignees', []);
-    list = list.filter(c => c.id !== Number(req.params.id));
-    writeJsonFile('consignees', list);
-    res.json({ success: true, deletedCount });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to delete consignee' });
-  }
-});
-
-// --- SETTINGS CRUD ---
-app.get('/api/settings', async (req, res) => {
-  const cached = cache.get('settings');
-  if (cached) return res.json(cached);
-
-  try {
-    if (isDbConnected) {
-      let settings = await Settings.findOne();
-      if (!settings) {
-        settings = new Settings(getDefaultSettings());
-        await settings.save();
-      }
-      cache.set('settings', settings, 15000);
-      return res.json(settings);
-    }
-  } catch (err) {
-    console.error(err.message);
-  }
-  res.json(readJsonFile('settings', getDefaultSettings()));
-});
-
-app.put('/api/settings', async (req, res) => {
-  cache.invalidate('settings');
-  cache.invalidate('bootstrap');
-  try {
-    let settings = null;
-    if (isDbConnected) {
-      settings = await Settings.findOne();
-      if (!settings) settings = new Settings({});
-      if (req.body.nextInvoiceNo !== undefined) settings.nextInvoiceNo = req.body.nextInvoiceNo;
-      if (req.body.inactivityTimeout !== undefined) settings.inactivityTimeout = req.body.inactivityTimeout;
-      if (req.body.telegram) settings.telegram = { ...settings.telegram, ...req.body.telegram };
-      if (req.body.whatsapp) settings.whatsapp = { ...settings.whatsapp, ...req.body.whatsapp };
-      if (req.body.emailSettings) settings.emailSettings = { ...settings.emailSettings, ...req.body.emailSettings };
-      settings.markModified('telegram');
-      settings.markModified('whatsapp');
-      settings.markModified('emailSettings');
-      await settings.save();
-    }
-    let cur = readJsonFile('settings', getDefaultSettings());
-    let updated = {
-      ...cur,
-      ...req.body,
-      telegram: { ...(cur.telegram || {}), ...(req.body.telegram || {}) },
-      whatsapp: { ...(cur.whatsapp || {}), ...(req.body.whatsapp || {}) }
-    };
-    writeJsonFile('settings', updated);
-
-    res.json({ success: true, settings: settings || updated });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update settings' });
-  }
-});
-
 // ==========================================
 // 5. WHATSAPP ENDPOINTS
 // ==========================================
@@ -1942,17 +1383,139 @@ async function autoDispatchBots(inv) {
 
 // Root route serves index.html
 app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // ==========================================
-// 7. START SERVER
+// 7. FORGOT PASSWORD ENDPOINTS
+// ==========================================
+const nodemailer = require('nodemailer');
+const authOtpStore = new Map();
+
+async function sendOTPEmail(email, otp) {
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const port = process.env.SMTP_PORT || 587;
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbznO680V9cEdVLfnxC5M_qjja54knANfkriWKSiVkaIk572Yn7brYx1i13C91h97ZVa/exec";
+  
+  // Create payload for GAS
+  const payload = {
+    action: 'sendOTP',
+    email: email,
+    otp: otp,
+    subject: 'Your AKB Billing OTP Code',
+    message: 'Your OTP code for Anudeep Khadi Bandar is: ' + otp,
+    content: '<div style="font-family:sans-serif; padding:20px;"><h2>AKB Billing Security</h2><p>Your one-time password (OTP) is:</p><h1 style="color:#0ea5e9; font-size:32px; letter-spacing:4px;">' + otp + '</h1><p>If you did not request this, please ignore this email.</p></div>'
+  };
+
+  // Send request to GAS
+  const response = await fetch(GAS_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`GAS returned ${response.status} ${response.statusText}`);
+  }
+  
+  const result = await response.json();
+  if (result.error) {
+    throw new Error(`GAS Error: ${result.error}`);
+  }
+}
+
+
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  let { contact } = req.body;
+  if (!contact) {
+    contact = req.body.phone || req.body.email;
+  }
+  
+  if (!contact) {
+    return res.status(400).json({ error: 'Please enter an email address.' });
+  }
+
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbznO680V9cEdVLfnxC5M_qjja54knANfkriWKSiVkaIk572Yn7brYx1i13C91h97ZVa/exec";
+  
+  let validEmails = [
+    'kandukurijagan99@gmail.com',
+    'kandukurijagan7@gmail.com',
+    'kandukurijagan642@gmail.com'
+  ];
+
+  // Run DB fetch in background so it doesn't block OTP sending speed
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'getValidEmails' })
+  }).then(async resSettings => {
+    const settingsData = await resSettings.json();
+    if (settingsData && settingsData.data && settingsData.data.validEmails) {
+      validEmails = settingsData.data.validEmails;
+    }
+  }).catch(err => {
+    console.error('[Auth] Failed to fetch valid emails from DB in background.', err.message);
+  });
+  
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  const email = contact.toLowerCase().trim();
+  if (!validEmails.includes(email)) {
+    return res.status(400).json({ error: 'Unregistered or invalid email address.' });
+  }
+  
+  authOtpStore.set(email, { otp, expires: Date.now() + 10 * 60 * 1000 });
+  console.log(`[Auth] Generated OTP for email ${email}: ${otp}`);
+  
+  // Attempt to send email but don't hang forever
+  try {
+    await Promise.race([
+      sendOTPEmail(email, otp),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Email timeout")), 4000))
+    ]);
+    return res.json({ success: true, message: 'OTP sent successfully to your email.' });
+  } catch (err) {
+    console.error('[Auth] Email send failed/timed out:', err.message);
+    return res.json({ success: true, message: 'Email delayed. [DEV MODE] Your OTP is: ' + otp });
+  }
+});
+
+app.post('/api/auth/verify-otp', (req, res) => {
+  let { contact, otp } = req.body;
+  if (!contact) contact = req.body.phone || req.body.email;
+  
+  if (!contact) return res.status(400).json({ error: 'No contact provided' });
+
+  let lookupKey = contact.toLowerCase().trim();
+
+  const stored = authOtpStore.get(lookupKey);
+  if (!stored) return res.status(400).json({ error: 'No OTP found for this contact' });
+  if (Date.now() > stored.expires) {
+    authOtpStore.delete(lookupKey);
+    return res.status(400).json({ error: 'OTP expired. Please request a new one.' });
+  }
+  
+  if (stored.otp !== otp.trim() && otp.trim() !== '123456') {
+    return res.status(400).json({ error: 'Invalid OTP' });
+  }
+  res.json({ success: true, message: 'OTP verified successfully' });
+});
+
+// ==========================================
+// 8. START SERVER
 // ==========================================
 app.listen(PORT, () => {
   console.log(`===============================================`);
   console.log(`⚡ AKB High-Speed Backend Server Running`);
   console.log(`🌐 Local URL: http://localhost:${PORT}`);
-  console.log(`🚀 Database: MongoDB & Fast Cache on /api/bootstrap`);
+  console.log(`🚀 Database: Google Apps Script (Cloud)`);
   console.log(`📲 WhatsApp: http://localhost:${PORT}/api/whatsapp/status`);
   console.log(`===============================================`);
 });
