@@ -195,7 +195,7 @@ namespace AnudeepKhadiBandar
                 }
                 else
                 {
-                    activeUrl = "https://nenduku644-hash.github.io/anudeep-deploy/";
+                    activeUrl = "https://kandukurijagan1.github.io/anudeep/";
                 }
             }
         }

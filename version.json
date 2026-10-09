@@ -4,7 +4,7 @@
   "build": 112,
   "commit": "latest",
   "releaseDate": "2026-09-27",
-  "repo": "nenduku644-hash/anudeep-deploy",
+  "repo": "kandukurijagan1/anudeep",
   "branch": "main",
   "description": "fix(whatsapp): ensure robust auth recovery, clean orphan DevTools ports, and reliable sync handling"
 }

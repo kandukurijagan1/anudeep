@@ -643,7 +643,7 @@ setInterval(() => {
 // ==========================================
 // 🚀 GITHUB CLOUD AUTO-UPDATER ENGINE
 // ==========================================
-const GITHUB_REPO = 'nenduku644-hash/anudeep-deploy';
+const GITHUB_REPO = 'kandukurijagan1/anudeep';
 const GITHUB_BRANCH = 'main';
 const RAW_BASE_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}`;
 const VERSION_PATH = path.join(AKB_DIR, 'version.json');
