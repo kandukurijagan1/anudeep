@@ -407,7 +407,7 @@ async function sendWhatsappMessageWithTimeout(cl, targetChatId, content, options
   }
 }
 
-function initWhatsappClient(forceClean = false) {
+async function initWhatsappClient(forceClean = false) {
   if (isWhatsappInitializing) {
     console.log('[WhatsApp] Initialization already in progress.');
     return;
@@ -432,7 +432,7 @@ function initWhatsappClient(forceClean = false) {
   }, 120000);
 
   try {
-    const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+    const { Client, LocalAuth, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
     console.log('[WhatsApp] Initializing WhatsApp Client in background...');
     const detectedChrome = findChromeExecutable();
     console.log('[WhatsApp] Using Browser Executable:', detectedChrome || 'Bundled Puppeteer Default');
@@ -443,10 +443,26 @@ function initWhatsappClient(forceClean = false) {
       killOrphanAuthBrowsers();
     }
 
-    client = new Client({
-      authStrategy: new LocalAuth({
+    let authStrategy;
+    if (process.env.MONGO_URI) {
+      console.log('[WhatsApp] MONGO_URI detected, using MongoStore for RemoteAuth...');
+      const mongoose = require('mongoose');
+      const { MongoStore } = require('wwebjs-mongo');
+      await mongoose.connect(process.env.MONGO_URI);
+      const store = new MongoStore({ mongoose: mongoose });
+      authStrategy = new RemoteAuth({
+        store: store,
+        backupSyncIntervalMs: 300000
+      });
+    } else {
+      console.log('[WhatsApp] No MONGO_URI, using LocalAuth...');
+      authStrategy = new LocalAuth({
         dataPath: path.join(AKB_DIR, '.wwebjs_auth')
-      }),
+      });
+    }
+
+    client = new Client({
+      authStrategy: authStrategy,
       webVersionCache: {
         type: 'none'
       },
