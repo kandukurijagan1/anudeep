@@ -3521,6 +3521,14 @@
         function getWaApiUrl() { return waApiBase; }
 
         async function resolveApiUrl(forceRefresh) {
+            var isLocalEnv = location.hostname === '127.0.0.1' || location.hostname === 'localhost' || location.protocol === 'file:' || (window.electronAPI !== undefined) || (window.isElectron !== undefined);
+            if (isLocalEnv) {
+                API_URL = "http://127.0.0.1:3000/api";
+                API_MODE = "local";
+                sessionStorage.setItem("akb_cached_api_url", API_URL);
+                return API_URL;
+            }
+
             if (_isStaticHosting) {
                 API_URL = CLOUD_GAS_URL;
                 API_MODE = "cloud";
@@ -3531,7 +3539,7 @@
             // In local/desktop environment, test local high-speed backend first
             try {
                 var testCtrl = new AbortController();
-                var testTimer = setTimeout(function () { testCtrl.abort(); }, 800);
+                var testTimer = setTimeout(function () { testCtrl.abort(); }, 3000);
                 var healthRes = await originalFetch("http://127.0.0.1:3000/api/health", { signal: testCtrl.signal });
                 clearTimeout(testTimer);
                 if (healthRes.ok) {
@@ -3668,10 +3676,14 @@
                     var localAttempt = await originalFetch(resource, config);
                     if (localAttempt.ok) return localAttempt;
                 } catch (locErr) {
-                    console.warn("Local API offline, routing seamlessly to Cloud GAS:", locErr.message);
-                    var localPath = urlToMatch.replace(/^https?:\/\/[^\/]+\/api/, '');
-                    var gasTarget = CLOUD_GAS_URL + localPath;
-                    return window.fetch(gasTarget, config);
+                    var isLocalOnly = urlToMatch.includes('/whatsapp/') || urlToMatch.includes('/savePdfLocally');
+                    var isAborted = (locErr && locErr.name === 'AbortError') || (config && config.signal && config.signal.aborted);
+                    if (!isLocalOnly && !isAborted && typeof CLOUD_GAS_URL !== 'undefined') {
+                        var localPath = urlToMatch.replace(/^https?:\/\/[^\/]+\/api/, '');
+                        var gasTarget = CLOUD_GAS_URL + localPath;
+                        return window.fetch(gasTarget, config);
+                    }
+                    throw locErr;
                 }
             }
 
@@ -5201,7 +5213,8 @@
                 U.toast("🚀 Auto-dispatching invoice #" + invNo + " to WhatsApp " + cleanPhone + "...", "info");
 
                 // 2. Headless background dispatch for formatted text (ABSOLUTELY NO NEW TAB EVER!)
-                fetch(waApiBase + '/whatsapp/sendMessage', {
+                var directFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
+                directFetch(waApiBase + '/whatsapp/sendMessage', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phone: cleanPhone, message: textMsg })
@@ -5221,14 +5234,19 @@
                     OM.push({ type: 'whatsapp_text', url: waApiBase + '/whatsapp/sendMessage', to: cleanPhone, message: textMsg });
                 });
 
-                // 3. Background PDF Generation and WhatsApp Upload
-
                 // 3. Dispatch PDF document automatically in background
                 if (typeof html2pdf !== 'undefined') {
                     try {
                         var html = SM.generatePrintHTML(inv);
                         var pdfName = 'Invoice_' + invNo + '.pdf';
-                        var parsed = new DOMParser().parseFromString(html, 'text/html').body;
+                        var container = document.createElement('div');
+                        container.style.position = 'fixed';
+                        container.style.left = '-9999px';
+                        container.style.top = '0';
+                        container.style.width = '800px';
+                        container.innerHTML = html;
+                        document.body.appendChild(container);
+
                         var opt = {
                             margin: [8, 8, 8, 8],
                             filename: pdfName,
@@ -5236,19 +5254,22 @@
                             html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, backgroundColor: '#ffffff' },
                             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
                         };
-                        html2pdf().set(opt).from(parsed).outputPdf('blob').then(async function (blob) {
+                        html2pdf().set(opt).from(container).outputPdf('blob').then(async function (blob) {
+                            if (container.parentNode) document.body.removeChild(container);
                             var fd = new FormData();
                             fd.append('file', blob, pdfName);
                             fd.append('phone', cleanPhone);
                             fd.append('caption', 'Anudeep Khadi Bandar - Tax Invoice #' + invNo);
                             try {
-                                var res = await fetch(waApiBase + '/whatsapp/sendPdf', { method: 'POST', body: fd });
+                                var res = await directFetch(waApiBase + '/whatsapp/sendPdf', { method: 'POST', body: fd });
                                 var data = await res.json();
                                 if (data && data.success) {
                                     U.toast("✅ WhatsApp PDF delivered automatically!", "success");
                                 }
                             } catch (e) { }
-                        }).catch(function () { });
+                        }).catch(function () {
+                            if (container.parentNode) document.body.removeChild(container);
+                        });
                     } catch (e) { }
                 }
             },
@@ -5365,7 +5386,14 @@
                         var invNo = U.pi(inv.invoiceNo);
                         var pdfName = 'Invoice_' + invNo + '.pdf';
                         var html = SM.generatePrintHTML(inv);
-                        var parsed = new DOMParser().parseFromString(html, 'text/html').body;
+                        var container = document.createElement('div');
+                        container.style.position = 'fixed';
+                        container.style.left = '-9999px';
+                        container.style.top = '0';
+                        container.style.width = '800px';
+                        container.innerHTML = html;
+                        document.body.appendChild(container);
+
                         var opt = {
                             margin: [8, 8, 8, 8],
                             filename: pdfName,
@@ -5373,24 +5401,44 @@
                             html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, backgroundColor: '#ffffff' },
                             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
                         };
-                        html2pdf().set(opt).from(parsed).outputPdf('blob').then(async function (blob) {
-                            var fd = new FormData();
-                            fd.append('file', blob, pdfName);
-                            fd.append('filename', pdfName);
 
+                        html2pdf().set(opt).from(container).outputPdf('blob').then(async function (blob) {
+                            if (container.parentNode) document.body.removeChild(container);
+
+                            // 1. Direct browser instant download into Downloads folder
                             try {
+                                var blobUrl = URL.createObjectURL(blob);
+                                var dlLink = document.createElement('a');
+                                dlLink.href = blobUrl;
+                                dlLink.download = pdfName;
+                                document.body.appendChild(dlLink);
+                                dlLink.click();
+                                setTimeout(function () {
+                                    if (dlLink.parentNode) document.body.removeChild(dlLink);
+                                    URL.revokeObjectURL(blobUrl);
+                                }, 1000);
+                            } catch (dlErr) {
+                                console.warn("Browser direct download notice:", dlErr);
+                            }
+
+                            // 2. Also save to Downloads folder via local Node backend
+                            try {
+                                var fd = new FormData();
+                                fd.append('file', blob, pdfName);
+                                fd.append('filename', pdfName);
                                 var waApi = (typeof waApiBase !== 'undefined') ? waApiBase : 'http://127.0.0.1:3000/api';
-                                var res = await fetch(waApi.replace('/whatsapp', '') + '/savePdfLocally', { method: 'POST', body: fd });
+                                var saveUrl = waApi.replace('/whatsapp', '') + '/savePdfLocally';
+                                var res = await (typeof originalFetch === 'function' ? originalFetch : fetch)(saveUrl, { method: 'POST', body: fd });
                                 if (res.ok) {
-                                    var data = await res.json().catch(function () { return null; });
-                                    if (data && data.success) {
-                                        U.toast("💾 Invoice PDF auto-saved to Downloads folder silently!", "success");
-                                    }
+                                    U.toast("💾 Invoice #" + invNo + " auto-saved to Downloads folder!", "success");
                                 }
                             } catch (e) {
                                 console.warn("Backend auto-save notice:", e.message);
                             }
-                        }).catch(function (e) { console.warn("Auto download notice:", e); });
+                        }).catch(function (e) {
+                            if (container.parentNode) document.body.removeChild(container);
+                            console.warn("Auto download notice:", e);
+                        });
                     } catch (e) { }
                 }
             },

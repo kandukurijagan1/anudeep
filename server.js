@@ -438,6 +438,7 @@ async function resolveChatId(cl, phone) {
 
 async function ensureWWebJSReady(cl, timeoutMs = 15000) {
   if (!cl || !cl.pupPage) return false;
+  if (cl.pupPage.isClosed && cl.pupPage.isClosed()) return false;
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
@@ -453,7 +454,13 @@ async function ensureWWebJSReady(cl, timeoutMs = 15000) {
         const { LoadUtils } = require('whatsapp-web.js/src/util/Injected/Utils');
         await cl.pupPage.evaluate(LoadUtils);
       } catch (_) {}
-    } catch (_) {}
+    } catch (evalErr) {
+      if (evalErr.message && (evalErr.message.includes('detached Frame') || evalErr.message.includes('Session closed') || evalErr.message.includes('Target closed'))) {
+        console.warn('[WhatsApp] Browser page detached during evaluate. Marking disconnected for self-healing.');
+        isWhatsappConnected = false;
+        return false;
+      }
+    }
     await new Promise(r => setTimeout(r, 400));
   }
   return false;
@@ -739,6 +746,12 @@ setInterval(async () => {
       }
     } catch (err) {
       console.warn('[WhatsApp KeepAlive] Heartbeat ping notice:', err.message);
+      if (err.message && (err.message.includes('detached Frame') || err.message.includes('Session closed') || err.message.includes('Target closed') || err.message.includes('destroyed') || err.message.includes('State timeout'))) {
+        console.log('[WhatsApp KeepAlive] Recovering detached or crashed WhatsApp client...');
+        isWhatsappConnected = false;
+        await safeDestroyClient();
+        initWhatsappClient(false);
+      }
     }
   } else if (!isWhatsappConnected && !isWhatsappInitializing && !qrCodeDataUrl) {
     // If disconnected and not currently initializing or waiting for QR scan, trigger silent background re-init
