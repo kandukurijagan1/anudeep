@@ -7699,6 +7699,33 @@
             }
         });
 
+        // Global Workstation Reload & Hotkey Handler
+        function reloadWorkstation(hard) {
+            U.toast(hard ? "Clearing cache & reloading..." : "Reloading workstation...", "info");
+            setTimeout(function () {
+                if (window.electronAPI && typeof window.electronAPI.reloadApp === 'function') {
+                    window.electronAPI.reloadApp(!!hard);
+                } else {
+                    if (hard) {
+                        try {
+                            sessionStorage.clear();
+                        } catch (_) {}
+                    }
+                    window.location.reload(true);
+                }
+            }, 100);
+        }
+
+        window.reloadWorkstation = reloadWorkstation;
+
+        window.addEventListener('keydown', function (e) {
+            // F5 or Ctrl+R or Cmd+R
+            if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
+                e.preventDefault();
+                reloadWorkstation(e.shiftKey);
+            }
+        });
+
         // Diagnostic guard: ensure proper authentication display
         window.addEventListener('load', function () {
             try {

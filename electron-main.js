@@ -24,6 +24,15 @@ ipcMain.on('print-silent', (event) => {
     }
 });
 
+ipcMain.on('reload-app', async (event, hard) => {
+    if (mainWindow) {
+        if (hard) {
+            try { await mainWindow.webContents.session.clearCache(); } catch (_) {}
+        }
+        mainWindow.webContents.reloadIgnoringCache();
+    }
+});
+
 // Check if local HTTP server is healthy
 function checkServer(url, timeout = 800) {
     return new Promise((resolve) => {
@@ -61,13 +70,15 @@ function startBackend() {
             console.log('[Electron] Starting background Node backend using Electron...');
             const serverJs = path.join(__dirname, 'server.js');
 
-            const logPath = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'server.log');
+            const logDir = path.join(app.getPath('appData'), 'AnudeepKhadiBandar');
+            if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+            const logPath = path.join(logDir, 'server.log');
             const logFile = fs.openSync(logPath, 'a');
-            serverChild = spawn(process.execPath, [serverJs], {
+            const { fork } = require('child_process');
+            serverChild = fork(serverJs, [], {
                 cwd: __dirname,
-                env: { ...process.env, PORT: '3000', ELECTRON_RUN_AS_NODE: '1' },
-                stdio: ['ignore', logFile, logFile],
-                windowsHide: true
+                env: { ...process.env, PORT: '3000' },
+                stdio: ['ignore', logFile, logFile, 'ipc']
             });
 
             if (serverChild) {
@@ -80,7 +91,7 @@ function startBackend() {
             let attempts = 0;
             const interval = setInterval(async () => {
                 attempts++;
-                const ready = await checkServer('http://localhost:3000/api/health', 500);
+                const ready = await checkServer('http://127.0.0.1:3000/api/health', 500);
                 if (ready || attempts > 20) {
                     clearInterval(interval);
                     resolve(ready);
@@ -162,70 +173,63 @@ function createSystemTray() {
     }
 }
 
-// Build dedicated Workstation Menu with POS hotkeys
+// Build dedicated Workstation Menu with POS hotkeys & full reload accelerators
 function setupApplicationMenu() {
     const template = [
         {
             label: 'POS Workstation',
             submenu: [
                 {
-                    label: 'New Invoice',
+                    label: '🧾 New Invoice',
                     accelerator: 'F2',
                     click: () => {
                         if (mainWindow) {
+                            mainWindow.show();
                             mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') { UI.show('billing-view'); setTimeout(function(){ var el = document.getElementById('b-rn'); if(el) el.focus(); }, 100); }");
                         }
                     }
                 },
                 {
-                    label: 'Jump to Product Selection',
-                    accelerator: 'F4',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') { UI.show('billing-view'); setTimeout(function(){ var el = document.getElementById('b-pn'); if(el) el.focus(); }, 100); }");
-                        }
-                    }
-                },
-                {
-                    label: 'Save & Print Invoice',
-                    accelerator: 'F8',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.executeJavaScript("if (typeof BM !== 'undefined' && BM.save) BM.save();");
-                        }
-                    }
-                },
-                {
-                    label: 'Invoice History',
+                    label: '📜 Invoice History',
                     accelerator: 'CmdOrCtrl+H',
                     click: () => {
                         if (mainWindow) {
+                            mainWindow.show();
                             mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') UI.show('invoices-view');");
                         }
                     }
                 },
                 { type: 'separator' },
                 {
-                    label: 'Print Active Document',
-                    accelerator: 'CmdOrCtrl+P',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.executeJavaScript("if (typeof handleCtrlP === 'function') { handleCtrlP(); } else { window.print(); }");
+                    label: '🔄 Reload Window',
+                    accelerator: 'CmdOrCtrl+R',
+                    click: (item, focusedWindow) => {
+                        if (focusedWindow) focusedWindow.webContents.reloadIgnoringCache();
+                    }
+                },
+                {
+                    label: '🔄 Force Reload (F5)',
+                    accelerator: 'F5',
+                    click: (item, focusedWindow) => {
+                        if (focusedWindow) focusedWindow.webContents.reloadIgnoringCache();
+                    }
+                },
+                {
+                    label: '⚡ Hard Reset & Clear Cache',
+                    accelerator: 'CmdOrCtrl+Shift+R',
+                    click: async (item, focusedWindow) => {
+                        if (focusedWindow) {
+                            try { await focusedWindow.webContents.session.clearCache(); } catch (_) {}
+                            focusedWindow.webContents.reloadIgnoringCache();
                         }
                     }
                 },
+                { type: 'separator' },
                 {
-                    label: 'Reload App',
-                    accelerator: 'CmdOrCtrl+R',
-                    click: () => {
-                        if (mainWindow) mainWindow.reload();
-                    }
-                },
-                {
-                    label: 'Toggle Fullscreen',
-                    accelerator: 'F11',
-                    click: () => {
-                        if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
+                    label: 'Toggle Developer Tools',
+                    accelerator: 'CmdOrCtrl+Shift+I',
+                    click: (item, focusedWindow) => {
+                        if (focusedWindow) focusedWindow.webContents.toggleDevTools();
                     }
                 },
                 { type: 'separator' },
@@ -246,11 +250,10 @@ function setupApplicationMenu() {
                 { role: 'zoomIn' },
                 { role: 'zoomOut' },
                 { type: 'separator' },
-                { role: 'toggledevtools' }
+                { role: 'togglefullscreen' }
             ]
         }
     ];
-
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
 }
@@ -266,6 +269,7 @@ async function createMainWindow() {
         icon: path.join(__dirname, 'icon.ico'),
         backgroundColor: '#f3f4f6',
         show: false,
+        autoHideMenuBar: true,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -273,6 +277,8 @@ async function createMainWindow() {
             preload: path.join(__dirname, 'preload.js')
         }
     });
+
+    mainWindow.setMenuBarVisibility(false);
 
     // Workstation maximized desktop layout
     mainWindow.maximize();
@@ -289,19 +295,29 @@ async function createMainWindow() {
     });
 
     // Check if server is already running
-    const isRunning = await checkServer('http://localhost:3000/api/health', 1000);
-    if (isRunning) {
-        console.log('[Electron] Connected to existing server on port 3000');
-        await mainWindow.loadURL('http://localhost:3000?mode=dedicated_app');
-    } else {
+    let isRunning = await checkServer('http://127.0.0.1:3000/api/health', 1000);
+    if (!isRunning) {
         const started = await startBackend();
         if (started) {
             console.log('[Electron] Connected to newly started backend on port 3000');
-            await mainWindow.loadURL('http://localhost:3000?mode=dedicated_app');
+            isRunning = true;
         } else {
-            console.log('[Electron] Falling back to local index.html with Cloud GAS sync');
-            await mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { mode: 'dedicated_app' } });
+            console.log('[Electron] Backend failed to start. Falling back to local index.html with Cloud GAS sync.');
         }
+    } else {
+        console.log('[Electron] Connected to existing server on port 3000');
+    }
+
+    // Load local backend or base website
+    const targetUrl = isRunning 
+        ? 'http://127.0.0.1:3000/?mode=dedicated_app' 
+        : 'https://kandukurijagan1.github.io/anudeep/?mode=dedicated_app';
+    console.log('[Electron] Loading UI: ' + targetUrl);
+    try {
+        await mainWindow.loadURL(targetUrl);
+    } catch (e) {
+        console.warn('[Electron] Failed to load URL, falling back to local files:', e.message);
+        await mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { mode: 'dedicated_app' } });
     }
 
     // Intercept external links (WhatsApp, Telegram, Google Sheets, external URLs)
@@ -319,10 +335,7 @@ async function createMainWindow() {
     });
 
     mainWindow.on('close', (event) => {
-        if (!isQuitting) {
-            event.preventDefault();
-            mainWindow.hide();
-        }
+        isQuitting = true;
     });
 
     mainWindow.on('closed', () => {
