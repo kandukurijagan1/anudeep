@@ -6628,11 +6628,16 @@
             applyInvoices: function (data) {
                 if (!Array.isArray(data)) return;
 
-                // Normalize every invoice so id and _id are guaranteed valid matching strings
+                // Normalize every invoice so id, totalAmount and date are guaranteed valid numbers and strings
                 var normalized = data.map(function (inv) {
                     var nid = String(inv.id || inv._id || Date.now());
                     inv.id = nid;
                     inv._id = nid;
+                    var parsedTotal = Number(inv.totalAmount !== undefined && inv.totalAmount !== null ? inv.totalAmount : (inv.grandTotal !== undefined ? inv.grandTotal : (inv.taxableAmount || inv.subtotal || 0)));
+                    inv.totalAmount = isNaN(parsedTotal) ? 0 : parsedTotal;
+                    if (inv.date) {
+                        inv.date = String(inv.date).slice(0, 10);
+                    }
                     return inv;
                 });
 
@@ -6808,22 +6813,45 @@
         /* ===== DASHBOARD ===== */
         var DM = {
             render: function () {
-                var invs = IM._all;
-                var today = U.td(), now = new Date(), monthStart = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-01";
+                var invs = IM._all || [];
+                var today = U.td();
+                var now = new Date();
+                var currentYearMonth = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+                var monthStart = currentYearMonth + "-01";
                 var todaySales = 0, monthSales = 0;
-                invs.forEach(function (inv) { if (inv.date === today) todaySales += inv.totalAmount; if (inv.date >= monthStart) monthSales += inv.totalAmount });
-                document.getElementById("ds-sales").textContent = U.fm(todaySales);
-                document.getElementById("dm-sales").textContent = U.fm(monthSales);
-                document.getElementById("dt-bills").textContent = invs.length;
+
+                invs.forEach(function (inv) {
+                    var amt = Number(inv.totalAmount !== undefined && inv.totalAmount !== null ? inv.totalAmount : (inv.grandTotal !== undefined ? inv.grandTotal : (inv.taxableAmount || inv.subtotal || 0)));
+                    if (isNaN(amt)) amt = 0;
+                    var invDate = String(inv.date || '').slice(0, 10);
+
+                    if (invDate === today) {
+                        todaySales += amt;
+                    }
+                    if (invDate >= monthStart || invDate.startsWith(currentYearMonth)) {
+                        monthSales += amt;
+                    }
+                });
+
+                var dsEl = document.getElementById("ds-sales");
+                if (dsEl) dsEl.textContent = U.fm(todaySales);
+                var dmEl = document.getElementById("dm-sales");
+                if (dmEl) dmEl.textContent = U.fm(monthSales);
+                var dtEl = document.getElementById("dt-bills");
+                if (dtEl) dtEl.textContent = invs.length;
+
                 var recent = invs.slice(0, 5), tb = document.getElementById("dash-recent");
-                if (!recent.length) {
-                    tb.innerHTML = '<tr><td colspan="4"><div class="empty-state"><i class="ph ph-file-text"></i>No invoices yet.</div></td></tr>';
-                } else {
-                    var h = "";
-                    recent.forEach(function (inv) {
-                        h += '<tr><td><a href="#" onclick="SM.open(\'' + inv.id + '\'); return false;" style="color:var(--tg);text-decoration:none;font-weight:700">#' + U.pi(inv.invoiceNo) + '</a></td><td>' + U.fd(inv.date) + '</td><td>' + (inv.receiver ? U.esc(inv.receiver.name) : "-") + '</td><td class="tr" style="font-weight:600">' + U.fm(inv.totalAmount) + '</td></tr>';
-                    });
-                    tb.innerHTML = h;
+                if (tb) {
+                    if (!recent.length) {
+                        tb.innerHTML = '<tr><td colspan="4"><div class="empty-state"><i class="ph ph-file-text"></i>No invoices yet.</div></td></tr>';
+                    } else {
+                        var h = "";
+                        recent.forEach(function (inv) {
+                            var amt = Number(inv.totalAmount !== undefined && inv.totalAmount !== null ? inv.totalAmount : (inv.grandTotal || 0));
+                            h += '<tr><td><a href="#" onclick="SM.open(\'' + inv.id + '\'); return false;" style="color:var(--tg);text-decoration:none;font-weight:700">#' + U.pi(inv.invoiceNo) + '</a></td><td>' + U.fd(inv.date) + '</td><td>' + (inv.receiver ? U.esc(inv.receiver.name) : "-") + '</td><td class="tr" style="font-weight:600">' + U.fm(amt) + '</td></tr>';
+                        });
+                        tb.innerHTML = h;
+                    }
                 }
 
                 // Calculate sales for the last 7 days for the chart
@@ -6840,9 +6868,11 @@
                 }
 
                 invs.forEach(function (inv) {
-                    var dayObj = last7Days.find(function (day) { return day.date === inv.date; });
-                    if (dayObj) {
-                        dayObj.sales += inv.totalAmount;
+                    var invDate = String(inv.date || '').slice(0, 10);
+                    var amt = Number(inv.totalAmount !== undefined && inv.totalAmount !== null ? inv.totalAmount : (inv.grandTotal || 0));
+                    var dayObj = last7Days.find(function (day) { return day.date === invDate; });
+                    if (dayObj && !isNaN(amt)) {
+                        dayObj.sales += amt;
                     }
                 });
 
