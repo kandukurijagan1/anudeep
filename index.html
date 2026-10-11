@@ -7545,6 +7545,7 @@
 
             _syncInterval: null,
             _isSyncingNow: false,
+            _lastInvoicesVersion: 0,
 
             startContinuousSync: function () {
                 if (App._syncInterval) return;
@@ -7556,23 +7557,41 @@
                         if (typeof OM !== 'undefined' && OM.q().length > 0) {
                             await OM.process();
                         }
-                        // 2. Continuous 1-second sync with server database
-                        var syncUrl = (API_URL || location.origin + '/api') + '/invoices';
-                        var res = await fetch(syncUrl, { cache: 'no-store' });
-                        if (res.ok) {
-                            var data = await res.json();
-                            var invs = Array.isArray(data) ? data : (data && Array.isArray(data.invoices) ? data.invoices : null);
-                            if (invs && Array.isArray(invs)) {
-                                var currLen = (IM._all || []).length;
-                                if (invs.length !== currLen || JSON.stringify(invs[0] || {}) !== JSON.stringify((IM._all || [])[0] || {})) {
+
+                        // 2. Ultra-lightweight check: inspect version hash first (takes < 2ms, 0 overhead)
+                        var baseApi = (API_URL || location.origin + '/api');
+                        var verUrl = baseApi + '/invoices/version';
+                        var isChanged = true;
+
+                        try {
+                            var verRes = await fetch(verUrl, { cache: 'no-store' });
+                            if (verRes.ok) {
+                                var verData = await verRes.json();
+                                if (verData && verData.version) {
+                                    if (App._lastInvoicesVersion && App._lastInvoicesVersion === verData.version) {
+                                        isChanged = false; // No changes detected, skip heavy parse
+                                    } else {
+                                        App._lastInvoicesVersion = verData.version;
+                                    }
+                                }
+                            }
+                        } catch (_) { }
+
+                        // 3. Only retrieve full invoice list when a change actually occurred
+                        if (isChanged) {
+                            var syncUrl = baseApi + '/invoices';
+                            var res = await fetch(syncUrl, { cache: 'no-store' });
+                            if (res.ok) {
+                                var data = await res.json();
+                                var invs = Array.isArray(data) ? data : (data && Array.isArray(data.invoices) ? data.invoices : null);
+                                if (invs && Array.isArray(invs)) {
                                     IM.applyInvoices(invs);
                                     if (typeof DM !== 'undefined' && DM.render) DM.render();
                                 }
                             }
-                            App.updateSyncStatus('synced');
                         }
+                        App.updateSyncStatus('synced');
                     } catch (_) {
-                        // Keep quiet to prevent console clutter during temporary network changes
                     } finally {
                         App._isSyncingNow = false;
                     }

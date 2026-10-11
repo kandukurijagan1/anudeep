@@ -1303,6 +1303,12 @@ app.get('/api/bootstrap', async (req, res) => {
 });
 
 // --- Invoices Endpoints ---
+let _invoicesVersion = Date.now();
+
+app.get('/api/invoices/version', (req, res) => {
+  res.json({ version: _invoicesVersion });
+});
+
 app.get('/api/invoices', (req, res) => {
   const invoices = readJsonFile('invoices', []);
   res.json(invoices);
@@ -1326,6 +1332,7 @@ app.post('/api/invoices', (req, res) => {
       invoices.unshift(inv);
     }
     writeJsonFile('invoices', invoices);
+    _invoicesVersion = Date.now();
 
     // Increment next invoice number in settings
     const settings = readJsonFile('settings', getDefaultSettings());
@@ -1362,12 +1369,14 @@ app.put('/api/invoices/:id', (req, res) => {
     if (index > -1) {
       invoices[index] = { ...invoices[index], ...inv, id: id, _id: id };
       writeJsonFile('invoices', invoices);
+      _invoicesVersion = Date.now();
       forwardToGas('updateInvoice', invoices[index], id);
       broadcastRealtime('invoice_updated', { invoice: invoices[index] });
       res.json({ success: true, invoice: invoices[index], data: invoices[index] });
     } else {
       invoices.unshift(inv);
       writeJsonFile('invoices', invoices);
+      _invoicesVersion = Date.now();
       forwardToGas('createInvoice', inv, id);
       res.json({ success: true, invoice: inv, data: inv });
     }
@@ -1382,6 +1391,7 @@ app.delete('/api/invoices/:id', (req, res) => {
     let invoices = readJsonFile('invoices', []);
     invoices = invoices.filter(i => String(i.id || i._id) !== String(id));
     writeJsonFile('invoices', invoices);
+    _invoicesVersion = Date.now();
     forwardToGas('deleteInvoice', {}, id);
     broadcastRealtime('invoice_deleted', { id });
     res.json({ success: true });
