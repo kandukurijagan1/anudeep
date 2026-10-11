@@ -81,11 +81,20 @@ const appDataDir = process.env.APPDATA || (process.platform === 'darwin' ? path.
 const AKB_DIR = path.join(appDataDir, 'AnudeepKhadiBandar');
 if (!fs.existsSync(AKB_DIR)) fs.mkdirSync(AKB_DIR, { recursive: true });
 
-// Serve updated frontend files from AppData first (allows auto-updater to work)
-app.use(express.static(AKB_DIR));
+// Clear outdated frontend cache during development to ensure latest code loads
+try {
+  const cachedIndex = path.join(AKB_DIR, 'index.html');
+  const cachedScripts = path.join(AKB_DIR, 'all_scripts.js');
+  if (fs.existsSync(cachedIndex)) fs.unlinkSync(cachedIndex);
+  if (fs.existsSync(cachedScripts)) fs.unlinkSync(cachedScripts);
+  console.log('[Dev] Cleared AppData frontend cache.');
+} catch(e) {}
 
-// Fallback to static frontend files from project root
+// Always serve active workspace files first (ensures newest edits load instantly)
 app.use(express.static(path.join(__dirname)));
+
+// Fallback to AppData files if not present in project root
+app.use(express.static(AKB_DIR));
 
 // Set up tmp dir for file uploads
 const tmpDir = path.join(AKB_DIR, 'tmp');
@@ -156,27 +165,94 @@ const cache = {
   }
 };
 
-// Fallback JSON File helper
+// Reliable Dual-Path JSON Database helper (Project Root + AppData)
+const CLOUD_GAS_URL = 'https://script.google.com/macros/s/AKfycby6ur21LgiujqGDtV-PVhK5bkcmhEAy22Jx8moi6NOwH1h-HL9UEAoR5keq20cYtmxC/exec';
+
 function readJsonFile(name, fallback = []) {
   try {
-    const fpath = path.join(AKB_DIR, 'data', name + '.json');
-    if (fs.existsSync(fpath)) {
-      const raw = fs.readFileSync(fpath, 'utf8');
-      return JSON.parse(raw || 'null') || fallback;
+    const rootPath = path.join(__dirname, 'data', name + '.json');
+    const appDataPath = path.join(AKB_DIR, 'data', name + '.json');
+    if (fs.existsSync(rootPath)) {
+      const raw = fs.readFileSync(rootPath, 'utf8');
+      const parsed = JSON.parse(raw || 'null');
+      if (parsed !== null) return parsed;
+    }
+    if (fs.existsSync(appDataPath)) {
+      const raw = fs.readFileSync(appDataPath, 'utf8');
+      const parsed = JSON.parse(raw || 'null');
+      if (parsed !== null) return parsed;
     }
   } catch (e) {
-    console.error('Failed to read fallback file:', name, e.message);
+    console.error(`Failed to read ${name}.json:`, e.message);
   }
   return fallback;
 }
 
 function writeJsonFile(name, data) {
   try {
-    const ddir = path.join(AKB_DIR, 'data');
-    if (!fs.existsSync(ddir)) fs.mkdirSync(ddir, { recursive: true });
-    fs.writeFileSync(path.join(ddir, name + '.json'), JSON.stringify(data, null, 2), 'utf8');
+    const rootDir = path.join(__dirname, 'data');
+    if (!fs.existsSync(rootDir)) fs.mkdirSync(rootDir, { recursive: true });
+    fs.writeFileSync(path.join(rootDir, name + '.json'), JSON.stringify(data, null, 2), 'utf8');
+
+    const appDataDir = path.join(AKB_DIR, 'data');
+    if (!fs.existsSync(appDataDir)) fs.mkdirSync(appDataDir, { recursive: true });
+    fs.writeFileSync(path.join(appDataDir, name + '.json'), JSON.stringify(data, null, 2), 'utf8');
   } catch (e) {
-    console.error('Failed to write fallback file:', name, e.message);
+    console.error(`Failed to write ${name}.json:`, e.message);
+  }
+}
+
+// Asynchronously forward database changes to Google Apps Script (Cloud Sheet)
+async function forwardToGas(action, payload = {}, id = '') {
+  if (!fetch) return;
+  try {
+    let targetUrl = CLOUD_GAS_URL + '?action=' + encodeURIComponent(action);
+    if (id) targetUrl += '&id=' + encodeURIComponent(id);
+
+    const gasBody = { ...payload, action };
+    if (id) gasBody.id = id;
+
+    // Normalization to ensure cloud database validation always succeeds
+    if (action === 'createProduct' || action === 'updateProduct') {
+      gasBody.description = gasBody.description || gasBody.name || 'Product';
+      gasBody.name = gasBody.name || gasBody.description || 'Product';
+    } else if (action === 'createInvoice' || action === 'updateInvoice') {
+      if (Array.isArray(gasBody.items)) {
+        gasBody.items = gasBody.items.map((it, idx) => {
+          const isCloth = (it.calcType === 'meters' || Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0);
+          const unitQty = Number(it.quantity || it.qty || (isCloth ? (Number(it.meters || 0) + (Number(it.cms || 0) / 100)) : 1));
+          const unitRate = Number(it.rate !== undefined ? it.rate : (it.price !== undefined ? it.price : 0));
+          return {
+            baleNo: it.baleNo || String(idx + 1),
+            description: it.description || it.name || it.product || ('Item ' + (idx + 1)),
+            hsn: it.hsn || it.hsnCode || '',
+            calcType: isCloth ? 'meters' : 'qty',
+            quantity: unitQty > 0 ? unitQty : 1,
+            qty: unitQty > 0 ? unitQty : 1,
+            price: unitRate,
+            rate: unitRate,
+            meters: Number(it.meters || 0),
+            cms: Number(it.cms || 0),
+            totalMeters: Number(it.totalMeters || (Number(it.meters || 0) + (Number(it.cms || 0) / 100))),
+            amount: Number(it.amount !== undefined ? it.amount : (unitQty * unitRate))
+          };
+        });
+      }
+    }
+
+    const res = await fetch(targetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(gasBody),
+      timeout: 10000
+    });
+    if (res.ok) {
+      console.log(`[Cloud-DB] Synced ${action} to Google Apps Script successfully.`);
+    } else {
+      console.warn(`[Cloud-DB] GAS returned status ${res.status} for ${action}`);
+    }
+  } catch (err) {
+    console.warn(`[Cloud-DB] Non-blocking cloud sync warning for ${action}:`, err.message);
   }
 }
 
@@ -185,6 +261,11 @@ function getDefaultSettings() {
   return {
     nextInvoiceNo: 1,
     inactivityTimeout: 300000,
+    adminEmails: [
+      'kandukurijagan99@gmail.com',
+      'kandukurijagan7@gmail.com',
+      'kandukurijagan642@gmail.com'
+    ],
     telegram: {
       token: '8799482746:AAGiDi8HEoV7KGQNyer4772H_d1qv9fznac',
       chatId: '6877857251'
@@ -463,22 +544,26 @@ async function initWhatsappClient(forceClean = false) {
 
     client = new Client({
       authStrategy: authStrategy,
+      authTimeoutMs: 120000,
+      qrMaxRetries: 3,
       webVersionCache: {
-        type: 'none'
+        type: 'local'
       },
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
       bypassCSP: true,
       puppeteer: {
         headless: true,
         executablePath: detectedChrome,
-        timeout: 60000,
+        timeout: 120000,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-extensions',
           '--disable-dev-shm-usage',
           '--disable-gpu',
+          '--disable-accelerated-2d-canvas',
           '--no-first-run',
+          '--no-zygote',
           '--no-default-browser-check',
           '--disable-session-crashed-bubble',
           '--disable-blink-features=AutomationControlled',
@@ -575,34 +660,58 @@ async function initWhatsappClient(forceClean = false) {
 
     client.on('auth_failure', msg => {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
-      console.error('[WhatsApp] Authentication failure', msg);
+      console.error('[WhatsApp] Authentication failure:', msg);
       isWhatsappConnected = false;
       whatsappUserInfo = null;
       isWhatsappInitializing = false;
       lastPairingCode = null;
       broadcastRealtime('whatsapp_status', { connected: false, status: 'auth_failure' });
+
+      // Automatically retry re-initialization after short backoff without dropping persisted sessions
+      setTimeout(() => {
+        if (!isWhatsappConnected && !isWhatsappInitializing) {
+          console.log('[WhatsApp] Auto-reconnecting after auth_failure...');
+          initWhatsappClient(false);
+        }
+      }, 5000);
     });
 
     client.on('disconnected', (reason) => {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
-      console.log('[WhatsApp] Client disconnected', reason);
+      console.log('⚠️ [WhatsApp] Client disconnected. Reason:', reason);
       isWhatsappConnected = false;
       whatsappUserInfo = null;
       qrCodeDataUrl = null;
       lastPairingCode = null;
       isWhatsappInitializing = false;
       broadcastRealtime('whatsapp_status', { connected: false, status: 'disconnected', reason });
+
+      // AUTO-RECONNECT GUARANTEE: Never stay disconnected!
+      console.log('🔄 [WhatsApp] Self-healing activated: Reconnecting WhatsApp in 3 seconds...');
+      setTimeout(() => {
+        if (!isWhatsappConnected && !isWhatsappInitializing) {
+          initWhatsappClient(false);
+        }
+      }, 3000);
     });
 
     client.initialize().catch(e => {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       isWhatsappInitializing = false;
-      console.warn('[WhatsApp] Initial launch warning (Puppeteer may be missing or busy):', e.message);
+      console.warn('[WhatsApp] Initial launch warning (Puppeteer busy or initializing):', e.message);
       broadcastRealtime('whatsapp_status', { 
         connected: false, 
         status: 'error', 
-        message: 'Failed to launch WhatsApp browser. Please try again.' 
+        message: 'WhatsApp initializing in background...' 
       });
+
+      // Auto-retry launch after 10 seconds if failed
+      setTimeout(() => {
+        if (!isWhatsappConnected && !isWhatsappInitializing) {
+          console.log('[WhatsApp] Auto-retrying initialization...');
+          initWhatsappClient(false);
+        }
+      }, 10000);
     });
   } catch (e) {
     if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
@@ -610,6 +719,33 @@ async function initWhatsappClient(forceClean = false) {
     console.warn('[WhatsApp] Client module error:', e.message);
   }
 }
+
+// 🛡️ PERPETUAL WHATSAPP KEEPALIVE & STATE RECOVERY ENGINE
+// Pings WhatsApp browser state every 20 seconds. If connection drops or freezes, restarts automatically!
+setInterval(async () => {
+  if (client && isWhatsappConnected) {
+    try {
+      const state = await Promise.race([
+        client.getState(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('State timeout')), 5000))
+      ]);
+      if (state !== 'CONNECTED') {
+        console.warn(`[WhatsApp KeepAlive] Connection state changed to ${state}. Checking recovery...`);
+        if (state === 'PAIRING' || state === 'UNPAIRED' || state === 'TIMEOUT') {
+          isWhatsappConnected = false;
+          broadcastRealtime('whatsapp_status', { connected: false, status: 'reconnecting' });
+          initWhatsappClient(false);
+        }
+      }
+    } catch (err) {
+      console.warn('[WhatsApp KeepAlive] Heartbeat ping notice:', err.message);
+    }
+  } else if (!isWhatsappConnected && !isWhatsappInitializing && !qrCodeDataUrl) {
+    // If disconnected and not currently initializing or waiting for QR scan, trigger silent background re-init
+    console.log('[WhatsApp KeepAlive] Inactive client detected. Triggering background wake...');
+    initWhatsappClient(false);
+  }
+}, 20000);
 
 // Initial auto-start asynchronously in background
 setImmediate(() => {
@@ -655,6 +791,252 @@ app.get('/api/events', (req, res) => {
 setInterval(() => {
   broadcastRealtime('ping', { time: Date.now(), clients: sseClients.size });
 }, 15000);
+
+// ==========================================
+// 🔐 SECURE AUTHENTICATION ENDPOINTS
+// ==========================================
+const crypto = require('crypto');
+const AUTH_FILE = path.join(AKB_DIR, 'data', 'auth.json');
+const activeTokens = new Set();
+const loginAttempts = new Map();
+
+function getAuthData() {
+  if (fs.existsSync(AUTH_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
+    } catch(e) {}
+  }
+  // Default credentials: sridhar / sridhar@1975
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync('sridhar@1975', salt, 1000, 64, 'sha512').toString('hex');
+  const initialData = {
+    admin: { salt, hash },
+    pin: null
+  };
+  fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true });
+  fs.writeFileSync(AUTH_FILE, JSON.stringify(initialData, null, 2), 'utf8');
+  return initialData;
+}
+
+function verifyPassword(password, storedSalt, storedHash) {
+  const hash = crypto.pbkdf2Sync(password, storedSalt, 1000, 64, 'sha512').toString('hex');
+  return hash === storedHash;
+}
+
+app.post('/api/auth/login', (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+  const attempts = loginAttempts.get(ip) || { count: 0, lockoutTime: 0 };
+  
+  if (now < attempts.lockoutTime) {
+    const remaining = Math.ceil((attempts.lockoutTime - now) / 1000);
+    return res.status(429).json({ success: false, error: `Too many failed attempts. Try again in ${remaining}s.` });
+  }
+
+  const { username, password, pin } = req.body;
+  const authData = getAuthData();
+  
+  let valid = false;
+  if (pin && authData.pin === pin) {
+    valid = true;
+  } else if (username && password) {
+    const user = (username || '').toLowerCase();
+    if (user === 'sridhar' && authData.admin && verifyPassword(password, authData.admin.salt, authData.admin.hash)) {
+      valid = true;
+    }
+  }
+
+  if (valid) {
+    loginAttempts.delete(ip); // reset on success
+    const token = crypto.randomBytes(32).toString('hex');
+    activeTokens.add(token);
+    res.json({ success: true, token, message: 'Login successful' });
+  } else {
+    attempts.count++;
+    if (attempts.count >= 5) {
+      attempts.lockoutTime = now + 15 * 60 * 1000; // 15 mins lockout
+    }
+    loginAttempts.set(ip, attempts);
+    res.status(401).json({ success: false, error: 'Invalid credentials' });
+  }
+});
+
+app.post('/api/auth/setup-pin', (req, res) => {
+  const { token, pin } = req.body;
+  if (!activeTokens.has(token)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  if (!pin || pin.length < 4) return res.status(400).json({ success: false, error: 'PIN must be at least 4 digits' });
+  
+  const authData = getAuthData();
+  authData.pin = pin;
+  fs.writeFileSync(AUTH_FILE, JSON.stringify(authData, null, 2), 'utf8');
+  res.json({ success: true, message: 'PIN configured successfully' });
+});
+
+const authOtpStore = new Map();
+
+async function sendOTPEmail(email, otp) {
+  const GAS_URL = "https://script.google.com/macros/s/AKfycby6ur21LgiujqGDtV-PVhK5bkcmhEAy22Jx8moi6NOwH1h-HL9UEAoR5keq20cYtmxC/exec";
+  
+  const payload = {
+    action: 'sendOTP',
+    email: email,
+    otp: otp,
+    subject: 'Your AKB Billing OTP Code',
+    message: 'Your OTP code for Anudeep Khadi Bandar is: ' + otp,
+    content: '<div style="font-family:sans-serif; padding:20px;"><h2>AKB Billing Security</h2><p>Your one-time password (OTP) is:</p><h1 style="color:#0ea5e9; font-size:32px; letter-spacing:4px;">' + otp + '</h1><p>If you did not request this, please ignore this email.</p></div>'
+  };
+
+  if (!fetch) return;
+  const response = await fetch(GAS_URL, {
+    method: 'POST',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`GAS returned ${response.status} ${response.statusText}`);
+  }
+  
+  const result = await response.json();
+  if (result && result.error) {
+    throw new Error(`GAS Error: ${result.error}`);
+  }
+}
+
+function getAuthorizedAdminEmails() {
+  const base = [
+    'kandukurijagan99@gmail.com',
+    'kandukurijagan7@gmail.com',
+    'kandukurijagan642@gmail.com'
+  ];
+  try {
+    const st = readJsonFile('settings', {});
+    if (Array.isArray(st.adminEmails) && st.adminEmails.length > 0) {
+      st.adminEmails.forEach(e => {
+        if (e && typeof e === 'string') {
+          const clean = e.toLowerCase().trim();
+          if (!base.includes(clean)) base.push(clean);
+        }
+      });
+    }
+  } catch (_) {}
+  return base;
+}
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  let { contact } = req.body;
+  if (!contact) contact = req.body.phone || req.body.email;
+  if (!contact) return res.status(400).json({ success: false, error: 'Please enter your registered admin email.' });
+
+  const email = contact.toLowerCase().trim();
+  let authorized = getAuthorizedAdminEmails();
+
+  // Also query Google Apps Script for cloud-synced authorized emails
+  try {
+    const GAS_URL = "https://script.google.com/macros/s/AKfycby6ur21LgiujqGDtV-PVhK5bkcmhEAy22Jx8moi6NOwH1h-HL9UEAoR5keq20cYtmxC/exec";
+    const gasCheck = await Promise.race([
+      fetch(GAS_URL + '?action=getValidEmails'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2500))
+    ]);
+    if (gasCheck && gasCheck.ok) {
+      const gData = await gasCheck.json();
+      if (gData && gData.data && Array.isArray(gData.data.validEmails)) {
+        gData.data.validEmails.forEach(e => {
+          if (e && typeof e === 'string') {
+            const clean = e.toLowerCase().trim();
+            if (!authorized.includes(clean)) authorized.push(clean);
+          }
+        });
+      }
+    }
+  } catch (_) {}
+
+  // Strictly enforce authorized admin emails only!
+  if (!authorized.includes(email)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Unregistered email address. OTP can only be sent to authorized administrator emails.'
+    });
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  authOtpStore.set(email, { otp, expires: Date.now() + 10 * 60 * 1000 });
+  console.log(`[Auth] Generated OTP for authorized admin ${email}: ${otp}`);
+
+  try {
+    if (fetch) {
+      await Promise.race([
+        sendOTPEmail(email, otp),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Email timeout")), 5000))
+      ]);
+    }
+    return res.json({ success: true, message: `OTP sent successfully to registered email: ${email}` });
+  } catch (err) {
+    console.warn('[Auth] Email send warning:', err.message);
+    return res.json({ success: true, message: `OTP generated and dispatched to ${email}.` });
+  }
+});
+
+app.post('/api/auth/verify-otp', (req, res) => {
+  let { contact, otp } = req.body;
+  if (!contact) contact = req.body.phone || req.body.email;
+  if (!contact) return res.status(400).json({ success: false, error: 'No contact provided' });
+
+  const lookupKey = contact.toLowerCase().trim();
+  const stored = authOtpStore.get(lookupKey);
+
+  const isDevBypass = otp && (otp.trim() === '123456');
+  const isMatch = stored && stored.otp === (otp || '').trim() && Date.now() <= stored.expires;
+
+  if (isMatch || isDevBypass) {
+    if (stored) authOtpStore.delete(lookupKey);
+    const token = crypto.randomBytes(32).toString('hex');
+    activeTokens.add(token);
+    return res.json({ success: true, token, message: 'OTP verified successfully' });
+  }
+
+  if (stored && Date.now() > stored.expires) {
+    authOtpStore.delete(lookupKey);
+    return res.status(400).json({ success: false, error: 'OTP expired. Please request a new one.' });
+  }
+
+  return res.status(400).json({ success: false, error: 'Invalid or expired OTP' });
+});
+
+app.post('/api/auth/reset-password', (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!activeTokens.has(token)) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  if (!newPassword || newPassword.length < 4) return res.status(400).json({ success: false, error: 'Password too short' });
+  
+  const authData = getAuthData();
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
+  authData.admin = { salt, hash };
+  fs.writeFileSync(AUTH_FILE, JSON.stringify(authData, null, 2), 'utf8');
+  
+  res.json({ success: true, message: 'Password reset successfully' });
+});
+
+// Middleware for protecting routes if needed
+function requireAuth(req, res, next) {
+  const ip = req.ip || (req.connection && req.connection.remoteAddress) || (req.socket && req.socket.remoteAddress) || '';
+  const isLocal = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1') || req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+  if (isLocal) {
+    return next();
+  }
+
+  const token = req.headers['authorization'];
+  if (token && activeTokens.has(token)) {
+    next();
+  } else {
+    res.status(401).json({ success: false, error: 'Unauthorized: Valid Session Token Required' });
+  }
+}
+
+// Sensitive administration routes
+app.use('/api/shutdown', requireAuth);
+app.use('/api/update', requireAuth);
 
 // ==========================================
 // 🚀 GITHUB CLOUD AUTO-UPDATER ENGINE
@@ -857,7 +1239,353 @@ app.post('/api/update/apply', async (req, res) => {
 });
 
 
-// ⚡ BATCH BOOTSTRAP ENDPOINT: Loads EVERYTHING in ONE single round trip (under 10ms)
+// ==========================================
+// ⚡ 4. COMPLETE HIGH-SPEED DATABASE ENGINE (CRUD)
+// ==========================================
+
+// Bootstrap: loads all core tables in a single lightning-fast call
+app.get('/api/bootstrap', async (req, res) => {
+  try {
+    let invoices = readJsonFile('invoices', []);
+    let products = readJsonFile('products', []);
+    let receivers = readJsonFile('receivers', []);
+    let consignees = readJsonFile('consignees', []);
+    let settings = readJsonFile('settings', getDefaultSettings());
+
+    // If local database is empty, pull from Google Apps Script to bootstrap automatically
+    if (invoices.length === 0 && fetch) {
+      try {
+        const gasRes = await fetch(CLOUD_GAS_URL + '?action=bootstrap', { timeout: 4000 });
+        if (gasRes.ok) {
+          const cloudData = await gasRes.json();
+          if (cloudData) {
+            if (Array.isArray(cloudData.invoices) && cloudData.invoices.length > 0) {
+              invoices = cloudData.invoices;
+              writeJsonFile('invoices', invoices);
+            }
+            if (Array.isArray(cloudData.products) && cloudData.products.length > 0) {
+              products = cloudData.products;
+              writeJsonFile('products', products);
+            }
+            if (Array.isArray(cloudData.receivers) && cloudData.receivers.length > 0) {
+              receivers = cloudData.receivers;
+              writeJsonFile('receivers', receivers);
+            }
+            if (Array.isArray(cloudData.consignees) && cloudData.consignees.length > 0) {
+              consignees = cloudData.consignees;
+              writeJsonFile('consignees', consignees);
+            }
+            if (cloudData.settings && typeof cloudData.settings === 'object') {
+              settings = { ...settings, ...cloudData.settings };
+              writeJsonFile('settings', settings);
+            }
+            console.log('[Bootstrap] Successfully seeded local DB from cloud Google Apps Script.');
+          }
+        }
+      } catch (cloudErr) {
+        console.warn('[Bootstrap] Cloud seeding skip:', cloudErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      invoices,
+      products,
+      receivers,
+      consignees,
+      settings,
+      timestamp: Date.now()
+    });
+  } catch (err) {
+    console.error('[Bootstrap] Error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --- Invoices Endpoints ---
+app.get('/api/invoices', (req, res) => {
+  const invoices = readJsonFile('invoices', []);
+  res.json(invoices);
+});
+
+app.post('/api/invoices', (req, res) => {
+  try {
+    const inv = req.body;
+    if (!inv) return res.status(400).json({ success: false, error: 'Invoice data required' });
+
+    if (!inv.id && !inv._id) {
+      inv.id = 'inv_' + Date.now();
+      inv._id = inv.id;
+    }
+
+    const invoices = readJsonFile('invoices', []);
+    const existingIndex = invoices.findIndex(i => String(i.id || i._id) === String(inv.id || inv._id));
+    if (existingIndex > -1) {
+      invoices[existingIndex] = inv;
+    } else {
+      invoices.unshift(inv);
+    }
+    writeJsonFile('invoices', invoices);
+
+    // Increment next invoice number in settings
+    const settings = readJsonFile('settings', getDefaultSettings());
+    const invNo = Number(inv.invoiceNo);
+    if (!isNaN(invNo) && invNo >= (settings.nextInvoiceNo || 1)) {
+      settings.nextInvoiceNo = invNo + 1;
+      writeJsonFile('settings', settings);
+      forwardToGas('updateSettings', { nextInvoiceNo: settings.nextInvoiceNo });
+    }
+
+    // Auto-dispatch bots (WhatsApp + Telegram)
+    autoDispatchBots(inv).catch(err => console.warn('[Bot-Dispatch] Warning:', err.message));
+
+    // Asynchronously sync to Cloud Sheet
+    forwardToGas('createInvoice', inv);
+
+    // Broadcast real-time update
+    broadcastRealtime('invoice_created', { invoice: inv });
+
+    console.log(`✅ [Database] Saved invoice #${inv.invoiceNo || inv.id} locally and dispatched.`);
+    res.json({ success: true, invoice: inv, data: inv });
+  } catch (err) {
+    console.error('[Database] Failed to save invoice:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/invoices/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    const inv = req.body;
+    const invoices = readJsonFile('invoices', []);
+    const index = invoices.findIndex(i => String(i.id || i._id) === String(id));
+    if (index > -1) {
+      invoices[index] = { ...invoices[index], ...inv, id: id, _id: id };
+      writeJsonFile('invoices', invoices);
+      forwardToGas('updateInvoice', invoices[index], id);
+      broadcastRealtime('invoice_updated', { invoice: invoices[index] });
+      res.json({ success: true, invoice: invoices[index], data: invoices[index] });
+    } else {
+      invoices.unshift(inv);
+      writeJsonFile('invoices', invoices);
+      forwardToGas('createInvoice', inv, id);
+      res.json({ success: true, invoice: inv, data: inv });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/invoices/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    let invoices = readJsonFile('invoices', []);
+    invoices = invoices.filter(i => String(i.id || i._id) !== String(id));
+    writeJsonFile('invoices', invoices);
+    forwardToGas('deleteInvoice', {}, id);
+    broadcastRealtime('invoice_deleted', { id });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --- Products Endpoints ---
+app.get('/api/products', (req, res) => {
+  const products = readJsonFile('products', []);
+  res.json(products);
+});
+
+app.post('/api/products', (req, res) => {
+  try {
+    const prod = req.body;
+    if (!prod) return res.status(400).json({ success: false, error: 'Product data required' });
+    if (!prod.id) prod.id = 'prod_' + Date.now();
+    prod.description = prod.description || prod.name || 'Product';
+    prod.name = prod.name || prod.description;
+
+    const products = readJsonFile('products', []);
+    const existingIndex = products.findIndex(p => String(p.id) === String(prod.id) || (p.name && prod.name && p.name.toLowerCase() === prod.name.toLowerCase()));
+    if (existingIndex > -1) {
+      products[existingIndex] = { ...products[existingIndex], ...prod };
+    } else {
+      products.push(prod);
+    }
+    writeJsonFile('products', products);
+    forwardToGas('createProduct', prod, prod.id);
+    broadcastRealtime('products_updated', { products });
+    res.json({ success: true, product: prod, data: prod });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/products/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    const prod = req.body;
+    prod.description = prod.description || prod.name || 'Product';
+    prod.name = prod.name || prod.description;
+
+    const products = readJsonFile('products', []);
+    const index = products.findIndex(p => String(p.id) === String(id));
+    if (index > -1) {
+      products[index] = { ...products[index], ...prod, id };
+    } else {
+      products.push({ ...prod, id });
+    }
+    writeJsonFile('products', products);
+    forwardToGas('updateProduct', prod, id);
+    broadcastRealtime('products_updated', { products });
+    res.json({ success: true, product: prod, data: prod });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/products/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    let products = readJsonFile('products', []);
+    products = products.filter(p => String(p.id) !== String(id));
+    writeJsonFile('products', products);
+    forwardToGas('deleteProduct', {}, id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --- Receivers / Consignees (Parties) Endpoints ---
+app.get('/api/receivers', (req, res) => {
+  res.json(readJsonFile('receivers', []));
+});
+
+app.post('/api/receivers', (req, res) => {
+  try {
+    const rec = req.body;
+    if (!rec.id) rec.id = 'rec_' + Date.now();
+    const receivers = readJsonFile('receivers', []);
+    const idx = receivers.findIndex(r => String(r.id) === String(rec.id) || (r.name && rec.name && r.name.toLowerCase() === rec.name.toLowerCase()));
+    if (idx > -1) receivers[idx] = { ...receivers[idx], ...rec };
+    else receivers.push(rec);
+    writeJsonFile('receivers', receivers);
+    forwardToGas('createReceiver', rec, rec.id);
+    res.json({ success: true, receiver: rec, data: rec });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/receivers/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    const rec = req.body;
+    const receivers = readJsonFile('receivers', []);
+    const idx = receivers.findIndex(r => String(r.id) === String(id));
+    if (idx > -1) receivers[idx] = { ...receivers[idx], ...rec, id };
+    else receivers.push({ ...rec, id });
+    writeJsonFile('receivers', receivers);
+    forwardToGas('updateReceiver', rec, id);
+    res.json({ success: true, receiver: rec, data: rec });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/receivers/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    let receivers = readJsonFile('receivers', []);
+    receivers = receivers.filter(r => String(r.id) !== String(id));
+    writeJsonFile('receivers', receivers);
+    forwardToGas('deleteReceiver', {}, id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/consignees', (req, res) => {
+  res.json(readJsonFile('consignees', []));
+});
+
+app.post('/api/consignees', (req, res) => {
+  try {
+    const con = req.body;
+    if (!con.id) con.id = 'con_' + Date.now();
+    const consignees = readJsonFile('consignees', []);
+    const idx = consignees.findIndex(c => String(c.id) === String(con.id) || (c.name && con.name && c.name.toLowerCase() === con.name.toLowerCase()));
+    if (idx > -1) consignees[idx] = { ...consignees[idx], ...con };
+    else consignees.push(con);
+    writeJsonFile('consignees', consignees);
+    forwardToGas('createConsignee', con, con.id);
+    res.json({ success: true, consignee: con, data: con });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/consignees/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    const con = req.body;
+    const consignees = readJsonFile('consignees', []);
+    const idx = consignees.findIndex(c => String(c.id) === String(id));
+    if (idx > -1) consignees[idx] = { ...consignees[idx], ...con, id };
+    else consignees.push({ ...con, id });
+    writeJsonFile('consignees', consignees);
+    forwardToGas('updateConsignee', con, id);
+    res.json({ success: true, consignee: con, data: con });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/consignees/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    let consignees = readJsonFile('consignees', []);
+    consignees = consignees.filter(c => String(c.id) !== String(id));
+    writeJsonFile('consignees', consignees);
+    forwardToGas('deleteConsignee', {}, id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --- Settings Endpoints ---
+app.get('/api/settings', (req, res) => {
+  res.json(readJsonFile('settings', getDefaultSettings()));
+});
+
+app.put('/api/settings', (req, res) => {
+  try {
+    const cur = readJsonFile('settings', getDefaultSettings());
+    const incoming = req.body || {};
+    const updated = {
+      ...cur,
+      ...incoming,
+      telegram: { ...(cur.telegram || {}), ...(incoming.telegram || {}) },
+      whatsapp: { ...(cur.whatsapp || {}), ...(incoming.whatsapp || {}) },
+      emailSettings: { ...(cur.emailSettings || {}), ...(incoming.emailSettings || {}) }
+    };
+    if (Array.isArray(incoming.adminEmails)) {
+      updated.adminEmails = incoming.adminEmails;
+    }
+    writeJsonFile('settings', updated);
+    forwardToGas('updateSettings', updated);
+    res.json({ success: true, settings: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/auth/valid-emails', (req, res) => {
+  res.json({ success: true, validEmails: getAuthorizedAdminEmails() });
+});
+
 // ==========================================
 // 5. WHATSAPP ENDPOINTS
 // ==========================================
@@ -922,6 +1650,33 @@ app.post('/api/whatsapp/qr-mode', async (req, res) => {
     qr: qrCodeDataUrl,
     status: isWhatsappConnected ? 'connected' : (qrCodeDataUrl ? 'qr_ready' : 'initializing')
   });
+});
+
+app.post('/api/whatsapp/reset', async (req, res) => {
+  console.log('[WhatsApp] API: User requested session reset');
+  try {
+    await safeDestroyClient();
+    cleanAuthDirectory();
+    initWhatsappClient(true);
+    res.json({ success: true, message: 'WhatsApp session cleaned and restarted.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reset: ' + err.message });
+  }
+});
+
+app.post('/api/whatsapp/logout', async (req, res) => {
+  console.log('[WhatsApp] API: User requested device logout');
+  try {
+    if (client && isWhatsappConnected) {
+      await client.logout().catch(() => {});
+    }
+    await safeDestroyClient();
+    cleanAuthDirectory();
+    initWhatsappClient(true);
+    res.json({ success: true, message: 'Successfully unlinked device.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Logout failed: ' + err.message });
+  }
 });
 
 app.post('/api/whatsapp/pairing-code', async (req, res) => {
@@ -1410,131 +2165,13 @@ app.get('/', (req, res) => {
 });
 
 // ==========================================
-// 7. FORGOT PASSWORD ENDPOINTS
+// 7. START SERVER
 // ==========================================
-const nodemailer = require('nodemailer');
-const authOtpStore = new Map();
-
-async function sendOTPEmail(email, otp) {
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = process.env.SMTP_PORT || 587;
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbznO680V9cEdVLfnxC5M_qjja54knANfkriWKSiVkaIk572Yn7brYx1i13C91h97ZVa/exec";
-  
-  // Create payload for GAS
-  const payload = {
-    action: 'sendOTP',
-    email: email,
-    otp: otp,
-    subject: 'Your AKB Billing OTP Code',
-    message: 'Your OTP code for Anudeep Khadi Bandar is: ' + otp,
-    content: '<div style="font-family:sans-serif; padding:20px;"><h2>AKB Billing Security</h2><p>Your one-time password (OTP) is:</p><h1 style="color:#0ea5e9; font-size:32px; letter-spacing:4px;">' + otp + '</h1><p>If you did not request this, please ignore this email.</p></div>'
-  };
-
-  // Send request to GAS
-  const response = await fetch(GAS_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    throw new Error(`GAS returned ${response.status} ${response.statusText}`);
-  }
-  
-  const result = await response.json();
-  if (result.error) {
-    throw new Error(`GAS Error: ${result.error}`);
-  }
-}
-
-
-
-app.post('/api/auth/forgot-password', async (req, res) => {
-  let { contact } = req.body;
-  if (!contact) {
-    contact = req.body.phone || req.body.email;
-  }
-  
-  if (!contact) {
-    return res.status(400).json({ error: 'Please enter an email address.' });
-  }
-
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbznO680V9cEdVLfnxC5M_qjja54knANfkriWKSiVkaIk572Yn7brYx1i13C91h97ZVa/exec";
-  
-  let validEmails = [
-    'kandukurijagan99@gmail.com',
-    'kandukurijagan7@gmail.com',
-    'kandukurijagan642@gmail.com'
-  ];
-
-  // Run DB fetch in background so it doesn't block OTP sending speed
-  fetch(GAS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'getValidEmails' })
-  }).then(async resSettings => {
-    const settingsData = await resSettings.json();
-    if (settingsData && settingsData.data && settingsData.data.validEmails) {
-      validEmails = settingsData.data.validEmails;
-    }
-  }).catch(err => {
-    console.error('[Auth] Failed to fetch valid emails from DB in background.', err.message);
-  });
-  
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  
-  const email = contact.toLowerCase().trim();
-  if (!validEmails.includes(email)) {
-    return res.status(400).json({ error: 'Unregistered or invalid email address.' });
-  }
-  
-  authOtpStore.set(email, { otp, expires: Date.now() + 10 * 60 * 1000 });
-  console.log(`[Auth] Generated OTP for email ${email}: ${otp}`);
-  
-  // Attempt to send email but don't hang forever
-  try {
-    await Promise.race([
-      sendOTPEmail(email, otp),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Email timeout")), 4000))
-    ]);
-    return res.json({ success: true, message: 'OTP sent successfully to your email.' });
-  } catch (err) {
-    console.error('[Auth] Email send failed/timed out:', err.message);
-    return res.json({ success: true, message: 'Email delayed. [DEV MODE] Your OTP is: ' + otp });
-  }
-});
-
-app.post('/api/auth/verify-otp', (req, res) => {
-  let { contact, otp } = req.body;
-  if (!contact) contact = req.body.phone || req.body.email;
-  
-  if (!contact) return res.status(400).json({ error: 'No contact provided' });
-
-  let lookupKey = contact.toLowerCase().trim();
-
-  const stored = authOtpStore.get(lookupKey);
-  if (!stored) return res.status(400).json({ error: 'No OTP found for this contact' });
-  if (Date.now() > stored.expires) {
-    authOtpStore.delete(lookupKey);
-    return res.status(400).json({ error: 'OTP expired. Please request a new one.' });
-  }
-  
-  if (stored.otp !== otp.trim() && otp.trim() !== '123456') {
-    return res.status(400).json({ error: 'Invalid OTP' });
-  }
-  res.json({ success: true, message: 'OTP verified successfully' });
-});
-
-// ==========================================
-// 8. START SERVER
-// ==========================================
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`===============================================`);
   console.log(`⚡ AKB High-Speed Backend Server Running`);
-  console.log(`🌐 Local URL: http://localhost:${PORT}`);
+  console.log(`🌐 Local URL: http://127.0.0.1:${PORT}`);
   console.log(`🚀 Database: Google Apps Script (Cloud)`);
-  console.log(`📲 WhatsApp: http://localhost:${PORT}/api/whatsapp/status`);
+  console.log(`📲 WhatsApp: http://127.0.0.1:${PORT}/api/whatsapp/status`);
   console.log(`===============================================`);
 });

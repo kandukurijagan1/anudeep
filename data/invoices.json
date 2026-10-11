@@ -1,5 +1,78 @@
 [
   {
+    "id": 1791729016652,
+    "invoiceNo": 6,
+    "date": "2026-10-11",
+    "reverseCharge": "No",
+    "transportMode": "",
+    "lrNo": "",
+    "transportDate": "",
+    "supplyDate": "",
+    "bundles": "0",
+    "placeOfSupply": "Andhra Pradesh",
+    "stateCode": "37",
+    "receiver": {
+      "name": "Test User",
+      "phone": "9441753678",
+      "address": "",
+      "gstin": "",
+      "state": "Andhra Pradesh",
+      "stateCode": "37"
+    },
+    "consignee": {
+      "name": "",
+      "phone": "9441753678",
+      "address": "",
+      "gstin": "",
+      "state": "Andhra Pradesh",
+      "stateCode": "37"
+    },
+    "customerPhone": "9441753678",
+    "items": [
+      {
+        "baleNo": "1",
+        "description": "Test Cloth",
+        "hsn": "",
+        "calcType": "meters",
+        "rate": 100,
+        "qty": 1,
+        "meters": 5,
+        "cms": 0,
+        "totalMeters": 5,
+        "amount": 500
+      }
+    ],
+    "taxableAmount": 500,
+    "cgstAmount": 12.5,
+    "sgstAmount": 12.5,
+    "igstAmount": 0,
+    "rawGrandTotal": 525,
+    "roundOff": 0,
+    "totalAmount": 525,
+    "isInterState": false
+  },
+  {
+    "invoiceNo": 5,
+    "date": "2026-10-11",
+    "receiver": {
+      "name": "Jagan Textiles",
+      "phone": "9441753678"
+    },
+    "items": [
+      {
+        "baleNo": "1",
+        "description": "White Khadi Dhoti",
+        "qty": 2,
+        "rate": 350,
+        "amount": 700
+      }
+    ],
+    "taxableAmount": 700,
+    "totalAmount": 735,
+    "id": "inv_1791728501912",
+    "_id": "inv_1791728501912"
+  },
+  {
     "_id": "1791280453493",
     "id": "1791280453493",
     "invoiceNo": 4,

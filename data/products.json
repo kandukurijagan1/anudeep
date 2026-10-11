@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "name": "Fine Khadi Towel",
+    "hsn": "6302",
+    "price": 180,
+    "calcType": "qty",
+    "id": "prod_1791728511012",
+    "description": "Fine Khadi Towel"
+  }
+]

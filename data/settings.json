@@ -1,6 +1,12 @@
 {
-  "nextInvoiceNo": 5,
+  "nextInvoiceNo": 7,
   "inactivityTimeout": 60000,
+  "adminEmails": [
+    "kandukurijagan99@gmail.com",
+    "kandukurijagan7@gmail.com",
+    "kandukurijagan642@gmail.com",
+    "endukuniku35@gmail.com"
+  ],
   "telegram": {
     "token": "8799482746:AAGiDi8HEoV7KGQNyer4772H_d1qv9fznac",
     "chatId": "6877857251"
