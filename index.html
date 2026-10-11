@@ -7694,10 +7694,7 @@
         function getWaApiUrl() {
             var custom = localStorage.getItem("akb_wa_server_url");
             if (custom && custom.trim()) return custom.trim().replace(/\/+$/, '');
-            if (API_URL && !API_URL.includes("script.google.com")) {
-                return API_URL.replace(/\/+$/, '');
-            }
-            if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app")) {
+            if (location.origin && location.origin.startsWith("http") && (location.origin.includes("localhost") || location.origin.includes("127.0.0.1"))) {
                 return (location.origin + '/api').replace(/\/+$/, '');
             }
             return 'http://127.0.0.1:3000/api';
@@ -8075,8 +8072,15 @@
             try {
                 var base = getWaApiUrl();
                 var ctrl = new AbortController();
-                var timer = setTimeout(function () { ctrl.abort(); }, 5000);
-                var res = await originalFetch(base + '/whatsapp/status', { signal: ctrl.signal });
+                var timer = setTimeout(function () { ctrl.abort(); }, 4000);
+                var res = null;
+                try {
+                    res = await (typeof originalFetch === 'function' ? originalFetch : fetch)(base + '/whatsapp/status', { signal: ctrl.signal });
+                } catch (firstErr) {
+                    // Try alternative address between 127.0.0.1 and localhost
+                    var altBase = base.includes("127.0.0.1") ? base.replace("127.0.0.1", "localhost") : base.replace("localhost", "127.0.0.1");
+                    res = await (typeof originalFetch === 'function' ? originalFetch : fetch)(altBase + '/whatsapp/status', { signal: ctrl.signal });
+                }
                 clearTimeout(timer);
                 if (!res.ok) throw new Error('Status HTTP ' + res.status);
                 var data = await res.json();
@@ -8103,13 +8107,13 @@
                 _waOfflineCount++;
                 _waStatusState = { connected: false, offline: true };
                 updateWhatsappSidebarDot(false, false);
-                if (_waOfflineCount >= 3) {
+                if (_waOfflineCount >= 4) {
                     _serverOffline = true;
                     renderWhatsappModal("server_offline", null);
                 } else {
-                    renderWhatsappModal("login", null);
+                    renderWhatsappModal("loading", { message: "Connecting to WhatsApp Bot..." });
                 }
-                if (showToast) U.toast("WhatsApp server offline — checking connection...", "warning");
+                if (showToast) U.toast("WhatsApp server connecting...", "info");
             }
         }
 
