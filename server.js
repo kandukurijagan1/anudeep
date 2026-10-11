@@ -1828,8 +1828,10 @@ app.post('/api/whatsapp/logout', async (req, res) => {
 
 app.post('/api/savePdfLocally', upload.single('file'), (req, res) => {
   const filePath = req.file && req.file.path;
-  const fileName = req.body.filename || 'Invoice.pdf';
-  if (!filePath) return res.status(400).json({ error: 'No file uploaded' });
+  const fileName = (req.body && req.body.filename) || (req.file && req.file.originalname) || 'Invoice.pdf';
+  if (!filePath) {
+    return res.json({ success: true, warning: 'No file received for local save' });
+  }
 
   try {
     const downloadsDir = path.join(require('os').homedir(), 'Downloads');
@@ -1837,14 +1839,16 @@ app.post('/api/savePdfLocally', upload.single('file'), (req, res) => {
     
     const destPath = path.join(downloadsDir, fileName);
     fs.copyFileSync(filePath, destPath);
-    fs.unlinkSync(filePath); // Cleanup temp file
+    try { fs.unlinkSync(filePath); } catch (_) {}
     
     console.log(`Silently saved PDF to: ${destPath}`);
     res.json({ success: true, path: destPath });
   } catch (err) {
     console.error('Error saving PDF locally:', err);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    res.status(500).json({ error: err.message });
+    if (filePath && fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); } catch (_) {}
+    }
+    res.json({ success: false, error: err.message });
   }
 });
 app.post('/api/whatsapp/sendPdf', upload.single('file'), async (req, res) => {
@@ -1853,14 +1857,14 @@ app.post('/api/whatsapp/sendPdf', upload.single('file'), async (req, res) => {
 
   if (!isWhatsappConnected || !client) {
     cleanup();
-    return res.status(400).json({ error: 'WhatsApp is not connected. Please scan QR or enter pairing code first.' });
+    return res.json({ success: false, offline: true, error: 'WhatsApp is not connected.' });
   }
 
   try {
-    let phone = req.body.phone;
+    let phone = req.body && req.body.phone;
     if (!phone) {
       cleanup();
-      return res.status(400).json({ error: 'Missing customer phone number' });
+      return res.json({ success: false, error: 'Missing customer phone number' });
     }
 
     const targetChatId = await resolveChatId(client, phone);

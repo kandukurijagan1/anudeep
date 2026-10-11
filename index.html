@@ -3882,13 +3882,28 @@
                 localStorage.removeItem("akb_auth_persistent");
                 document.getElementById("app-container").classList.remove("active");
                 document.getElementById("login-screen").style.display = "flex";
-                document.getElementById("l-pwd").value = "";
+                var pwdEl = document.getElementById("password") || document.getElementById("l-pwd");
+                if (pwdEl) pwdEl.value = "";
                 U.toast("Session locked securely", "success");
             }
         };
 
         /* ===== UI LOGIC ===== */
         var UI = {
+            op: function (id) {
+                var el = document.getElementById(id);
+                if (el) el.classList.add("active");
+            },
+            om: function (id) {
+                var el = document.getElementById(id);
+                if (el) el.classList.add("active");
+            },
+            cl: function (id) {
+                var el = document.getElementById(id);
+                if (el) el.classList.remove("active");
+                if (id === "pm") document.getElementById("fp").reset();
+                if (id === "pym") document.getElementById("fpy").reset(); if (id === "ppm") document.getElementById("pps").value = "";
+            },
             init: function () {
                 document.querySelectorAll(".nav-item").forEach(function (el) { el.addEventListener("click", function (e) { e.preventDefault(); UI.show(el.getAttribute("data-target")); document.querySelectorAll(".nav-item").forEach(function (n) { n.classList.remove("active") }); el.classList.add("active") }) });
                 document.getElementById("btn-sidebar-toggle").addEventListener("click", function (e) { e.stopPropagation(); document.getElementById("sidebar").classList.toggle("active") });
@@ -5274,18 +5289,18 @@
                 var textMsg = SM.formatText(inv);
                 var waApi = (typeof waApiBase !== 'undefined') ? waApiBase : ((typeof getWaApiUrl === 'function') ? getWaApiUrl() : 'http://127.0.0.1:3000/api');
 
-                // 1. Instant Text Dispatch to Telegram Bot (Fast < 200ms)
+                // 1. Instant Text Dispatch to Telegram Bot
                 tokens.forEach(function (botToken) {
                     chatIds.forEach(function (cId) {
-                        fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
+                        fetch(waApi + '/sendTelegramMessage', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ chat_id: cId, text: textMsg })
+                            body: JSON.stringify({ token: botToken, chatId: cId, text: textMsg })
                         }).catch(function () {
-                            fetch(waApi + '/sendTelegramMessage', {
+                            fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ token: botToken, chatId: cId, text: textMsg })
+                                body: JSON.stringify({ chat_id: cId, text: textMsg })
                             }).catch(function () { });
                         });
                     });
@@ -5308,18 +5323,17 @@
                 html2pdf().set(opt).from(parsed).outputPdf('blob').then(function (blob) {
                     tokens.forEach(function (botToken) {
                         chatIds.forEach(function (cId) {
-                            var directFd = new FormData();
-                            directFd.append('chat_id', cId);
-                            directFd.append('document', blob, pdfName);
-
-                            fetch('https://api.telegram.org/bot' + botToken + '/sendDocument', { method: 'POST', body: directFd })
+                            var proxyFd = new FormData();
+                            proxyFd.append('token', botToken);
+                            proxyFd.append('chatId', cId);
+                            proxyFd.append('file', blob, pdfName);
+                            fetch(waApi + '/sendTelegramDocument', { method: 'POST', body: proxyFd })
                                 .then(function (r) { return r.json(); })
                                 .catch(function () {
-                                    var proxyFd = new FormData();
-                                    proxyFd.append('token', botToken);
-                                    proxyFd.append('chatId', cId);
-                                    proxyFd.append('file', blob, pdfName);
-                                    fetch(waApi + '/sendTelegramDocument', { method: 'POST', body: proxyFd }).catch(function () { });
+                                    var directFd = new FormData();
+                                    directFd.append('chat_id', cId);
+                                    directFd.append('document', blob, pdfName);
+                                    fetch('https://api.telegram.org/bot' + botToken + '/sendDocument', { method: 'POST', body: directFd }).catch(function () { });
                                 });
                         });
                     });
@@ -5538,7 +5552,7 @@
                     document.getElementById("preview-copy-type").value = printSettings.copyType || 'original';
 
                     this.renderPreview();
-                    UI.op("bill-preview-modal");
+                    UI.om("bill-preview-modal");
                 },
 
                 updateCopyType: function (type) {
@@ -7526,21 +7540,58 @@
                 }
 
                 App.updateSyncStatus('synced');
+                App.startContinuousSync();
+            },
+
+            _syncInterval: null,
+            _isSyncingNow: false,
+
+            startContinuousSync: function () {
+                if (App._syncInterval) return;
+                App._syncInterval = setInterval(async function () {
+                    if (App._isSyncingNow) return;
+                    App._isSyncingNow = true;
+                    try {
+                        // 1. Process offline queue if any tasks are pending
+                        if (typeof OM !== 'undefined' && OM.q().length > 0) {
+                            await OM.process();
+                        }
+                        // 2. Continuous 1-second sync with server database
+                        var syncUrl = (API_URL || location.origin + '/api') + '/invoices';
+                        var res = await fetch(syncUrl, { cache: 'no-store' });
+                        if (res.ok) {
+                            var data = await res.json();
+                            var invs = Array.isArray(data) ? data : (data && Array.isArray(data.invoices) ? data.invoices : null);
+                            if (invs && Array.isArray(invs)) {
+                                var currLen = (IM._all || []).length;
+                                if (invs.length !== currLen || JSON.stringify(invs[0] || {}) !== JSON.stringify((IM._all || [])[0] || {})) {
+                                    IM.applyInvoices(invs);
+                                    if (typeof DM !== 'undefined' && DM.render) DM.render();
+                                }
+                            }
+                            App.updateSyncStatus('synced');
+                        }
+                    } catch (_) {
+                        // Keep quiet to prevent console clutter during temporary network changes
+                    } finally {
+                        App._isSyncingNow = false;
+                    }
+                }, 1000);
             },
 
             updateSyncStatus: function (status) {
                 var badge = document.getElementById('db-sync-badge');
                 if (!badge) return;
                 if (status === 'syncing') {
-                    badge.innerHTML = '<i class="ph ph-arrows-clockwise" style="animation:spin .8s linear infinite;color:#f59e0b"></i> <span>Syncing...</span>';
+                    badge.innerHTML = '<i class="ph ph-arrows-clockwise" style="animation:spin .8s linear infinite;color:#f59e0b"></i> <span>Syncing (1s)...</span>';
                 } else if (status === 'synced') {
                     var isLocal = API_URL && (API_URL.includes('localhost') || API_URL.startsWith('/api') || API_URL.includes('127.0.0.1'));
                     if (isLocal) {
-                        badge.innerHTML = '<i class="ph ph-lightning" style="color:#10b981"></i> <span>Local DB (' + (API_LATENCY_MS ? API_LATENCY_MS + 'ms' : 'Fast') + ')</span>';
-                        badge.title = 'Connected to local high-speed database: ' + API_URL;
+                        badge.innerHTML = '<i class="ph ph-lightning" style="color:#10b981"></i> <span>Synced (1s Live)</span>';
+                        badge.title = 'Connected to local high-speed database with 1s continuous sync: ' + API_URL;
                     } else {
-                        badge.innerHTML = '<i class="ph ph-cloud-check" style="color:#3b82f6"></i> <span>Cloud GAS</span>';
-                        badge.title = 'Connected to Google Apps Script';
+                        badge.innerHTML = '<i class="ph ph-cloud-check" style="color:#3b82f6"></i> <span>Cloud GAS (1s Live)</span>';
+                        badge.title = 'Connected to Google Apps Script with 1s continuous sync';
                     }
                 } else {
                     badge.innerHTML = '<i class="ph ph-warning-circle" style="color:#ef4444"></i> <span>Offline</span>';
