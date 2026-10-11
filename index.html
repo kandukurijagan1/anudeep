@@ -2390,7 +2390,9 @@
                         return;
                     }
                 } catch (localErr) {
-                    console.warn('Local auth forgot-password unavailable, trying cloud GAS fallback...', localErr.message);
+                    if (localErr && localErr.name !== 'AbortError' && !String(localErr.message || '').includes('abort')) {
+                        console.warn('Local auth forgot-password unavailable, trying cloud GAS fallback...', localErr.message);
+                    }
                 }
 
                 // Cloud Google Apps Script fallback if local server is down (only for authorized emails)
