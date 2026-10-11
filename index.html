@@ -8196,19 +8196,32 @@
         var _waOfflineCount = 0;
         async function fetchWhatsappStatus(showToast) {
             try {
-                var base = getWaApiUrl();
-                var ctrl = new AbortController();
-                var timer = setTimeout(function () { ctrl.abort(); }, 4000);
-                var res = null;
-                try {
-                    res = await (typeof originalFetch === 'function' ? originalFetch : fetch)(base + '/whatsapp/status', { signal: ctrl.signal });
-                } catch (firstErr) {
-                    // Try alternative address between 127.0.0.1 and localhost
-                    var altBase = base.includes("127.0.0.1") ? base.replace("127.0.0.1", "localhost") : base.replace("localhost", "127.0.0.1");
-                    res = await (typeof originalFetch === 'function' ? originalFetch : fetch)(altBase + '/whatsapp/status', { signal: ctrl.signal });
+                var candidates = [
+                    'http://127.0.0.1:3000/api/whatsapp/status',
+                    'http://localhost:3000/api/whatsapp/status'
+                ];
+                if (location.origin && location.origin.startsWith('http') && !candidates.includes(location.origin + '/api/whatsapp/status')) {
+                    candidates.unshift(location.origin + '/api/whatsapp/status');
                 }
-                clearTimeout(timer);
-                if (!res.ok) throw new Error('Status HTTP ' + res.status);
+
+                var res = null;
+                var directFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
+
+                for (var i = 0; i < candidates.length; i++) {
+                    try {
+                        var ctrl = new AbortController();
+                        var tm = setTimeout(function () { ctrl.abort(); }, 5000);
+                        var attempt = await directFetch(candidates[i], { signal: ctrl.signal });
+                        clearTimeout(tm);
+                        if (attempt && attempt.ok) {
+                            res = attempt;
+                            waApiBase = candidates[i].replace('/whatsapp/status', '');
+                            break;
+                        }
+                    } catch (_) {}
+                }
+
+                if (!res) throw new Error('WhatsApp endpoint unreachable');
                 var data = await res.json();
                 _waStatusState = data;
                 _waOfflineCount = 0;
