@@ -2194,9 +2194,6 @@
                             style="font-size:0.85rem; color:var(--mg); cursor:pointer; user-select:none; margin:0;">Remember password</label>
                     </div>
                     <button type="submit" class="btn btn-primary w-full" style="font-weight:700;"><i class="ph ph-sign-in"></i> Login to Dashboard</button>
-                    <button type="button" class="btn btn-secondary w-full" onclick="FP.showForgotView()" style="margin-top:8px; font-size:0.84rem;"><i class="ph ph-key"></i> Forgot Password / Reset Password</button>
-                    <button type="button" class="btn btn-secondary w-full" onclick="FP.instantDefaultReset()" style="margin-top:6px; font-size:0.84rem; color:#b45309; border-color:#f59e0b;"><i class="ph ph-arrow-counter-clockwise"></i> ⚡ Reset to Default Password (sridhar@1975)</button>
-                    <button type="button" class="btn btn-secondary w-full" onclick="sessionStorage.removeItem('akb_manual_logout'); AM.ok();" style="margin-top:6px; font-size:0.84rem; color:#10b981; border-color:#10b981;"><i class="ph ph-lightning"></i> ⚡ 1-Click Fast Login (Skip Password)</button>
                 </form>
             </div>
 
@@ -2215,9 +2212,6 @@
                         <input type="email" id="card-fp-contact" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.88rem;" placeholder="e.g. kandukurijagan99@gmail.com" autocomplete="email">
                     </div>
                     <button type="button" class="btn btn-primary w-full" onclick="FP.cardRequestOTP()" id="card-btn-request-otp" style="padding:10px; font-weight:600;"><i class="ph ph-paper-plane"></i> Send OTP to Email</button>
-                    <div style="margin-top:12px; text-align:center; border-top:1px dashed #e5e7eb; padding-top:12px;">
-                        <button type="button" class="btn btn-secondary w-full" onclick="FP.instantDefaultReset()" style="font-size:0.82rem; padding:8px; color:#b45309; border-color:#f59e0b;"><i class="ph ph-arrow-counter-clockwise"></i> ⚡ Instant Reset to Default (sridhar@1975)</button>
-                    </div>
                 </div>
 
                 <!-- Step 2: OTP -->
