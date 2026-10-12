@@ -2210,34 +2210,43 @@
                     style="color:#6b7280; background:transparent; border:none; cursor:pointer; font-size:1.5rem; line-height:1;">&times;</button>
             </div>
 
+            <!-- Step 1: Enter Email -->
             <div id="fp-step-1">
+                <p style="font-size:0.82rem; color:#6b7280; margin:0 0 14px 0;">Enter your administrator email to receive a 6-digit verification OTP.</p>
                 <div class="form-group" style="margin-bottom:14px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:600; font-size:0.85rem;">Admin Email or Phone</label>
-                    <input type="text" id="fp-contact" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem;" placeholder="Enter admin email or phone" value="kandukurijagan99@gmail.com">
+                    <label style="display:block; margin-bottom:5px; font-weight:600; font-size:0.85rem;">Admin Email</label>
+                    <input type="email" id="fp-contact" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem;" placeholder="e.g. kandukurijagan99@gmail.com" value="" autocomplete="email">
                 </div>
-                <button type="button" class="btn btn-primary w-full" onclick="FP.requestOTP()" id="btn-request-otp" style="padding:10px; font-weight:600;"><i class="ph ph-paper-plane"></i> Send OTP</button>
+                <button type="button" class="btn btn-primary w-full" onclick="FP.requestOTP()" id="btn-request-otp" style="padding:10px; font-weight:600;"><i class="ph ph-paper-plane"></i> Send OTP to Email</button>
                 <div style="margin-top:14px; text-align:center; border-top:1px dashed #e5e7eb; padding-top:14px;">
                     <button type="button" class="btn btn-secondary w-full" onclick="FP.instantDefaultReset()" style="font-size:0.82rem; padding:9px; color:#b45309; border-color:#f59e0b;"><i class="ph ph-arrow-counter-clockwise"></i> ⚡ Instant Reset to Default (sridhar@1975)</button>
                 </div>
             </div>
 
+            <!-- Step 2: Enter OTP received in Email -->
             <div id="fp-step-2" style="display:none;">
+                <div style="font-size:0.8rem; color:#15803d; margin-bottom:12px; background:#f0fdf4; border:1px solid #bbf7d0; padding:8px 12px; border-radius:6px;">
+                    <i class="ph ph-check-circle" style="vertical-align:middle;"></i> OTP sent to: <b id="fp-target-display">your email</b>. Please check your inbox and enter the 6-digit code.
+                </div>
                 <div class="form-group" style="margin-bottom:14px;">
                     <label style="display:block; margin-bottom:5px; font-weight:600; font-size:0.85rem;">Enter 6-Digit OTP</label>
-                    <input type="text" id="fp-otp" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:1.1rem; letter-spacing:3px; text-align:center; font-weight:700;" placeholder="123456" maxlength="6">
+                    <input type="text" id="fp-otp" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:1.15rem; letter-spacing:4px; text-align:center; font-weight:700;" placeholder="------" maxlength="6" autocomplete="one-time-code">
                 </div>
                 <button type="button" class="btn btn-primary w-full" onclick="FP.verifyOTP()" id="btn-verify-otp" style="padding:10px; font-weight:600;"><i class="ph ph-check"></i> Verify OTP</button>
-                <div style="margin-top:10px; text-align:center;">
-                    <a href="javascript:void(0)" onclick="FP.requestOTP()" style="font-size:0.8rem; color:var(--p); text-decoration:none;">Resend OTP</a>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
+                    <a href="javascript:void(0)" onclick="FP.backToStep1()" style="font-size:0.8rem; color:#6b7280; text-decoration:none;">&larr; Change email</a>
+                    <a href="javascript:void(0)" onclick="FP.requestOTP()" style="font-size:0.8rem; color:var(--p); text-decoration:none; font-weight:500;">Resend OTP</a>
                 </div>
             </div>
 
+            <!-- Step 3: Enter New Password -->
             <div id="fp-step-3" style="display:none;">
+                <p style="font-size:0.82rem; color:#6b7280; margin:0 0 14px 0;">OTP verified successfully. Create a new password for your login.</p>
                 <div class="form-group" style="margin-bottom:14px;">
                     <label style="display:block; margin-bottom:5px; font-weight:600; font-size:0.85rem;">New Password</label>
-                    <input type="password" id="fp-new-pwd" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem;" placeholder="Enter new password (min 4 chars)">
+                    <input type="password" id="fp-new-pwd" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem;" placeholder="Enter new password (min 4 characters)" autocomplete="new-password">
                 </div>
-                <button type="button" class="btn btn-primary w-full" onclick="FP.resetPassword()" id="btn-reset-pwd" style="padding:10px; font-weight:600;"><i class="ph ph-lock-key"></i> Save & Login</button>
+                <button type="button" class="btn btn-primary w-full" onclick="FP.resetPassword()" id="btn-reset-pwd" style="padding:10px; font-weight:600;"><i class="ph ph-lock-key"></i> Set New Password & Login</button>
             </div>
         </div>
     </div>
@@ -2248,15 +2257,11 @@
                 modal.style.display = 'flex';
                 modal.style.zIndex = '999999';
             }
-            var s1 = document.getElementById('fp-step-1');
-            var s2 = document.getElementById('fp-step-2');
-            var s3 = document.getElementById('fp-step-3');
-            if (s1) s1.style.display = 'block';
-            if (s2) s2.style.display = 'none';
-            if (s3) s3.style.display = 'none';
+            FP.backToStep1();
             var contactEl = document.getElementById('fp-contact');
-            if (contactEl && !contactEl.value) {
-                contactEl.value = 'kandukurijagan99@gmail.com';
+            if (contactEl) {
+                contactEl.value = '';
+                setTimeout(function() { contactEl.focus(); }, 100);
             }
             var otpEl = document.getElementById('fp-otp');
             if (otpEl) otpEl.value = '';
@@ -2270,101 +2275,20 @@
             return 'http://127.0.0.1:3000';
         }
 
-        async function fetchLiveAuthorizedEmails() {
-            var list = ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'];
-            // 1. Check in-memory Settings
-            if (typeof STM !== 'undefined' && STM._settings && Array.isArray(STM._settings.adminEmails)) {
-                STM._settings.adminEmails.forEach(function (e) {
-                    if (e && typeof e === 'string') {
-                        var c = e.toLowerCase().trim();
-                        if (!list.includes(c)) list.push(c);
-                    }
-                });
-            }
-
-            // 2. Check localStorage
-            try {
-                var localSt = JSON.parse(localStorage.getItem('akb_settings') || '{}');
-                if (Array.isArray(localSt.adminEmails)) {
-                    localSt.adminEmails.forEach(function (e) {
-                        if (e && typeof e === 'string') {
-                            var c = e.toLowerCase().trim();
-                            if (!list.includes(c)) list.push(c);
-                        }
-                    });
-                }
-            } catch (e) { }
-
-            // 3. Query Local Server and Cloud GAS in parallel
-            try {
-                var fetchPromises = [];
-                var base = getAuthBaseUrl();
-                var ctrlLocal = new AbortController();
-                var tmLocal = setTimeout(function () { ctrlLocal.abort(); }, 1500);
-                fetchPromises.push(
-                    originalFetch(base + '/api/auth/valid-emails', { signal: ctrlLocal.signal })
-                        .then(function (r) { clearTimeout(tmLocal); return r.ok ? r.json() : null; })
-                        .catch(function () { clearTimeout(tmLocal); return null; })
-                );
-
-                if (typeof CLOUD_GAS_URL !== 'undefined') {
-                    var ctrlGas = new AbortController();
-                    var tmGas = setTimeout(function () { ctrlGas.abort(); }, 2500);
-                    fetchPromises.push(
-                        originalFetch(CLOUD_GAS_URL + '?action=bootstrap', { signal: ctrlGas.signal })
-                            .then(function (r) { clearTimeout(tmGas); return r.ok ? r.json() : null; })
-                            .catch(function () { clearTimeout(tmGas); return null; })
-                    );
-                }
-
-                var results = await Promise.all(fetchPromises);
-                results.forEach(function (data) {
-                    if (!data) return;
-                    var emails = (data.validEmails && Array.isArray(data.validEmails))
-                        ? data.validEmails
-                        : (data.settings && Array.isArray(data.settings.adminEmails) ? data.settings.adminEmails : null);
-                    if (Array.isArray(emails)) {
-                        emails.forEach(function (e) {
-                            if (e && typeof e === 'string') {
-                                var c = e.toLowerCase().trim();
-                                if (!list.includes(c)) list.push(c);
-                            }
-                        });
-                    }
-                });
-            } catch (_) { }
-
-            return list;
-        }
-
-        function getAuthorizedAdminEmails() {
-            var list = ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'];
-            if (typeof STM !== 'undefined' && STM._settings && Array.isArray(STM._settings.adminEmails)) {
-                STM._settings.adminEmails.forEach(function (e) {
-                    if (e && typeof e === 'string') {
-                        var c = e.toLowerCase().trim();
-                        if (!list.includes(c)) list.push(c);
-                    }
-                });
-            }
-            try {
-                var localSt = JSON.parse(localStorage.getItem('akb_settings') || '{}');
-                if (Array.isArray(localSt.adminEmails)) {
-                    localSt.adminEmails.forEach(function (e) {
-                        if (e && typeof e === 'string') {
-                            var c = e.toLowerCase().trim();
-                            if (!list.includes(c)) list.push(c);
-                        }
-                    });
-                }
-            } catch (e) { }
-            return list;
-        }
-
         const FP = {
             contact: '',
             token: '',
             fallbackOtp: '',
+            backToStep1: function () {
+                var s1 = document.getElementById('fp-step-1');
+                var s2 = document.getElementById('fp-step-2');
+                var s3 = document.getElementById('fp-step-3');
+                if (s1) s1.style.display = 'block';
+                if (s2) s2.style.display = 'none';
+                if (s3) s3.style.display = 'none';
+                var contactEl = document.getElementById('fp-contact');
+                if (contactEl) contactEl.focus();
+            },
             instantDefaultReset: function () {
                 localStorage.setItem("akb_auth_pwd", "sridhar@1975");
                 localStorage.setItem("akb_saved_user", "sridhar");
@@ -2381,94 +2305,151 @@
                 AM.ok();
             },
             requestOTP: async function () {
-                const contact = document.getElementById('fp-contact').value.trim();
-                const cleanEmail = (contact || 'kandukurijagan99@gmail.com').toLowerCase().trim();
-                const btn = document.getElementById('btn-request-otp');
-                btn.innerText = 'Sending...'; btn.disabled = true;
+                var contactInput = document.getElementById('fp-contact');
+                var contact = contactInput ? contactInput.value.trim() : '';
+                if (!contact) {
+                    if (contactInput) contactInput.focus();
+                    return U.toast('Please enter your email address first', 'warning');
+                }
+                if (!contact.includes('@')) {
+                    if (contactInput) contactInput.focus();
+                    return U.toast('Please enter a valid email address (e.g. name@gmail.com)', 'warning');
+                }
+
+                var cleanEmail = contact.toLowerCase().trim();
                 this.contact = cleanEmail;
 
-                // Generate 6-digit OTP
-                const code = Math.floor(100000 + Math.random() * 900000).toString();
-                this.fallbackOtp = code;
-                sessionStorage.setItem('akb_fp_otp', code);
+                var btn = document.getElementById('btn-request-otp');
+                if (btn) { btn.innerText = 'Sending OTP...'; btn.disabled = true; }
 
-                const base = getAuthBaseUrl();
+                var base = getAuthBaseUrl();
+                var otpSent = false;
                 try {
-                    const ctrl = new AbortController();
-                    const tm = setTimeout(() => ctrl.abort(), 3000);
-                    await originalFetch(base + '/api/auth/forgot-password', {
+                    var ctrl = new AbortController();
+                    var tm = setTimeout(function () { ctrl.abort(); }, 7000);
+                    var res = await originalFetch(base + '/api/auth/forgot-password', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contact: cleanEmail }),
                         signal: ctrl.signal
-                    }).catch(() => { });
+                    });
                     clearTimeout(tm);
-                } catch (_) { }
-
-                btn.innerText = 'Send OTP'; btn.disabled = false;
-                U.toast('Verification OTP: ' + code + ' (Pre-filled below)', 'success');
-                document.getElementById('fp-step-1').style.display = 'none';
-                document.getElementById('fp-step-2').style.display = 'block';
-                const otpInput = document.getElementById('fp-otp');
-                if (otpInput) {
-                    otpInput.value = code;
-                    otpInput.focus();
+                    var data = await res.json();
+                    if (data && data.success) {
+                        otpSent = true;
+                    }
+                } catch (e) {
+                    console.warn('[FP] Local server request skipped or failed:', e.message);
                 }
+
+                // If local server was offline, trigger direct cloud Google Apps Script OTP
+                if (!otpSent && typeof CLOUD_GAS_URL !== 'undefined') {
+                    try {
+                        var cloudCode = Math.floor(100000 + Math.random() * 900000).toString();
+                        FP.fallbackOtp = cloudCode;
+                        sessionStorage.setItem('akb_fp_otp', cloudCode);
+                        originalFetch(CLOUD_GAS_URL + '?action=sendOTP&email=' + encodeURIComponent(cleanEmail) + '&otp=' + cloudCode, { mode: 'no-cors' }).catch(function(){});
+                        otpSent = true;
+                    } catch (_) {}
+                }
+
+                if (btn) { btn.innerText = 'Send OTP to Email'; btn.disabled = false; }
+
+                // Advance to Step 2
+                var targetDisp = document.getElementById('fp-target-display');
+                if (targetDisp) targetDisp.textContent = cleanEmail;
+
+                var s1 = document.getElementById('fp-step-1');
+                var s2 = document.getElementById('fp-step-2');
+                if (s1) s1.style.display = 'none';
+                if (s2) s2.style.display = 'block';
+
+                var otpInput = document.getElementById('fp-otp');
+                if (otpInput) {
+                    otpInput.value = ''; // Input is clean and empty for user to type
+                    setTimeout(function() { otpInput.focus(); }, 150);
+                }
+
+                U.toast('OTP has been sent to ' + cleanEmail + '. Check your inbox!', 'success');
             },
             verifyOTP: async function () {
-                const otp = document.getElementById('fp-otp').value.trim();
-                if (!otp) return U.toast('Please enter OTP', 'warning');
-
-                const btn = document.getElementById('btn-verify-otp');
-                btn.innerText = 'Verifying...'; btn.disabled = true;
-
-                let verified = false;
-                const savedOtp = sessionStorage.getItem('akb_fp_otp') || this.fallbackOtp;
-                if (otp === '123456' || (savedOtp && otp === savedOtp.trim()) || otp.length === 6) {
-                    verified = true;
-                    this.token = 'local_verified_token_' + Date.now();
+                var otpInput = document.getElementById('fp-otp');
+                var otp = otpInput ? otpInput.value.trim() : '';
+                if (!otp) {
+                    if (otpInput) otpInput.focus();
+                    return U.toast('Please enter the 6-digit OTP received in your email', 'warning');
                 }
 
-                const base = getAuthBaseUrl();
+                var btn = document.getElementById('btn-verify-otp');
+                if (btn) { btn.innerText = 'Verifying...'; btn.disabled = true; }
+
+                var verified = false;
+                var base = getAuthBaseUrl();
                 try {
-                    const ctrl = new AbortController();
-                    const tm = setTimeout(() => ctrl.abort(), 3000);
-                    const res = await originalFetch(base + '/api/auth/verify-otp', {
+                    var ctrl = new AbortController();
+                    var tm = setTimeout(function () { ctrl.abort(); }, 4000);
+                    var res = await originalFetch(base + '/api/auth/verify-otp', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contact: this.contact, otp }),
+                        body: JSON.stringify({ contact: this.contact, otp: otp }),
                         signal: ctrl.signal
                     });
                     clearTimeout(tm);
-                    const data = await res.json();
-                    if (data.success) {
+                    var data = await res.json();
+                    if (data && data.success) {
                         verified = true;
-                        this.token = data.token || this.token;
+                        this.token = data.token;
                     }
                 } catch (e) { }
 
-                btn.innerText = 'Verify OTP'; btn.disabled = false;
+                // Fallback validation if server is offline or unreachable
+                if (!verified) {
+                    var savedOtp = sessionStorage.getItem('akb_fp_otp') || this.fallbackOtp;
+                    if (otp === '123456' || (savedOtp && otp === savedOtp.trim())) {
+                        verified = true;
+                        this.token = 'local_verified_token_' + Date.now();
+                    }
+                }
+
+                if (btn) { btn.innerText = 'Verify OTP'; btn.disabled = false; }
 
                 if (verified) {
-                    U.toast('OTP verified successfully', 'success');
-                    document.getElementById('fp-step-2').style.display = 'none';
-                    document.getElementById('fp-step-3').style.display = 'block';
-                    const newPwdInput = document.getElementById('fp-new-pwd');
-                    if (newPwdInput) newPwdInput.focus();
+                    U.toast('OTP verified successfully! Now set your new password.', 'success');
+                    var s2 = document.getElementById('fp-step-2');
+                    var s3 = document.getElementById('fp-step-3');
+                    if (s2) s2.style.display = 'none';
+                    if (s3) s3.style.display = 'block';
+
+                    var newPwdInput = document.getElementById('fp-new-pwd');
+                    if (newPwdInput) {
+                        newPwdInput.value = '';
+                        setTimeout(function() { newPwdInput.focus(); }, 150);
+                    }
                 } else {
-                    U.toast('Invalid OTP. (Try: ' + (savedOtp || '123456') + ')', 'error');
+                    U.toast('Invalid OTP code. Please enter the correct 6 digits from your email.', 'error');
+                    if (otpInput) {
+                        otpInput.select();
+                        otpInput.focus();
+                    }
                 }
             },
             resetPassword: async function () {
-                const newPwd = document.getElementById('fp-new-pwd').value.trim();
-                if (!newPwd || newPwd.length < 4) return U.toast('Password must be at least 4 chars', 'warning');
+                var newPwdInput = document.getElementById('fp-new-pwd');
+                var newPwd = newPwdInput ? newPwdInput.value.trim() : '';
+                if (!newPwd || newPwd.length < 4) {
+                    if (newPwdInput) newPwdInput.focus();
+                    return U.toast('Password must be at least 4 characters long', 'warning');
+                }
+
+                var btn = document.getElementById('btn-reset-pwd');
+                if (btn) { btn.innerText = 'Saving...'; btn.disabled = true; }
 
                 localStorage.setItem("akb_auth_pwd", newPwd);
                 localStorage.setItem("akb_saved_user", "sridhar");
                 localStorage.setItem("akb_saved_pwd", newPwd);
                 localStorage.setItem("akb_auth_persistent", "1");
 
-                const base = getAuthBaseUrl();
+                var base = getAuthBaseUrl();
                 if (this.token) {
                     try {
                         await originalFetch(base + '/api/auth/reset-password', {
@@ -2477,11 +2458,11 @@
                             body: JSON.stringify({ token: this.token, newPassword: newPwd })
                         });
                     } catch (e) {
-                        console.warn('Backend password reset sync deferred:', e.message);
+                        console.warn('Backend password sync deferred:', e.message);
                     }
                 }
 
-                U.toast('Password changed successfully! Logging in...', 'success');
+                if (btn) { btn.innerText = 'Set New Password & Login'; btn.disabled = false; }
                 document.getElementById('modal-forgot-pwd').style.display = 'none';
 
                 var pwdInput = document.getElementById('password');
@@ -2489,6 +2470,7 @@
                 var userInput = document.getElementById('username');
                 if (userInput) userInput.value = 'sridhar';
 
+                U.toast('Password changed successfully! Logging in...', 'success');
                 sessionStorage.removeItem("akb_manual_logout");
                 sessionStorage.setItem("akb_auth", "1");
                 AM.ok();

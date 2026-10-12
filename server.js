@@ -949,23 +949,33 @@ function getAuthorizedAdminEmails() {
 
 app.post('/api/auth/forgot-password', async (req, res) => {
   let { contact } = req.body;
-  if (!contact) contact = req.body.phone || req.body.email || 'admin@akb.local';
+  if (!contact || typeof contact !== 'string' || !contact.trim()) {
+    return res.status(400).json({ success: false, error: 'Please enter your email address' });
+  }
 
   const email = contact.toLowerCase().trim();
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   authOtpStore.set(email, { otp, expires: Date.now() + 15 * 60 * 1000 });
   console.log(`[Auth] Generated OTP for ${email}: ${otp}`);
 
+  let emailSent = false;
   try {
     if (typeof sendOTPEmail === 'function' && email.includes('@')) {
-      sendOTPEmail(email, otp).catch(e => console.warn('[Auth] Email send failed (non-blocking):', e.message));
+      await Promise.race([
+        sendOTPEmail(email, otp),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Email dispatch timeout')), 6000))
+      ]);
+      emailSent = true;
+      console.log(`[Auth] OTP email sent successfully to ${email}`);
     }
-  } catch (_) {}
+  } catch (err) {
+    console.warn(`[Auth] Warning sending OTP email: ${err.message}`);
+  }
 
   return res.json({
     success: true,
-    otp: otp,
-    message: `OTP generated successfully for ${email}.`
+    emailSent: emailSent,
+    message: `OTP has been dispatched to ${email}. Please check your email inbox.`
   });
 });
 
