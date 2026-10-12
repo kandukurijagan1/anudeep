@@ -33,6 +33,18 @@ ipcMain.on('reload-app', async (event, hard) => {
     }
 });
 
+ipcMain.on('toggle-devtools', () => {
+    if (mainWindow) {
+        mainWindow.webContents.toggleDevTools();
+    }
+});
+
+ipcMain.on('open-devtools', () => {
+    if (mainWindow) {
+        mainWindow.webContents.openDevTools({ mode: 'right' });
+    }
+});
+
 // Check if local HTTP server is healthy
 function checkServer(url, timeout = 800) {
     return new Promise((resolve) => {
@@ -241,7 +253,14 @@ function setupApplicationMenu() {
                 },
                 { type: 'separator' },
                 {
-                    label: 'Toggle Developer Tools',
+                    label: 'Toggle Developer Tools (Inspect)',
+                    accelerator: 'F12',
+                    click: (item, focusedWindow) => {
+                        if (focusedWindow) focusedWindow.webContents.toggleDevTools();
+                    }
+                },
+                {
+                    label: 'Developer Tools (Ctrl+Shift+I)',
                     accelerator: 'CmdOrCtrl+Shift+I',
                     click: (item, focusedWindow) => {
                         if (focusedWindow) focusedWindow.webContents.toggleDevTools();
@@ -349,6 +368,36 @@ async function createMainWindow() {
             return { action: 'deny' };
         }
         return { action: 'allow' };
+    });
+
+    // Enable Right-Click "Inspect Element" for fast diagnostics
+    mainWindow.webContents.on('context-menu', (event, params) => {
+        const menu = Menu.buildFromTemplate([
+            {
+                label: '🔍 Inspect Element',
+                click: () => {
+                    mainWindow.webContents.inspectElement(params.x, params.y);
+                    if (!mainWindow.webContents.isDevToolsOpened()) {
+                        mainWindow.webContents.openDevTools({ mode: 'right' });
+                    }
+                }
+            },
+            {
+                label: '🛠 Toggle Developer Tools (F12)',
+                accelerator: 'F12',
+                click: () => {
+                    mainWindow.webContents.toggleDevTools();
+                }
+            },
+            { type: 'separator' },
+            {
+                label: '🔄 Reload Window',
+                click: () => {
+                    mainWindow.webContents.reloadIgnoringCache();
+                }
+            }
+        ]);
+        menu.popup({ window: mainWindow, x: params.x, y: params.y });
     });
 
     mainWindow.on('close', (event) => {
