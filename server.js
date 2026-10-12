@@ -576,7 +576,11 @@ async function initWhatsappClient(forceClean = false) {
           '--disable-blink-features=AutomationControlled',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding'
+          '--disable-renderer-backgrounding',
+          '--js-flags="--max-old-space-size=256"',
+          '--renderer-process-limit=2',
+          '--mute-audio',
+          '--disable-features=TranslateUI,BlinkGenPropertyTrees'
         ]
       }
     });
