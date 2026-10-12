@@ -2,8 +2,8 @@
   "name": "Anudeep Khadi Bandar - GST Billing",
   "short_name": "AKB Billing",
   "description": "High-Speed GST Billing and Tax Invoicing System for Anudeep Khadi Bandar",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": "/?mode=dedicated_app",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#8B4513",
   "theme_color": "#8B4513",
@@ -33,14 +33,14 @@
       "name": "New Invoice",
       "short_name": "New Bill",
       "description": "Create a new tax invoice immediately",
-      "url": "./index.html#billing",
+      "url": "/?mode=dedicated_app#billing",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Invoice History",
       "short_name": "Invoices",
       "description": "View and search recent invoices",
-      "url": "./index.html#invoices",
+      "url": "/?mode=dedicated_app#invoices",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]
