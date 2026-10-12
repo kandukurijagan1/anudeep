@@ -3487,33 +3487,40 @@
     <div id="pym" class="modal-overlay">
         <div class="modal">
             <h3 class="modal-title" id="pyt">Add Receiver</h3>
-            <form id="fpy"><input type="hidden" id="py-id"><input type="hidden" id="py-tp">
-                <div class="form-group"><label>Name *</label><input type="text" id="py-n"></div>
+            <form id="fpy" onsubmit="PM.save(event); return false;"><input type="hidden" id="py-id"><input type="hidden" id="py-tp">
+                <div class="form-group"><label>Name *</label><input type="text" id="py-n" placeholder="Party / Business Name" autocomplete="off" required></div>
                 <div class="form-group"><label>WhatsApp / Phone No.</label><input type="text" id="py-ph"
-                        placeholder="91XXXXXXXXXX or 10-digit number"></div>
-                <div class="form-group"><label>Address</label><input type="text" id="py-a"></div>
-                <div class="form-group"><label>State Name</label><input type="text" id="py-st" placeholder="State Name">
+                        placeholder="91XXXXXXXXXX or 10-digit number" autocomplete="off"></div>
+                <div class="form-group"><label>Address</label><input type="text" id="py-a" placeholder="Street / Town / City" autocomplete="off"></div>
+                <div class="form-group"><label>State Name</label><input type="text" id="py-st" placeholder="State Name" autocomplete="off">
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label>GSTIN</label><input type="text" id="py-g"></div>
-                    <div class="form-group"><label>State Code</label><input type="text" id="py-sc" maxlength="2"></div>
+                    <div class="form-group"><label>GSTIN</label><input type="text" id="py-g" placeholder="GSTIN (optional)" autocomplete="off"></div>
+                    <div class="form-group"><label>State Code</label><input type="text" id="py-sc" maxlength="2" placeholder="37" autocomplete="off"></div>
                 </div>
                 <div class="flex mt-4" style="justify-content:space-between"><button type="button"
                         class="btn btn-secondary" onclick="UI.cl('pym')">Cancel</button><button type="submit"
-                        class="btn btn-primary">Save</button></div>
+                        class="btn btn-primary" id="btn-save-py">Save</button></div>
             </form>
         </div>
     </div>
 
     <div id="ppm" class="modal-overlay">
         <div class="modal">
-            <h3 class="modal-title" id="ppt">Select Receiver</h3>
-            <div class="form-group"><input type="text" id="pps" placeholder="Search name or GSTIN..."
-                    oninput="PM.filterP(this.value)"></div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h3 class="modal-title" id="ppt" style="margin:0;">Select Receiver</h3>
+                <button type="button" class="btn btn-primary btn-tiny" onclick="UI.cl('ppm'); PM.openAdd(PM._type, true);">
+                    <i class="ph ph-plus"></i> + Add New
+                </button>
+            </div>
+            <div class="form-group"><input type="text" id="pps" placeholder="Search name, phone or GSTIN..."
+                    oninput="PM.filterP(this.value)" autocomplete="off"></div>
             <div id="ppl" style="max-height:350px;overflow-y:auto;border:1px solid var(--bd);border-radius:.375rem">
             </div>
-            <div class="flex mt-4" style="justify-content:space-between"><button type="button" class="btn btn-secondary"
-                    onclick="UI.cl('ppm')">Cancel</button></div>
+            <div class="flex mt-4" style="justify-content:space-between">
+                <button type="button" class="btn btn-secondary" onclick="UI.cl('ppm')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="UI.cl('ppm'); PM.openAdd(PM._type, true);"><i class="ph ph-plus"></i> Add New</button>
+            </div>
         </div>
     </div>
 
@@ -4033,6 +4040,53 @@
                 document.querySelector("main").addEventListener("click", function () { document.getElementById("sidebar").classList.remove("active") });
                 document.getElementById("fp").addEventListener("submit", PDM.save);
                 document.getElementById("fpy").addEventListener("submit", PM.save);
+
+                // Party modal Enter key navigation (Name -> Phone -> Address -> State -> GSTIN -> State Code -> Save)
+                var partyFieldOrder = ["py-n", "py-ph", "py-a", "py-st", "py-g", "py-sc"];
+                partyFieldOrder.forEach(function (fid, idx) {
+                    var el = document.getElementById(fid);
+                    if (el) {
+                        el.addEventListener("keydown", function (e) {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (idx < partyFieldOrder.length - 1) {
+                                    var nextEl = document.getElementById(partyFieldOrder[idx + 1]);
+                                    if (nextEl) { nextEl.focus(); nextEl.select(); }
+                                } else {
+                                    PM.save(e);
+                                }
+                            }
+                        });
+                    }
+                });
+
+                // GSTIN and State Code auto-fill in Party modal
+                var pyG = document.getElementById("py-g");
+                var pySc = document.getElementById("py-sc");
+                var pySt = document.getElementById("py-st");
+                if (pyG) {
+                    pyG.addEventListener("input", function () {
+                        var g = this.value.trim().toUpperCase();
+                        if (g.length >= 2) {
+                            var sc = g.substring(0, 2);
+                            if (/^\d{2}$/.test(sc)) {
+                                if (pySc) pySc.value = sc;
+                                if (pySt && typeof ALL_STATE_MAP !== 'undefined' && ALL_STATE_MAP[sc]) {
+                                    pySt.value = ALL_STATE_MAP[sc];
+                                }
+                            }
+                        }
+                    });
+                }
+                if (pySc) {
+                    pySc.addEventListener("input", function () {
+                        var sc = this.value.trim().padStart(2, '0');
+                        if (typeof ALL_STATE_MAP !== 'undefined' && ALL_STATE_MAP[sc] && pySt) {
+                            pySt.value = ALL_STATE_MAP[sc];
+                        }
+                    });
+                }
+
                 document.getElementById("current-date").innerText = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
                 document.querySelectorAll(".modal-overlay").forEach(function (o) { o.addEventListener("click", function (e) { if (e.target === o) UI.cl(o.id) }) });
 
@@ -6443,17 +6497,25 @@
                 document.getElementById("p-pr").value = "";
                 if (document.getElementById("p-bt")) document.getElementById("p-bt").value = "qty";
                 UI.om("pm");
+                setTimeout(function () {
+                    var nEl = document.getElementById("p-n");
+                    if (nEl) { nEl.focus(); nEl.select(); }
+                }, 80);
             },
 
             edit: function (id) {
                 var idStr = String(id || '').trim();
                 var p = PDM._all.find(function (x) { return String(x.id) === idStr || String(x._id) === idStr }); if (!p) return;
-                document.getElementById("p-id").value = p.id;
-                document.getElementById("p-n").value = p.name;
-                document.getElementById("p-h").value = p.hsn;
-                document.getElementById("p-pr").value = p.price;
+                document.getElementById("p-id").value = p.id || p._id || "";
+                document.getElementById("p-n").value = p.name || "";
+                document.getElementById("p-h").value = p.hsn || "";
+                document.getElementById("p-pr").value = p.price !== undefined ? p.price : "";
                 if (document.getElementById("p-bt")) document.getElementById("p-bt").value = p.calcType || p.billingType || "qty";
                 UI.om("pm");
+                setTimeout(function () {
+                    var nEl = document.getElementById("p-n");
+                    if (nEl) { nEl.focus(); nEl.select(); }
+                }, 80);
             },
 
             del: async function (id) {
@@ -6473,7 +6535,7 @@
                 // ⚡ Background DB Sync
                 (async function () {
                     try {
-                        await fetch((API_URL || location.origin + '/api') + '/products/' + id, {
+                        await fetch((API_URL || location.origin + '/api') + '/products/' + encodeURIComponent(id), {
                             method: 'DELETE'
                         });
                     } catch (e) {
@@ -6485,18 +6547,43 @@
             save: async function (e) {
                 if (e && e.preventDefault) e.preventDefault();
                 var id = document.getElementById("p-id").value;
+                var nameVal = document.getElementById("p-n").value.trim();
+                if (!nameVal) {
+                    U.toast("Please enter product name", "warning");
+                    var nEl = document.getElementById("p-n");
+                    if (nEl) nEl.focus();
+                    return;
+                }
                 var calcType = document.getElementById("p-bt") ? document.getElementById("p-bt").value : "qty";
-                var obj = { name: document.getElementById("p-n").value.trim(), hsn: document.getElementById("p-h").value.trim(), price: parseFloat(document.getElementById("p-pr").value) || 0, calcType: calcType };
+                var obj = {
+                    name: nameVal,
+                    description: nameVal,
+                    hsn: document.getElementById("p-h").value.trim(),
+                    price: parseFloat(document.getElementById("p-pr").value) || 0,
+                    calcType: calcType
+                };
                 if (id) {
-                    obj.id = parseInt(id);
+                    obj.id = id;
                 } else {
-                    obj.id = Date.now();
+                    obj.id = 'prod_' + Date.now();
                 }
 
                 // ⚡ Optimistic UI Update (Instant)
-                var list = D.g("products");
-                if (id) { list = list.map(function (p) { return p.id === parseInt(id) ? obj : p }) }
-                else { list.push(obj) }
+                var list = D.g("products") || [];
+                if (!Array.isArray(list)) list = [];
+                if (id) {
+                    var updated = false;
+                    list = list.map(function (p) {
+                        if (String(p.id) === String(id) || String(p._id) === String(id)) {
+                            updated = true;
+                            return Object.assign({}, p, obj);
+                        }
+                        return p;
+                    });
+                    if (!updated) list.push(obj);
+                } else {
+                    list.push(obj);
+                }
                 D.s("products", list);
                 PDM._all = list;
                 PDM._draw(list);
@@ -6507,7 +6594,7 @@
                 // ⚡ Background DB Sync
                 (async function () {
                     try {
-                        var url = (API_URL || location.origin + '/api') + '/products' + (id ? '/' + id : '');
+                        var url = (API_URL || location.origin + '/api') + '/products' + (id ? '/' + encodeURIComponent(id) : '');
                         var method = id ? 'PUT' : 'POST';
                         await fetch(url, {
                             method: method,
@@ -6590,34 +6677,52 @@
                 el.innerHTML = h;
             },
 
-            openAdd: function (type) {
-                PM._type = type;
-                document.getElementById("pyt").textContent = "Add " + (type === "receiver" ? "Receiver" : "Consignee");
+            openAdd: function (type, fromBilling) {
+                PM._type = type || "receiver";
+                PM._fromBilling = !!fromBilling;
+                document.getElementById("pyt").textContent = "Add " + (PM._type === "receiver" ? "Receiver" : "Consignee");
                 document.getElementById("py-id").value = "";
-                document.getElementById("py-tp").value = type;
+                document.getElementById("py-tp").value = PM._type;
                 document.getElementById("py-n").value = "";
                 if (document.getElementById("py-ph")) document.getElementById("py-ph").value = "";
                 document.getElementById("py-a").value = "";
                 document.getElementById("py-st").value = "Andhra Pradesh";
                 document.getElementById("py-g").value = "";
                 document.getElementById("py-sc").value = "37";
+                UI.cl("ppm");
                 UI.om("pym");
+                setTimeout(function () {
+                    var nEl = document.getElementById("py-n");
+                    if (nEl) {
+                        nEl.focus();
+                        nEl.select();
+                    }
+                }, 80);
             },
 
             edit: function (type, id) {
-                PM._type = type;
+                PM._type = type || "receiver";
+                PM._fromBilling = false;
                 var idStr = String(id || '').trim();
                 var list = PM._parties[type] || [], p = list.find(function (x) { return String(x.id) === idStr || String(x._id) === idStr }); if (!p) return;
                 document.getElementById("pyt").textContent = "Edit " + (type === "receiver" ? "Receiver" : "Consignee");
-                document.getElementById("py-id").value = p.id;
+                document.getElementById("py-id").value = p.id || p._id || "";
                 document.getElementById("py-tp").value = type;
-                document.getElementById("py-n").value = p.name;
+                document.getElementById("py-n").value = p.name || "";
                 if (document.getElementById("py-ph")) document.getElementById("py-ph").value = p.phone || "";
                 document.getElementById("py-a").value = p.address || "";
-                document.getElementById("py-st").value = p.state || "";
+                document.getElementById("py-st").value = p.state || "Andhra Pradesh";
                 document.getElementById("py-g").value = p.gstin || "";
-                document.getElementById("py-sc").value = p.statecode || "37";
+                document.getElementById("py-sc").value = p.statecode || p.stateCode || "37";
+                UI.cl("ppm");
                 UI.om("pym");
+                setTimeout(function () {
+                    var nEl = document.getElementById("py-n");
+                    if (nEl) {
+                        nEl.focus();
+                        nEl.select();
+                    }
+                }, 80);
             },
 
             del: async function (type, id) {
@@ -6638,7 +6743,7 @@
                 // ⚡ Background DB Sync
                 (async function () {
                     try {
-                        await fetch((API_URL || location.origin + '/api') + '/' + type + 's/' + id, {
+                        await fetch((API_URL || location.origin + '/api') + '/' + type + 's/' + encodeURIComponent(id), {
                             method: 'DELETE'
                         });
                     } catch (e) {
@@ -6649,31 +6754,83 @@
 
             save: async function (e) {
                 if (e && e.preventDefault) e.preventDefault();
-                var type = document.getElementById("py-tp").value;
+                var type = document.getElementById("py-tp").value || PM._type || "receiver";
                 var id = document.getElementById("py-id").value;
+                var nameVal = document.getElementById("py-n").value.trim();
+                if (!nameVal) {
+                    U.toast("Please enter " + (type === "receiver" ? "Receiver" : "Consignee") + " name", "warning");
+                    var nEl = document.getElementById("py-n");
+                    if (nEl) { nEl.focus(); }
+                    return;
+                }
+
                 var phoneVal = document.getElementById("py-ph") ? document.getElementById("py-ph").value.trim() : "";
-                var obj = { name: document.getElementById("py-n").value.trim(), phone: phoneVal, address: document.getElementById("py-a").value.trim(), state: document.getElementById("py-st").value.trim(), gstin: document.getElementById("py-g").value.trim(), statecode: document.getElementById("py-sc").value.trim() };
+                var obj = {
+                    name: nameVal,
+                    phone: phoneVal,
+                    address: document.getElementById("py-a").value.trim(),
+                    state: document.getElementById("py-st").value.trim() || "Andhra Pradesh",
+                    gstin: document.getElementById("py-g").value.trim().toUpperCase(),
+                    statecode: document.getElementById("py-sc").value.trim() || "37"
+                };
                 if (id) {
-                    obj.id = parseInt(id);
+                    obj.id = id;
                 } else {
-                    obj.id = Date.now();
+                    obj.id = 'rec_' + Date.now();
                 }
 
                 // ⚡ Optimistic UI Update (Instant)
-                var key = type + "s", list = D.g(key);
-                if (id) { list = list.map(function (p) { return String(p.id) === String(id) ? obj : p }) }
-                else { list.push(obj) }
+                var key = type + "s";
+                var list = D.g(key) || [];
+                if (!Array.isArray(list)) list = [];
+                if (id) {
+                    var updated = false;
+                    list = list.map(function (p) {
+                        if (String(p.id) === String(id) || String(p._id) === String(id)) {
+                            updated = true;
+                            return Object.assign({}, p, obj);
+                        }
+                        return p;
+                    });
+                    if (!updated) list.push(obj);
+                } else {
+                    list.push(obj);
+                }
                 D.s(key, list);
                 PM._parties = PM._parties || {};
                 PM._parties[type] = list;
                 PM._drawList(type, type + "-list");
+
+                // If opened from billing or billing view is currently active, auto-populate billing screen
+                var billingView = document.getElementById("billing-view");
+                if (PM._fromBilling || (billingView && billingView.classList.contains("active"))) {
+                    var prefix = type === "receiver" ? "b-r" : "b-s";
+                    var bName = document.getElementById(prefix + "n");
+                    if (bName) bName.value = obj.name;
+                    var bPh = document.getElementById(prefix + "ph");
+                    if (bPh) bPh.value = obj.phone || "";
+                    var bA = document.getElementById(prefix + "a");
+                    if (bA) bA.value = obj.address || "";
+                    var bG = document.getElementById(prefix + "g");
+                    if (bG) bG.value = obj.gstin || "";
+                    var bSt = document.getElementById(prefix + "st");
+                    if (bSt) bSt.value = obj.state || "";
+                    var bSc = document.getElementById(prefix + "sc");
+                    if (bSc) bSc.value = obj.statecode || "";
+                    if (type === "receiver") {
+                        if (document.getElementById("b-sc") && obj.statecode) document.getElementById("b-sc").value = obj.statecode;
+                        if (document.getElementById("b-pos") && obj.state) document.getElementById("b-pos").value = obj.state;
+                    }
+                    if (typeof BM !== 'undefined' && BM.calcSummary) BM.calcSummary();
+                }
+
                 U.toast(id ? "⚡ Updated!" : "⚡ Added!", "success");
                 UI.cl("pym");
 
                 // ⚡ Background DB Sync
                 (async function () {
                     try {
-                        var url = (API_URL || location.origin + '/api') + '/' + type + 's' + (id ? '/' + id : '');
+                        var url = (API_URL || location.origin + '/api') + '/' + type + 's' + (id ? '/' + encodeURIComponent(id) : '');
                         var method = id ? 'PUT' : 'POST';
                         await fetch(url, {
                             method: method,
