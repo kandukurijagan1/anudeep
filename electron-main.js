@@ -4,12 +4,6 @@ const http = require('http');
 const { spawn } = require('child_process');
 const fs = require('fs');
 
-// Hardware acceleration and performance switches
-app.commandLine.appendSwitch('ignore-certificate-errors');
-app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
-
 // Ensure single instance lock for dedicated workstation
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -331,6 +325,8 @@ async function createMainWindow() {
         console.warn('[Electron] Failed to load URL, falling back to local files:', e.message);
         await mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { mode: 'dedicated_app' } });
     }
+    mainWindow.show();
+    mainWindow.focus();
 
     // Intercept external links (WhatsApp, Telegram, Google Sheets, external URLs)
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
