@@ -109,12 +109,7 @@ function doPost(e) {
           break;
         case 'sendOTP':
           if (!payload.email) throw new Error('Email is required');
-          const adminSt = getSettingsFast();
-          const authorizedList = (adminSt && adminSt.adminEmails) || ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'];
           const targetEmail = String(payload.email).toLowerCase().trim();
-          if (!authorizedList.map(x => String(x).toLowerCase().trim()).includes(targetEmail)) {
-            throw new Error('Unregistered email address. Cannot send OTP to unauthorized email.');
-          }
           MailApp.sendEmail({
             to: targetEmail,
             subject: "AKB Billing - Password Reset OTP",
