@@ -2369,11 +2369,11 @@
                 var contact = contactInput ? contactInput.value.trim() : '';
                 if (!contact) {
                     if (contactInput) contactInput.focus();
-                    return U.toast('Please enter your email address first', 'warning');
+                    return (typeof U !== 'undefined' && U.toast) ? U.toast('Please enter your email address first', 'warning') : alert('Please enter your email address first');
                 }
                 if (!contact.includes('@')) {
                     if (contactInput) contactInput.focus();
-                    return U.toast('Please enter a valid email address (e.g. name@gmail.com)', 'warning');
+                    return (typeof U !== 'undefined' && U.toast) ? U.toast('Please enter a valid email address (e.g. name@gmail.com)', 'warning') : alert('Please enter a valid email address');
                 }
                 var cleanEmail = contact.toLowerCase().trim();
 
@@ -2385,7 +2385,7 @@
                 if (!authorized.includes(cleanEmail)) {
                     if (btn) { btn.innerText = 'Send OTP to Email'; btn.disabled = false; }
                     if (contactInput) contactInput.focus();
-                    return U.toast('Unauthorized email address. OTP can only be sent to authorized administrator emails.', 'error');
+                    return (typeof U !== 'undefined' && U.toast) ? U.toast('Unauthorized email address. OTP can only be sent to authorized administrator emails.', 'error') : alert('Unauthorized email address.');
                 }
 
                 if (btn) { btn.innerText = 'Sending OTP...'; }
@@ -2395,10 +2395,11 @@
                 var otpSent = false;
                 var serverError = null;
 
+                var _safeFetch = (typeof originalFetch !== 'undefined' ? originalFetch : window.fetch).bind(window);
                 try {
                     var ctrl = new AbortController();
                     var tm = setTimeout(function () { ctrl.abort(); }, 7000);
-                    var res = await originalFetch(base + '/api/auth/forgot-password', {
+                    var res = await _safeFetch(base + '/api/auth/forgot-password', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contact: cleanEmail }),
@@ -2417,7 +2418,7 @@
 
                 if (!otpSent && serverError) {
                     if (btn) { btn.innerText = 'Send OTP to Email'; btn.disabled = false; }
-                    return U.toast(serverError, 'error');
+                    return (typeof U !== 'undefined' && U.toast) ? U.toast(serverError, 'error') : alert(serverError);
                 }
 
                 if (!otpSent && typeof CLOUD_GAS_URL !== 'undefined') {
@@ -2425,7 +2426,7 @@
                         var cloudCode = Math.floor(100000 + Math.random() * 900000).toString();
                         FP.fallbackOtp = cloudCode;
                         sessionStorage.setItem('akb_fp_otp', cloudCode);
-                        originalFetch(CLOUD_GAS_URL + '?action=sendOTP&email=' + encodeURIComponent(cleanEmail) + '&otp=' + cloudCode, { mode: 'no-cors' }).catch(function(){});
+                        _safeFetch(CLOUD_GAS_URL + '?action=sendOTP&email=' + encodeURIComponent(cleanEmail) + '&otp=' + cloudCode, { mode: 'no-cors' }).catch(function(){});
                         otpSent = true;
                     } catch (_) {}
                 }
@@ -2433,7 +2434,7 @@
                 if (btn) { btn.innerText = 'Send OTP to Email'; btn.disabled = false; }
 
                 if (!otpSent) {
-                    return U.toast('Failed to dispatch OTP. Please check your network or try again.', 'error');
+                    return (typeof U !== 'undefined' && U.toast) ? U.toast('Failed to dispatch OTP. Please check your network or try again.', 'error') : alert('Failed to dispatch OTP.');
                 }
 
                 var targetDisp = document.getElementById('card-fp-target-display');
@@ -2449,14 +2450,16 @@
                     otpInput.value = '';
                     setTimeout(function() { otpInput.focus(); }, 150);
                 }
-                U.toast('OTP has been sent to ' + cleanEmail + '. Check your inbox!', 'success');
+                if (typeof U !== 'undefined' && U.toast) {
+                    U.toast('OTP has been sent to ' + cleanEmail + '. Check your inbox!', 'success');
+                }
             },
             cardVerifyOTP: async function () {
                 var otpInput = document.getElementById('card-fp-otp');
                 var otp = otpInput ? otpInput.value.trim() : '';
                 if (!otp) {
                     if (otpInput) otpInput.focus();
-                    return U.toast('Please enter the 6-digit OTP received in your email', 'warning');
+                    return (typeof U !== 'undefined' && U.toast) ? U.toast('Please enter the 6-digit OTP received in your email', 'warning') : alert('Please enter the 6-digit OTP');
                 }
 
                 var btn = document.getElementById('card-btn-verify-otp');
@@ -2464,10 +2467,11 @@
 
                 var verified = false;
                 var base = getAuthBaseUrl();
+                var _safeFetch = (typeof originalFetch !== 'undefined' ? originalFetch : window.fetch).bind(window);
                 try {
                     var ctrl = new AbortController();
                     var tm = setTimeout(function () { ctrl.abort(); }, 4000);
-                    var res = await originalFetch(base + '/api/auth/verify-otp', {
+                    var res = await _safeFetch(base + '/api/auth/verify-otp', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contact: this.contact, otp: otp }),
@@ -2492,7 +2496,9 @@
                 if (btn) { btn.innerText = 'Verify OTP'; btn.disabled = false; }
 
                 if (verified) {
-                    U.toast('OTP verified successfully! Now set your new password.', 'success');
+                    if (typeof U !== 'undefined' && U.toast) {
+                        U.toast('OTP verified successfully! Now set your new password.', 'success');
+                    }
                     var s2 = document.getElementById('card-fp-step-2');
                     var s3 = document.getElementById('card-fp-step-3');
                     if (s2) s2.style.display = 'none';
@@ -2504,7 +2510,11 @@
                         setTimeout(function() { newPwdInput.focus(); }, 150);
                     }
                 } else {
-                    U.toast('Invalid OTP code. Please enter the correct 6 digits from your email.', 'error');
+                    if (typeof U !== 'undefined' && U.toast) {
+                        U.toast('Invalid OTP code. Please enter the correct 6 digits from your email.', 'error');
+                    } else {
+                        alert('Invalid OTP code.');
+                    }
                     if (otpInput) {
                         otpInput.select();
                         otpInput.focus();
@@ -2516,7 +2526,7 @@
                 var newPwd = newPwdInput ? newPwdInput.value.trim() : '';
                 if (!newPwd || newPwd.length < 4) {
                     if (newPwdInput) newPwdInput.focus();
-                    return U.toast('Password must be at least 4 characters long', 'warning');
+                    return (typeof U !== 'undefined' && U.toast) ? U.toast('Password must be at least 4 characters long', 'warning') : alert('Password must be at least 4 characters long');
                 }
 
                 var btn = document.getElementById('card-btn-reset-pwd');
@@ -2528,9 +2538,10 @@
                 localStorage.setItem("akb_auth_persistent", "1");
 
                 var base = getAuthBaseUrl();
+                var _safeFetch = (typeof originalFetch !== 'undefined' ? originalFetch : window.fetch).bind(window);
                 if (this.token) {
                     try {
-                        await originalFetch(base + '/api/auth/reset-password', {
+                        await _safeFetch(base + '/api/auth/reset-password', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ token: this.token, newPassword: newPwd })
