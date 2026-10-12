@@ -3830,11 +3830,21 @@
             },
             esc: function (s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML },
             numWords: function (n) {
+                var num = parseFloat(n);
+                if (isNaN(num) || num <= 0) return "Zero Rupees Only";
                 var ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
                 var tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-                function w(n) { if (n < 20) return ones[n] || ""; if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : ""); if (n < 1000) return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 ? " and " + w(n % 100) : ""); if (n < 100000) return w(Math.floor(n / 1000)) + " Thousand" + (n % 1000 ? " " + w(n % 1000) : ""); if (n < 10000000) return w(Math.floor(n / 100000)) + " Lakh" + (n % 100000 ? " " + w(n % 100000) : ""); return w(Math.floor(n / 10000000)) + " Crore" + (n % 10000000 ? " " + w(n % 10000000) : "") }
-                var rupees = Math.floor(n), paise = Math.round((n - rupees) * 100);
-                var s = w(rupees) + " Rupees Only"; if (paise > 0) s += " and " + w(paise) + " Paise"; return s
+                function w(n) {
+                    if (isNaN(n) || n <= 0) return "";
+                    if (n < 20) return ones[n] || "";
+                    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
+                    if (n < 1000) return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 ? " and " + w(n % 100) : "");
+                    if (n < 100000) return w(Math.floor(n / 1000)) + " Thousand" + (n % 1000 ? " " + w(n % 1000) : "");
+                    if (n < 10000000) return w(Math.floor(n / 100000)) + " Lakh" + (n % 100000 ? " " + w(n % 100000) : "");
+                    return w(Math.floor(n / 10000000)) + " Crore" + (n % 10000000 ? " " + w(n % 10000000) : "");
+                }
+                var rupees = Math.floor(num), paise = Math.round((num - rupees) * 100);
+                var s = w(rupees) + " Rupees Only"; if (paise > 0) s += " and " + w(paise) + " Paise"; return s;
             },
             isAndhraPradesh: function (stateCode, stateName) {
                 var sc = String(stateCode || "").trim();
@@ -5423,21 +5433,24 @@
                 var pdfName = 'Invoice_' + invNo + '.pdf';
                 var html = SM.generatePrintHTML(inv);
 
-                // Create a dedicated off-screen container with positive dimensions and 100% opacity
-                // positioned at (0,0) behind app layer (z-index: -99999) so html2canvas computes perfect coordinates
-                var container = document.createElement('div');
-                container.style.cssText = 'position:fixed;left:0;top:0;width:800px;min-height:1000px;background:#ffffff;color:#1a237e;z-index:-99999;opacity:1;visibility:visible;pointer-events:none;margin:0;padding:0;box-sizing:border-box;';
-                container.innerHTML = html;
-                document.body.appendChild(container);
+                // Dedicated off-screen container mounted above viewport for perfect html2canvas coordinates
+                var wrap = document.createElement('div');
+                wrap.id = 'pdf-render-wrap';
+                wrap.style.cssText = 'position:fixed;left:0;top:0;width:800px;background:#ffffff;z-index:999999;opacity:1;visibility:visible;pointer-events:none;margin:0;padding:0;';
+                wrap.innerHTML = html;
+                document.body.appendChild(wrap);
+
+                var paper = wrap.firstElementChild || wrap;
+                var contentHeight = Math.max(paper.scrollHeight, paper.offsetHeight, 850);
 
                 var cleanup = function () {
-                    if (container && container.parentNode) {
-                        container.parentNode.removeChild(container);
+                    if (wrap && wrap.parentNode) {
+                        wrap.parentNode.removeChild(wrap);
                     }
                 };
 
-                // Wait for all images (logo, gods) to settle before capturing canvas
-                var imgs = Array.from(container.querySelectorAll('img'));
+                // Wait for all images (logo, gods) to settle before capturing
+                var imgs = Array.from(wrap.querySelectorAll('img'));
                 var waitPromises = imgs.map(function (img) {
                     if (img.complete && img.naturalWidth > 0) return Promise.resolve();
                     return new Promise(function (res) {
@@ -5448,7 +5461,7 @@
                 });
 
                 var capturePdf = function () {
-                    void container.offsetHeight; // Force layout recalculation
+                    void wrap.offsetHeight; // Force layout recalculation
 
                     var opt = {
                         margin: [4, 4, 4, 4],
@@ -5457,85 +5470,36 @@
                         html2canvas: {
                             scale: 2,
                             useCORS: true,
-                            allowTaint: true,
+                            allowTaint: false,
                             logging: false,
                             backgroundColor: '#ffffff',
-                            scrollX: 0,
+                            height: contentHeight,
+                            windowHeight: contentHeight + 100,
                             scrollY: 0,
-                            x: 0,
-                            y: 0,
-                            windowWidth: 800
+                            scrollX: 0
                         },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
                     };
 
-                    var fallbackCanvasPdf = function () {
-                        if (typeof html2canvas === 'undefined') {
-                            cleanup();
-                            if (callback) callback(null, pdfName);
-                            return;
-                        }
-                        html2canvas(container, {
-                            scale: 2,
-                            useCORS: true,
-                            allowTaint: true,
-                            logging: false,
-                            backgroundColor: '#ffffff',
-                            scrollX: 0,
-                            scrollY: 0,
-                            x: 0,
-                            y: 0,
-                            windowWidth: 800
-                        }).then(function (canvas) {
-                            try {
-                                var jsPDFLib = window.jsPDF ? (window.jsPDF.jsPDF || window.jsPDF) : (window.jspdf ? window.jspdf.jsPDF : null);
-                                if (jsPDFLib) {
-                                    var pdf = new jsPDFLib('p', 'mm', 'a4');
-                                    var imgData = canvas.toDataURL('image/jpeg', 0.95);
-                                    var pageW = pdf.internal.pageSize.getWidth();
-                                    var margin = 4;
-                                    var printW = pageW - (margin * 2);
-                                    var printH = (canvas.height / canvas.width) * printW;
-                                    pdf.addImage(imgData, 'JPEG', margin, margin, printW, printH);
-                                    var canvasBlob = pdf.output('blob');
-                                    cleanup();
-                                    if (callback) callback(canvasBlob, pdfName);
-                                    return;
-                                }
-                            } catch (e) {
-                                console.error("Canvas PDF error:", e);
-                            }
-                            cleanup();
-                            if (callback) callback(null, pdfName);
-                        }).catch(function (err) {
-                            console.error("html2canvas fallback failed:", err);
-                            cleanup();
-                            if (callback) callback(null, pdfName);
-                        });
-                    };
-
                     if (typeof html2pdf !== 'undefined') {
-                        html2pdf().set(opt).from(container).outputPdf('blob').then(function (blob) {
-                            if (blob && blob.size > 2000) {
-                                cleanup();
-                                if (callback) callback(blob, pdfName);
-                            } else {
-                                console.warn("html2pdf produced empty/tiny blob, using direct canvas fallback...");
-                                fallbackCanvasPdf();
-                            }
+                        html2pdf().set(opt).from(paper).outputPdf('blob').then(function (blob) {
+                            cleanup();
+                            if (callback) callback(blob, pdfName);
                         }).catch(function (err) {
-                            console.warn("html2pdf outputPdf warning, trying canvas fallback:", err);
-                            fallbackCanvasPdf();
+                            console.error("html2pdf generation error:", err);
+                            cleanup();
+                            if (callback) callback(null, pdfName);
                         });
                     } else {
-                        fallbackCanvasPdf();
+                        cleanup();
+                        if (callback) callback(null, pdfName);
                     }
                 };
 
                 Promise.all(waitPromises).then(function () {
-                    setTimeout(capturePdf, 80);
+                    setTimeout(capturePdf, 100);
                 }).catch(function () {
-                    setTimeout(capturePdf, 80);
+                    setTimeout(capturePdf, 100);
                 });
             },
 
