@@ -30,7 +30,7 @@ namespace AnudeepKhadiBandar
         private static ContextMenu trayMenu = null;
         private static bool isRunning = true;
         private static string appDir = AppDomain.CurrentDomain.BaseDirectory;
-        private static string activeUrl = "http://localhost:3000";
+        private static string activeUrl = "https://kandukurijagan1.github.io/anudeep/?mode=dedicated_app";
 
         [STAThread]
         static void Main(string[] args)
@@ -104,7 +104,7 @@ namespace AnudeepKhadiBandar
             trayMenu.MenuItems.Add("-");
 
             trayMenu.MenuItems.Add(new MenuItem("🔄 Refresh & Sync Cloud Data", (s, e) => {
-                if (IsUrlResponding("http://localhost:3000/api/health", 800))
+                if (IsUrlResponding("http://127.0.0.1:3000/api/health", 800))
                 {
                     ShowTrayNotification("Database Online", "Local Node/MongoDB engine and Cloud GAS are synchronized.");
                 }
@@ -157,7 +157,7 @@ namespace AnudeepKhadiBandar
 
         private static void EnsureBackendRunning()
         {
-            bool localResponding = IsUrlResponding("http://localhost:3000/api/health", 800);
+            bool localResponding = IsUrlResponding("http://127.0.0.1:3000/api/health", 800);
 
             if (!localResponding)
             {
@@ -171,7 +171,7 @@ namespace AnudeepKhadiBandar
                     for (int i = 0; i < 60; i++)
                     {
                         Thread.Sleep(250);
-                        if (IsUrlResponding("http://localhost:3000/api/health", 500))
+                        if (IsUrlResponding("http://127.0.0.1:3000/api/health", 500))
                         {
                             localResponding = true;
                             break;
@@ -182,21 +182,11 @@ namespace AnudeepKhadiBandar
 
             if (localResponding)
             {
-                activeUrl = "http://localhost:3000";
+                activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
             }
             else
             {
-                string indexPath = Path.Combine(appDir, "index.html");
-                if (File.Exists(indexPath))
-                {
-                    int freePort = GetFreePort(3030);
-                    activeUrl = "http://localhost:" + freePort + "/";
-                    StartEmbeddedServer(freePort);
-                }
-                else
-                {
-                    activeUrl = "https://kandukurijagan1.github.io/anudeep/";
-                }
+                activeUrl = "https://kandukurijagan1.github.io/anudeep/?mode=dedicated_app";
             }
         }
 
@@ -232,7 +222,7 @@ namespace AnudeepKhadiBandar
                     // If configured to use local port 3000, check health and auto-heal if crashed
                     if (activeUrl.Contains(":3000"))
                     {
-                        bool alive = IsUrlResponding("http://localhost:3000/api/health", 1200);
+                        bool alive = IsUrlResponding("http://127.0.0.1:3000/api/health", 1200);
                         if (!alive && isRunning)
                         {
                             string nodeExe = FindNodeExe();

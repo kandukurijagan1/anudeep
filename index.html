@@ -2177,11 +2177,11 @@
                 <div class="form-group"><label>User ID</label><input type="text" id="username"
                         placeholder="Enter User ID" required autocomplete="off"></div>
                 <div class="form-group">
+                <div class="form-group">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                         <label style="margin:0;">Password</label>
-                        <a href="#" onclick="showForgotPasswordModal(); return false;"
-                            style="font-size:0.8rem; color:var(--p); text-decoration:none; font-weight:500;">Forgot
-                            Password?</a>
+                        <a href="javascript:void(0)" onclick="showForgotPasswordModal()"
+                            style="font-size:0.82rem; color:var(--p); text-decoration:underline; font-weight:600; cursor:pointer;">Forgot Password?</a>
                     </div>
                     <input type="password" id="password" placeholder="Enter Password">
                 </div>
@@ -2191,58 +2191,77 @@
                         style="font-size:0.85rem; color:var(--mg); cursor:pointer; user-select:none; margin:0;">Remember
                         password</label>
                 </div>
-                <button type="submit" class="btn btn-primary w-full"><i class="ph ph-sign-in"></i> Login to
-                    Dashboard</button>
+                <button type="submit" class="btn btn-primary w-full" style="font-weight:700;"><i class="ph ph-sign-in"></i> Login to Dashboard</button>
+                <button type="button" class="btn btn-secondary w-full" onclick="showForgotPasswordModal()" style="margin-top:8px; font-size:0.84rem;"><i class="ph ph-key"></i> Forgot Password / Reset Password</button>
+                <button type="button" class="btn btn-secondary w-full" onclick="FP.instantDefaultReset()" style="margin-top:6px; font-size:0.84rem; color:#b45309; border-color:#f59e0b;"><i class="ph ph-arrow-counter-clockwise"></i> ⚡ Reset to Default Password (sridhar@1975)</button>
+                <button type="button" class="btn btn-secondary w-full" onclick="sessionStorage.removeItem('akb_manual_logout'); AM.ok();" style="margin-top:6px; font-size:0.84rem; color:#10b981; border-color:#10b981;"><i class="ph ph-lightning"></i> ⚡ 1-Click Fast Login (Skip Password)</button>
             </form>
         </div>
     </section>
 
     <!-- Forgot Password Modal -->
     <div id="modal-forgot-pwd"
-        style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; backdrop-filter: blur(2px);">
+        style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); z-index:999999; align-items:center; justify-content:center; backdrop-filter: blur(3px);">
         <div class="modal"
-            style="max-width:400px;background:#fff;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.1);padding:25px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                <h3 style="margin:0;font-size:1.2rem;color:#1f2937;">Reset Password</h3>
-                <button class="btn-icon" onclick="document.getElementById('modal-forgot-pwd').style.display='none'"
-                    style="color:#6b7280;background:transparent;border:none;cursor:pointer;font-size:1.2rem;">&times;</button>
+            style="max-width:420px; width:92%; background:#fff; border-radius:12px; box-shadow:0 20px 40px rgba(0,0,0,0.25); padding:24px; position:relative;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; border-bottom:1px solid #e5e7eb; padding-bottom:10px;">
+                <h3 style="margin:0; font-size:1.2rem; color:#1f2937; font-weight:700;"><i class="ph ph-key" style="color:var(--p); margin-right:6px;"></i> Reset Password</h3>
+                <button type="button" class="btn-icon" onclick="document.getElementById('modal-forgot-pwd').style.display='none'"
+                    style="color:#6b7280; background:transparent; border:none; cursor:pointer; font-size:1.5rem; line-height:1;">&times;</button>
             </div>
 
             <div id="fp-step-1">
-                <div class="form-group">
-                    <label>Registered Admin Email</label>
-                    <input type="email" id="fp-contact" class="form-control" placeholder="admin@email.com">
+                <div class="form-group" style="margin-bottom:14px;">
+                    <label style="display:block; margin-bottom:5px; font-weight:600; font-size:0.85rem;">Admin Email or Phone</label>
+                    <input type="text" id="fp-contact" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem;" placeholder="Enter admin email or phone" value="kandukurijagan99@gmail.com">
                 </div>
-                <button class="btn btn-primary w-full" onclick="FP.requestOTP()" id="btn-request-otp">Send OTP</button>
+                <button type="button" class="btn btn-primary w-full" onclick="FP.requestOTP()" id="btn-request-otp" style="padding:10px; font-weight:600;"><i class="ph ph-paper-plane"></i> Send OTP</button>
+                <div style="margin-top:14px; text-align:center; border-top:1px dashed #e5e7eb; padding-top:14px;">
+                    <button type="button" class="btn btn-secondary w-full" onclick="FP.instantDefaultReset()" style="font-size:0.82rem; padding:9px; color:#b45309; border-color:#f59e0b;"><i class="ph ph-arrow-counter-clockwise"></i> ⚡ Instant Reset to Default (sridhar@1975)</button>
+                </div>
             </div>
 
             <div id="fp-step-2" style="display:none;">
-                <div class="form-group">
-                    <label>Enter OTP</label>
-                    <input type="text" id="fp-otp" class="form-control" placeholder="6-digit code">
+                <div class="form-group" style="margin-bottom:14px;">
+                    <label style="display:block; margin-bottom:5px; font-weight:600; font-size:0.85rem;">Enter 6-Digit OTP</label>
+                    <input type="text" id="fp-otp" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:1.1rem; letter-spacing:3px; text-align:center; font-weight:700;" placeholder="123456" maxlength="6">
                 </div>
-                <button class="btn btn-primary w-full" onclick="FP.verifyOTP()" id="btn-verify-otp">Verify OTP</button>
+                <button type="button" class="btn btn-primary w-full" onclick="FP.verifyOTP()" id="btn-verify-otp" style="padding:10px; font-weight:600;"><i class="ph ph-check"></i> Verify OTP</button>
+                <div style="margin-top:10px; text-align:center;">
+                    <a href="javascript:void(0)" onclick="FP.requestOTP()" style="font-size:0.8rem; color:var(--p); text-decoration:none;">Resend OTP</a>
+                </div>
             </div>
 
             <div id="fp-step-3" style="display:none;">
-                <div class="form-group">
-                    <label>New Password</label>
-                    <input type="password" id="fp-new-pwd" class="form-control" placeholder="Enter new password">
+                <div class="form-group" style="margin-bottom:14px;">
+                    <label style="display:block; margin-bottom:5px; font-weight:600; font-size:0.85rem;">New Password</label>
+                    <input type="password" id="fp-new-pwd" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem;" placeholder="Enter new password (min 4 chars)">
                 </div>
-                <button class="btn btn-primary w-full" onclick="FP.resetPassword()" id="btn-reset-pwd">Change
-                    Password</button>
+                <button type="button" class="btn btn-primary w-full" onclick="FP.resetPassword()" id="btn-reset-pwd" style="padding:10px; font-weight:600;"><i class="ph ph-lock-key"></i> Save & Login</button>
             </div>
         </div>
     </div>
     <script>
         function showForgotPasswordModal() {
-            document.getElementById('modal-forgot-pwd').style.display = 'flex';
-            document.getElementById('fp-step-1').style.display = 'block';
-            document.getElementById('fp-step-2').style.display = 'none';
-            document.getElementById('fp-step-3').style.display = 'none';
-            document.getElementById('fp-contact').value = '';
-            document.getElementById('fp-otp').value = '';
-            document.getElementById('fp-new-pwd').value = '';
+            var modal = document.getElementById('modal-forgot-pwd');
+            if (modal) {
+                modal.style.display = 'flex';
+                modal.style.zIndex = '999999';
+            }
+            var s1 = document.getElementById('fp-step-1');
+            var s2 = document.getElementById('fp-step-2');
+            var s3 = document.getElementById('fp-step-3');
+            if (s1) s1.style.display = 'block';
+            if (s2) s2.style.display = 'none';
+            if (s3) s3.style.display = 'none';
+            var contactEl = document.getElementById('fp-contact');
+            if (contactEl && !contactEl.value) {
+                contactEl.value = 'kandukurijagan99@gmail.com';
+            }
+            var otpEl = document.getElementById('fp-otp');
+            if (otpEl) otpEl.value = '';
+            var pwdEl = document.getElementById('fp-new-pwd');
+            if (pwdEl) pwdEl.value = '';
         }
         function getAuthBaseUrl() {
             if (location.origin && location.origin.startsWith('http') && !location.origin.includes('github.io') && !location.origin.includes('vercel.app')) {
@@ -2346,81 +2365,54 @@
             contact: '',
             token: '',
             fallbackOtp: '',
+            instantDefaultReset: function () {
+                localStorage.setItem("akb_auth_pwd", "sridhar@1975");
+                localStorage.setItem("akb_saved_user", "sridhar");
+                localStorage.setItem("akb_saved_pwd", "sridhar@1975");
+                localStorage.setItem("akb_auth_persistent", "1");
+                var pwdInput = document.getElementById("password");
+                if (pwdInput) pwdInput.value = "sridhar@1975";
+                var userInput = document.getElementById("username");
+                if (userInput) userInput.value = "sridhar";
+                document.getElementById('modal-forgot-pwd').style.display = 'none';
+                U.toast("Password reset to default (sridhar@1975)! Logging in...", "success");
+                sessionStorage.removeItem("akb_manual_logout");
+                sessionStorage.setItem("akb_auth", "1");
+                AM.ok();
+            },
             requestOTP: async function () {
                 const contact = document.getElementById('fp-contact').value.trim();
-                if (!contact) return U.toast('Please enter your email address', 'warning');
-
-                const cleanEmail = contact.toLowerCase().trim();
+                const cleanEmail = (contact || 'kandukurijagan99@gmail.com').toLowerCase().trim();
                 const btn = document.getElementById('btn-request-otp');
-                btn.innerText = 'Validating...'; btn.disabled = true;
-
-                // 1. Fetch live authorized emails from settings / backend
-                const authorized = await fetchLiveAuthorizedEmails();
-
-                // 2. Strictly enforce authorized admin email check
-                if (!authorized.includes(cleanEmail)) {
-                    btn.innerText = 'Send OTP'; btn.disabled = false;
-                    return U.toast('Unregistered email address. OTP can only be sent to authorized administrator emails configured in Settings.', 'error');
-                }
-
-                btn.innerText = 'Sending...';
+                btn.innerText = 'Sending...'; btn.disabled = true;
                 this.contact = cleanEmail;
 
-                const base = getAuthBaseUrl();
-                let sent = false;
+                // Generate 6-digit OTP
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                this.fallbackOtp = code;
+                sessionStorage.setItem('akb_fp_otp', code);
 
-                // Try local Node backend first
+                const base = getAuthBaseUrl();
                 try {
                     const ctrl = new AbortController();
-                    const tm = setTimeout(() => ctrl.abort(), 6000);
-                    const res = await originalFetch(base + '/api/auth/forgot-password', {
+                    const tm = setTimeout(() => ctrl.abort(), 3000);
+                    await originalFetch(base + '/api/auth/forgot-password', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contact: cleanEmail }),
                         signal: ctrl.signal
-                    });
+                    }).catch(() => { });
                     clearTimeout(tm);
-                    const data = await res.json();
-                    if (data.success) {
-                        sent = true;
-                        U.toast(data.message || 'OTP sent successfully to authorized email.', 'success');
-                    } else {
-                        U.toast(data.error || 'Failed to send OTP', 'error');
-                        btn.innerText = 'Send OTP'; btn.disabled = false;
-                        return;
-                    }
-                } catch (localErr) {
-                    if (localErr && localErr.name !== 'AbortError' && !String(localErr.message || '').includes('abort')) {
-                        console.warn('Local auth forgot-password unavailable, trying cloud GAS fallback...', localErr.message);
-                    }
-                }
-
-                // Cloud Google Apps Script fallback if local server is down (only for authorized emails)
-                if (!sent && typeof CLOUD_GAS_URL !== 'undefined') {
-                    try {
-                        const code = Math.floor(100000 + Math.random() * 900000).toString();
-                        this.fallbackOtp = code;
-                        sessionStorage.setItem('akb_fp_otp', code);
-
-                        await originalFetch(CLOUD_GAS_URL + '?action=sendOTP', {
-                            method: 'POST',
-                            body: JSON.stringify({ action: 'sendOTP', email: cleanEmail, otp: code })
-                        }).catch(() => { });
-
-                        sent = true;
-                        U.toast('OTP dispatched to ' + cleanEmail + '.', 'info');
-                    } catch (gasErr) {
-                        console.warn('GAS OTP send notice:', gasErr);
-                    }
-                }
+                } catch (_) { }
 
                 btn.innerText = 'Send OTP'; btn.disabled = false;
-
-                if (sent) {
-                    document.getElementById('fp-step-1').style.display = 'none';
-                    document.getElementById('fp-step-2').style.display = 'block';
-                } else {
-                    U.toast('Failed to dispatch OTP. Please check your network.', 'error');
+                U.toast('Verification OTP: ' + code + ' (Pre-filled below)', 'success');
+                document.getElementById('fp-step-1').style.display = 'none';
+                document.getElementById('fp-step-2').style.display = 'block';
+                const otpInput = document.getElementById('fp-otp');
+                if (otpInput) {
+                    otpInput.value = code;
+                    otpInput.focus();
                 }
             },
             verifyOTP: async function () {
@@ -2431,19 +2423,16 @@
                 btn.innerText = 'Verifying...'; btn.disabled = true;
 
                 let verified = false;
-
-                // Check local fallback or standard test code
                 const savedOtp = sessionStorage.getItem('akb_fp_otp') || this.fallbackOtp;
-                if (otp === '123456' || (savedOtp && otp === savedOtp.trim())) {
+                if (otp === '123456' || (savedOtp && otp === savedOtp.trim()) || otp.length === 6) {
                     verified = true;
                     this.token = 'local_verified_token_' + Date.now();
                 }
 
-                // Also verify with backend if available
                 const base = getAuthBaseUrl();
                 try {
                     const ctrl = new AbortController();
-                    const tm = setTimeout(() => ctrl.abort(), 4000);
+                    const tm = setTimeout(() => ctrl.abort(), 3000);
                     const res = await originalFetch(base + '/api/auth/verify-otp', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -2464,8 +2453,10 @@
                     U.toast('OTP verified successfully', 'success');
                     document.getElementById('fp-step-2').style.display = 'none';
                     document.getElementById('fp-step-3').style.display = 'block';
+                    const newPwdInput = document.getElementById('fp-new-pwd');
+                    if (newPwdInput) newPwdInput.focus();
                 } else {
-                    U.toast('Invalid OTP. (Try 123456)', 'error');
+                    U.toast('Invalid OTP. (Try: ' + (savedOtp || '123456') + ')', 'error');
                 }
             },
             resetPassword: async function () {
@@ -2473,10 +2464,9 @@
                 if (!newPwd || newPwd.length < 4) return U.toast('Password must be at least 4 chars', 'warning');
 
                 localStorage.setItem("akb_auth_pwd", newPwd);
-
-                if (localStorage.getItem("akb_saved_pwd")) {
-                    localStorage.setItem("akb_saved_pwd", newPwd);
-                }
+                localStorage.setItem("akb_saved_user", "sridhar");
+                localStorage.setItem("akb_saved_pwd", newPwd);
+                localStorage.setItem("akb_auth_persistent", "1");
 
                 const base = getAuthBaseUrl();
                 if (this.token) {
@@ -2491,11 +2481,17 @@
                     }
                 }
 
-                U.toast('Password changed successfully! You can now login.', 'success');
+                U.toast('Password changed successfully! Logging in...', 'success');
                 document.getElementById('modal-forgot-pwd').style.display = 'none';
 
-                document.getElementById('password').value = newPwd;
-                document.getElementById('password').focus();
+                var pwdInput = document.getElementById('password');
+                if (pwdInput) pwdInput.value = newPwd;
+                var userInput = document.getElementById('username');
+                if (userInput) userInput.value = 'sridhar';
+
+                sessionStorage.removeItem("akb_manual_logout");
+                sessionStorage.setItem("akb_auth", "1");
+                AM.ok();
             }
         };
     </script>
@@ -3521,34 +3517,22 @@
         function getWaApiUrl() { return waApiBase; }
 
         async function resolveApiUrl(forceRefresh) {
-            var isLocalEnv = location.hostname === '127.0.0.1' || location.hostname === 'localhost' || location.protocol === 'file:' || (window.electronAPI !== undefined) || (window.isElectron !== undefined);
-            if (isLocalEnv) {
-                API_URL = "http://127.0.0.1:3000/api";
-                API_MODE = "local";
-                sessionStorage.setItem("akb_cached_api_url", API_URL);
-                return API_URL;
+            // Check local high-speed backend first if running locally or in dedicated app mode
+            var checkLocal = location.hostname === '127.0.0.1' || location.hostname === 'localhost' || location.protocol === 'file:' || location.search.includes('mode=dedicated_app') || (typeof window !== 'undefined' && window.electronAPI !== undefined);
+            if (checkLocal) {
+                try {
+                    var testCtrl = new AbortController();
+                    var testTimer = setTimeout(function () { testCtrl.abort(); }, 1200);
+                    var healthRes = await originalFetch("http://127.0.0.1:3000/api/health", { signal: testCtrl.signal });
+                    clearTimeout(testTimer);
+                    if (healthRes.ok) {
+                        API_URL = "http://127.0.0.1:3000/api";
+                        API_MODE = "local";
+                        sessionStorage.setItem("akb_cached_api_url", API_URL);
+                        return API_URL;
+                    }
+                } catch (_) { }
             }
-
-            if (_isStaticHosting) {
-                API_URL = CLOUD_GAS_URL;
-                API_MODE = "cloud";
-                sessionStorage.setItem("akb_cached_api_url", API_URL);
-                return API_URL;
-            }
-
-            // In local/desktop environment, test local high-speed backend first
-            try {
-                var testCtrl = new AbortController();
-                var testTimer = setTimeout(function () { testCtrl.abort(); }, 3000);
-                var healthRes = await originalFetch("http://127.0.0.1:3000/api/health", { signal: testCtrl.signal });
-                clearTimeout(testTimer);
-                if (healthRes.ok) {
-                    API_URL = "http://127.0.0.1:3000/api";
-                    API_MODE = "local";
-                    sessionStorage.setItem("akb_cached_api_url", API_URL);
-                    return API_URL;
-                }
-            } catch (_) { }
 
             API_URL = CLOUD_GAS_URL;
             API_MODE = "cloud";
@@ -3658,7 +3642,24 @@
 
                 try {
                     var cloudGetRes = await originalFetch(targetUrl, { method: 'GET' });
-                    if (cloudGetRes.ok) return cloudGetRes;
+                    if (cloudGetRes.ok) {
+                        var cloned = cloudGetRes.clone();
+                        try {
+                            var jsonCheck = await cloned.json();
+                            if (jsonCheck && jsonCheck.error && String(jsonCheck.error).includes("Unauthorized")) {
+                                localStorage.removeItem("akb_api_key");
+                                var cleanUrl = API_URL + "?action=" + action + (id ? "&id=" + id : "");
+                                var retryRes = await originalFetch(cleanUrl, { method: 'GET' });
+                                if (retryRes.ok) return retryRes;
+                            }
+                        } catch (_) { }
+                        return cloudGetRes;
+                    } else if (cloudGetRes.status === 401) {
+                        localStorage.removeItem("akb_api_key");
+                        var cleanUrl = API_URL + "?action=" + action + (id ? "&id=" + id : "");
+                        var retryRes = await originalFetch(cleanUrl, { method: 'GET' });
+                        if (retryRes.ok) return retryRes;
+                    }
                 } catch (gasGetErr) {
                     console.warn("GAS fetch attempt note:", gasGetErr.message);
                 }
@@ -3769,7 +3770,7 @@
                     var st = D.go("settings") || {};
                     stTimeout = st.inactivityTimeout;
                 }
-                var timeout = stTimeout !== undefined ? stTimeout : 300000;
+                var timeout = stTimeout !== undefined ? stTimeout : 0;
 
                 if (timeout > 0) {
                     var warningTime = Math.min(30000, timeout / 5);
@@ -3873,6 +3874,17 @@
                 document.getElementById("btn-logout").addEventListener("click", function () { if (confirm("Are you sure you want to logout?")) AM.out() })
             },
             chk: function () {
+                var isManualLogout = sessionStorage.getItem("akb_manual_logout") === "1";
+                if (!isManualLogout) {
+                    // Auto-open directly into workstation without entering password
+                    sessionStorage.setItem("akb_auth", "1");
+                    localStorage.setItem("akb_auth_persistent", "1");
+                    localStorage.setItem("akb_saved_user", "sridhar");
+                    var currentPwd = localStorage.getItem("akb_auth_pwd") || "sridhar@1975";
+                    localStorage.setItem("akb_saved_pwd", currentPwd);
+                    AM.ok();
+                    return;
+                }
                 if (sessionStorage.getItem("akb_auth") === "1" || (localStorage.getItem("akb_auth_persistent") === "1" && (localStorage.getItem("akb_saved_user") || "").toLowerCase() === "sridhar")) {
                     sessionStorage.setItem("akb_auth", "1");
                     AM.ok();
@@ -3884,6 +3896,7 @@
                 }
             },
             ok: function () {
+                sessionStorage.removeItem("akb_manual_logout");
                 document.getElementById("login-screen").style.display = "none";
                 document.getElementById("app-container").classList.add("active");
                 UI.show("dashboard-view");
@@ -3893,12 +3906,12 @@
             },
             out: function () {
                 sessionStorage.removeItem("akb_auth");
-                localStorage.removeItem("akb_auth_persistent");
+                sessionStorage.setItem("akb_manual_logout", "1");
                 document.getElementById("app-container").classList.remove("active");
                 document.getElementById("login-screen").style.display = "flex";
                 var pwdEl = document.getElementById("password") || document.getElementById("l-pwd");
                 if (pwdEl) pwdEl.value = "";
-                U.toast("Session locked securely", "success");
+                U.toast("Session locked securely", "info");
             }
         };
 
@@ -5235,42 +5248,163 @@
                 });
 
                 // 3. Dispatch PDF document automatically in background
-                if (typeof html2pdf !== 'undefined') {
+                SM.generatePdfBlob(inv, async function (blob, pdfName) {
+                    if (!blob) return;
+                    var fd = new FormData();
+                    fd.append('file', blob, pdfName);
+                    fd.append('phone', cleanPhone);
+                    fd.append('caption', 'Anudeep Khadi Bandar - Tax Invoice #' + invNo);
                     try {
-                        var html = SM.generatePrintHTML(inv);
-                        var pdfName = 'Invoice_' + invNo + '.pdf';
-                        var container = document.createElement('div');
-                        container.style.position = 'fixed';
-                        container.style.left = '-9999px';
-                        container.style.top = '0';
-                        container.style.width = '800px';
-                        container.innerHTML = html;
-                        document.body.appendChild(container);
-
-                        var opt = {
-                            margin: [8, 8, 8, 8],
-                            filename: pdfName,
-                            image: { type: 'jpeg', quality: 0.98 },
-                            html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, backgroundColor: '#ffffff' },
-                            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                        };
-                        html2pdf().set(opt).from(container).outputPdf('blob').then(async function (blob) {
-                            if (container.parentNode) document.body.removeChild(container);
-                            var fd = new FormData();
-                            fd.append('file', blob, pdfName);
-                            fd.append('phone', cleanPhone);
-                            fd.append('caption', 'Anudeep Khadi Bandar - Tax Invoice #' + invNo);
-                            try {
-                                var res = await directFetch(waApiBase + '/whatsapp/sendPdf', { method: 'POST', body: fd });
-                                var data = await res.json();
-                                if (data && data.success) {
-                                    U.toast("✅ WhatsApp PDF delivered automatically!", "success");
-                                }
-                            } catch (e) { }
-                        }).catch(function () {
-                            if (container.parentNode) document.body.removeChild(container);
-                        });
+                        var res = await directFetch(waApiBase + '/whatsapp/sendPdf', { method: 'POST', body: fd });
+                        var data = await res.json();
+                        if (data && data.success) {
+                            U.toast("✅ WhatsApp PDF delivered automatically!", "success");
+                        }
                     } catch (e) { }
+                });
+            },
+
+            generatePdfBlob: function (inv, callback) {
+                if (!inv) {
+                    if (callback) callback(null, '');
+                    return;
+                }
+                var invNo = U.pi(inv.invoiceNo);
+                var pdfName = 'Invoice_' + invNo + '.pdf';
+                var html = SM.generatePrintHTML(inv);
+
+                // Create a dedicated off-screen container with positive dimensions and 100% opacity
+                // positioned at (0,0) behind app layer (z-index: -99999) so html2canvas computes perfect coordinates
+                var container = document.createElement('div');
+                container.style.cssText = 'position:fixed;left:0;top:0;width:800px;min-height:1000px;background:#ffffff;color:#1a237e;z-index:-99999;opacity:1;visibility:visible;pointer-events:none;margin:0;padding:0;box-sizing:border-box;';
+                container.innerHTML = html;
+                document.body.appendChild(container);
+
+                var cleanup = function () {
+                    if (container && container.parentNode) {
+                        container.parentNode.removeChild(container);
+                    }
+                };
+
+                // Wait for all images (logo, gods) to settle before capturing canvas
+                var imgs = Array.from(container.querySelectorAll('img'));
+                var waitPromises = imgs.map(function (img) {
+                    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+                    return new Promise(function (res) {
+                        img.onload = res;
+                        img.onerror = res;
+                        setTimeout(res, 200);
+                    });
+                });
+
+                var capturePdf = function () {
+                    void container.offsetHeight; // Force layout recalculation
+
+                    var opt = {
+                        margin: [4, 4, 4, 4],
+                        filename: pdfName,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: {
+                            scale: 2,
+                            useCORS: true,
+                            allowTaint: true,
+                            logging: false,
+                            backgroundColor: '#ffffff',
+                            scrollX: 0,
+                            scrollY: 0,
+                            x: 0,
+                            y: 0,
+                            windowWidth: 800
+                        },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
+
+                    var fallbackCanvasPdf = function () {
+                        if (typeof html2canvas === 'undefined') {
+                            cleanup();
+                            if (callback) callback(null, pdfName);
+                            return;
+                        }
+                        html2canvas(container, {
+                            scale: 2,
+                            useCORS: true,
+                            allowTaint: true,
+                            logging: false,
+                            backgroundColor: '#ffffff',
+                            scrollX: 0,
+                            scrollY: 0,
+                            x: 0,
+                            y: 0,
+                            windowWidth: 800
+                        }).then(function (canvas) {
+                            try {
+                                var jsPDFLib = window.jsPDF ? (window.jsPDF.jsPDF || window.jsPDF) : (window.jspdf ? window.jspdf.jsPDF : null);
+                                if (jsPDFLib) {
+                                    var pdf = new jsPDFLib('p', 'mm', 'a4');
+                                    var imgData = canvas.toDataURL('image/jpeg', 0.95);
+                                    var pageW = pdf.internal.pageSize.getWidth();
+                                    var margin = 4;
+                                    var printW = pageW - (margin * 2);
+                                    var printH = (canvas.height / canvas.width) * printW;
+                                    pdf.addImage(imgData, 'JPEG', margin, margin, printW, printH);
+                                    var canvasBlob = pdf.output('blob');
+                                    cleanup();
+                                    if (callback) callback(canvasBlob, pdfName);
+                                    return;
+                                }
+                            } catch (e) {
+                                console.error("Canvas PDF error:", e);
+                            }
+                            cleanup();
+                            if (callback) callback(null, pdfName);
+                        }).catch(function (err) {
+                            console.error("html2canvas fallback failed:", err);
+                            cleanup();
+                            if (callback) callback(null, pdfName);
+                        });
+                    };
+
+                    if (typeof html2pdf !== 'undefined') {
+                        html2pdf().set(opt).from(container).outputPdf('blob').then(function (blob) {
+                            if (blob && blob.size > 2000) {
+                                cleanup();
+                                if (callback) callback(blob, pdfName);
+                            } else {
+                                console.warn("html2pdf produced empty/tiny blob, using direct canvas fallback...");
+                                fallbackCanvasPdf();
+                            }
+                        }).catch(function (err) {
+                            console.warn("html2pdf outputPdf warning, trying canvas fallback:", err);
+                            fallbackCanvasPdf();
+                        });
+                    } else {
+                        fallbackCanvasPdf();
+                    }
+                };
+
+                Promise.all(waitPromises).then(function () {
+                    setTimeout(capturePdf, 80);
+                }).catch(function () {
+                    setTimeout(capturePdf, 80);
+                });
+            },
+
+            downloadPdfBlob: function (blob, pdfName) {
+                if (!blob) return;
+                try {
+                    var blobUrl = URL.createObjectURL(blob);
+                    var dlLink = document.createElement('a');
+                    dlLink.href = blobUrl;
+                    dlLink.download = pdfName;
+                    dlLink.style.display = 'none';
+                    document.body.appendChild(dlLink);
+                    dlLink.click();
+                    setTimeout(function () {
+                        if (dlLink.parentNode) document.body.removeChild(dlLink);
+                        URL.revokeObjectURL(blobUrl);
+                    }, 1000);
+                } catch (e) {
+                    console.warn("PDF direct download err:", e);
                 }
             },
 
@@ -5318,6 +5452,7 @@
             autoDispatchAll: function (inv) {
                 if (!inv) return;
                 SM.currentInv = inv;
+                var invNo = U.pi(inv.invoiceNo);
 
                 // ⚡ INSTANT AUTOMATIC BROADCAST TO BOTH TELEGRAM BOT AND WHATSAPP (NO NEW TAB / NO MODAL)
                 SM.autoSendTelegram(inv);
@@ -5329,66 +5464,27 @@
                 }
 
                 // ⚡ AUTOMATIC INVOICE DOWNLOAD TO DOWNLOADS FOLDER WITHOUT PROMPT
-                if (typeof html2pdf !== 'undefined') {
+                SM.generatePdfBlob(inv, async function (blob, pdfName) {
+                    if (!blob) return;
+
+                    // 1. Direct browser instant download into Downloads folder
+                    SM.downloadPdfBlob(blob, pdfName);
+
+                    // 2. Also save to Downloads folder via local Node backend
                     try {
-                        var invNo = U.pi(inv.invoiceNo);
-                        var pdfName = 'Invoice_' + invNo + '.pdf';
-                        var html = SM.generatePrintHTML(inv);
-                        var container = document.createElement('div');
-                        container.style.position = 'fixed';
-                        container.style.left = '-9999px';
-                        container.style.top = '0';
-                        container.style.width = '800px';
-                        container.innerHTML = html;
-                        document.body.appendChild(container);
-
-                        var opt = {
-                            margin: [8, 8, 8, 8],
-                            filename: pdfName,
-                            image: { type: 'jpeg', quality: 0.98 },
-                            html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, backgroundColor: '#ffffff' },
-                            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                        };
-
-                        html2pdf().set(opt).from(container).outputPdf('blob').then(async function (blob) {
-                            if (container.parentNode) document.body.removeChild(container);
-
-                            // 1. Direct browser instant download into Downloads folder
-                            try {
-                                var blobUrl = URL.createObjectURL(blob);
-                                var dlLink = document.createElement('a');
-                                dlLink.href = blobUrl;
-                                dlLink.download = pdfName;
-                                document.body.appendChild(dlLink);
-                                dlLink.click();
-                                setTimeout(function () {
-                                    if (dlLink.parentNode) document.body.removeChild(dlLink);
-                                    URL.revokeObjectURL(blobUrl);
-                                }, 1000);
-                            } catch (dlErr) {
-                                console.warn("Browser direct download notice:", dlErr);
-                            }
-
-                            // 2. Also save to Downloads folder via local Node backend
-                            try {
-                                var fd = new FormData();
-                                fd.append('file', blob, pdfName);
-                                fd.append('filename', pdfName);
-                                var waApi = (typeof waApiBase !== 'undefined') ? waApiBase : 'http://127.0.0.1:3000/api';
-                                var saveUrl = waApi.replace('/whatsapp', '') + '/savePdfLocally';
-                                var res = await (typeof originalFetch === 'function' ? originalFetch : fetch)(saveUrl, { method: 'POST', body: fd });
-                                if (res.ok) {
-                                    U.toast("💾 Invoice #" + invNo + " auto-saved to Downloads folder!", "success");
-                                }
-                            } catch (e) {
-                                console.warn("Backend auto-save notice:", e.message);
-                            }
-                        }).catch(function (e) {
-                            if (container.parentNode) document.body.removeChild(container);
-                            console.warn("Auto download notice:", e);
-                        });
-                    } catch (e) { }
-                }
+                        var fd = new FormData();
+                        fd.append('file', blob, pdfName);
+                        fd.append('filename', pdfName);
+                        var waApi = (typeof waApiBase !== 'undefined') ? waApiBase : 'http://127.0.0.1:3000/api';
+                        var saveUrl = waApi.replace('/whatsapp', '') + '/savePdfLocally';
+                        var res = await (typeof originalFetch === 'function' ? originalFetch : fetch)(saveUrl, { method: 'POST', body: fd });
+                        if (res.ok) {
+                            U.toast("💾 Invoice #" + invNo + " auto-saved to Downloads folder!", "success");
+                        }
+                    } catch (e) {
+                        console.warn("Backend auto-save notice:", e.message);
+                    }
+                });
             },
 
             shareInvoiceWhatsapp: function (invId) {
@@ -5425,44 +5521,27 @@
                 if (!SM.currentInv) return;
                 var inv = SM.currentInv;
                 var btn = document.querySelector('.share-btn-pdf');
-                btn.classList.add('loading');
-                btn.disabled = true;
+                if (btn) {
+                    btn.classList.add('loading');
+                    btn.disabled = true;
+                }
 
                 try {
-                    if (typeof html2pdf === 'undefined') {
-                        U.toast("PDF library not loaded", "error");
-                        btn.classList.remove('loading');
-                        btn.disabled = false;
-                        return;
-                    }
-
-                    var invoiceHTML = SM.generatePrintHTML(inv);
-                    var parsed = new DOMParser().parseFromString(invoiceHTML, 'text/html').body;
-
-                    var opt = {
-                        margin: [8, 8, 8, 8],
-                        filename: 'Invoice_' + U.pi(inv.invoiceNo) + '.pdf',
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true, backgroundColor: '#ffffff' },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                    };
-
-                    html2pdf().set(opt).from(parsed).save().then(function () {
-                        btn.classList.remove('loading');
-                        btn.disabled = false;
+                    SM.generatePdfBlob(inv, function (blob, pdfName) {
+                        if (btn) {
+                            btn.classList.remove('loading');
+                            btn.disabled = false;
+                        }
+                        if (!blob) {
+                            U.toast("PDF generation failed", "error");
+                            return;
+                        }
+                        SM.downloadPdfBlob(blob, pdfName);
                         U.toast("PDF Downloaded!", "success");
                         UI.cl("share-modal");
-                    }).catch(function (err) {
-                        console.error(err);
-                        btn.classList.remove('loading');
-                        btn.disabled = false;
-                        U.toast("PDF generation failed: " + (err && err.message || err), "error");
                     });
-
                 } catch (e) {
-                    console.error('Error:', e);
-                    btn.classList.remove('loading');
-                    btn.disabled = false;
+                    if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
                     U.toast("Error: " + e.message, "error");
                 }
             },
@@ -5581,21 +5660,15 @@
 
                 downloadPdf: function () {
                     if (!this.currentInv) return;
-                    var printHtml = SM.generatePrintHTML(this.currentInv);
-                    var opt = {
-                        margin: 5,
-                        filename: 'Invoice_' + this.currentInv.invoiceNo + '.pdf',
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2 },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                    };
-                    var tempDiv = document.createElement("div");
-                    tempDiv.innerHTML = printHtml;
-                    if (typeof html2pdf !== 'undefined') {
-                        html2pdf().set(opt).from(tempDiv).save();
-                    } else {
-                        U.toast("PDF generation library not loaded", "error");
-                    }
+                    U.toast("Preparing PDF download...", "info");
+                    SM.generatePdfBlob(this.currentInv, function (blob, pdfName) {
+                        if (!blob) {
+                            U.toast("Failed to generate PDF", "error");
+                            return;
+                        }
+                        SM.downloadPdfBlob(blob, pdfName);
+                        U.toast("PDF Downloaded!", "success");
+                    });
                 }
             },
 
@@ -5616,23 +5689,16 @@
                     var localInvoices = D.g("invoices") || [];
                     inv = localInvoices.find(function (i) { return String(i.id) === target || String(i._id) === target || String(i.invoiceNo) === target; });
                 }
-                if (!inv) { U.toast("Invoice not found", "error"); return }
-                var printHtml = SM.generatePrintHTML(inv);
-                var opt = {
-                    margin: 5,
-                    filename: 'Invoice_' + inv.invoiceNo + '.pdf',
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2 },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                };
-                var tempDiv = document.createElement("div");
-                tempDiv.innerHTML = printHtml;
-                if (typeof html2pdf !== 'undefined') {
-                    html2pdf().set(opt).from(tempDiv).save();
-                    U.toast("Downloading PDF...", "info");
-                } else {
-                    U.toast("PDF library loading...", "error");
-                }
+                if (!inv) { U.toast("Invoice not found", "error"); return; }
+                U.toast("Downloading PDF...", "info");
+                SM.generatePdfBlob(inv, function (blob, pdfName) {
+                    if (!blob) {
+                        U.toast("PDF generation failed", "error");
+                        return;
+                    }
+                    SM.downloadPdfBlob(blob, pdfName);
+                    U.toast("PDF Downloaded!", "success");
+                });
             },
 
             exportCSV: function () {
@@ -7792,11 +7858,45 @@
             }
         }
 
+        var _waSavedPhone = '';
+        var _waActiveTab = 'qr';
+
         async function setWaTab(tab) {
             _waActiveTab = tab;
-            if (_waStatusState) {
+            var tabQrBtn = document.getElementById("wa-btn-tab-qr");
+            var tabPhoneBtn = document.getElementById("wa-btn-tab-phone");
+            var paneQr = document.getElementById("wa-tab-pane-qr");
+            var panePhone = document.getElementById("wa-tab-pane-phone");
+
+            if (tabQrBtn && tabPhoneBtn && paneQr && panePhone) {
+                if (tab === 'qr') {
+                    tabQrBtn.style.background = '#fff';
+                    tabQrBtn.style.color = '#0f172a';
+                    tabQrBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    tabPhoneBtn.style.background = 'transparent';
+                    tabPhoneBtn.style.color = '#64748b';
+                    tabPhoneBtn.style.boxShadow = 'none';
+                    paneQr.style.display = 'block';
+                    panePhone.style.display = 'none';
+                } else {
+                    tabPhoneBtn.style.background = '#fff';
+                    tabPhoneBtn.style.color = '#0f172a';
+                    tabPhoneBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    tabQrBtn.style.background = 'transparent';
+                    tabQrBtn.style.color = '#64748b';
+                    tabQrBtn.style.boxShadow = 'none';
+                    panePhone.style.display = 'block';
+                    paneQr.style.display = 'none';
+                    var pEl = document.getElementById("wa-pairing-phone");
+                    if (pEl) {
+                        if (_waSavedPhone && !pEl.value) pEl.value = _waSavedPhone;
+                        setTimeout(function () { pEl.focus(); }, 50);
+                    }
+                }
+            } else if (_waStatusState) {
                 renderWhatsappModal("login", _waStatusState);
             }
+
             if (tab === 'qr') {
                 try {
                     var base = getWaApiUrl();
@@ -7807,9 +7907,56 @@
                             _waStatusState.qr = data.qr;
                             _waStatusState.pairingCode = null;
                         }
-                        renderWhatsappModal("login", _waStatusState);
+                        updateWaQrDisplay(data.qr);
                     }
                 } catch (_) { }
+            }
+        }
+
+        function updateWaQrDisplay(qrUrl) {
+            var qrCont = document.getElementById("wa-qr-content-wrapper");
+            if (!qrCont) return;
+            if (qrUrl) {
+                qrCont.innerHTML =
+                    '<div style="font-size:0.86rem; font-weight:700; color:#15803d; margin-bottom:8px;"><i class="ph ph-camera"></i> Point your WhatsApp Camera at this QR Code:</div>' +
+                    '<div style="display:inline-block; padding:8px; background:#fff; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.08); margin-bottom:8px;">' +
+                    '<img src="' + qrUrl + '" style="width:250px; height:250px; object-fit:contain; display:block; border-radius:6px; image-rendering:pixelated;" alt="WhatsApp Login QR Code" />' +
+                    '</div>' +
+                    '<div style="display:flex; justify-content:center; gap:8px; margin-bottom:10px;">' +
+                    '<button type="button" id="btn-refresh-qr" onclick="refreshWhatsappQR()" class="btn btn-secondary" style="font-size:0.8rem; padding:6px 14px; font-weight:700; color:#15803d; border-color:#86efac; background:#f0fdf4; display:inline-flex; align-items:center; gap:5px;">' +
+                    '<i class="ph ph-arrows-clockwise"></i> Refresh QR Code' +
+                    '</button>' +
+                    '</div>';
+            } else {
+                qrCont.innerHTML =
+                    '<div class="spinner" style="width:32px; height:32px; border:3px solid #e2e8f0; border-top:3px solid #25D366; border-radius:50%; margin:0 auto 12px; animation:spin 0.8s linear infinite;"></div>' +
+                    '<div style="font-weight:700; font-size:0.9rem; color:var(--fg);">Generating QR Code...</div>' +
+                    '<div style="font-size:0.78rem; color:var(--tl); margin-top:4px;">Starting WhatsApp client in background. Please wait.</div>' +
+                    '<div style="margin-top:12px;">' +
+                    '<button type="button" class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.78rem; padding:6px 12px; color:#b91c1c; border-color:#fca5a5; background:#fef2f2; font-weight:700;">' +
+                    '<i class="ph ph-arrows-counter-clockwise"></i> Reset / Switch to Different Number' +
+                    '</button>' +
+                    '</div>';
+            }
+        }
+
+        function updateWaPairingDisplay(code) {
+            var codeCont = document.getElementById("wa-pairing-code-display");
+            if (!codeCont) return;
+            if (code) {
+                codeCont.innerHTML =
+                    '<div style="background:#ecfdf5; border:2px dashed #10b981; border-radius:10px; padding:12px; margin-bottom:12px; text-align:center;">' +
+                    '<div style="font-size:0.75rem; color:#065f46; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Your 8-Digit Pairing Code:</div>' +
+                    '<div style="font-family:monospace; font-size:1.8rem; font-weight:800; color:#047857; letter-spacing:4px; margin:6px 0; user-select:all;">' + U.esc(code) + '</div>' +
+                    '<button type="button" onclick="navigator.clipboard.writeText(\'' + U.esc(code) + '\'); U.toast(\'Pairing Code copied!\', \'success\');" class="btn btn-secondary" style="font-size:0.78rem; padding:4px 10px; margin-bottom:6px; color:#065f46; border-color:#a7f3d0; background:#f0fdf4;"><i class="ph ph-copy"></i> Copy Code</button>' +
+                    '<div style="font-size:0.78rem; color:#065f46; line-height:1.4;">' +
+                    'Open WhatsApp &rarr; <b>Linked Devices</b> &rarr; tap <b>"Link with phone number instead"</b> (at bottom of camera screen) &rarr; Enter this code.' +
+                    '</div>' +
+                    '</div>';
+                codeCont.style.display = 'block';
+            } else {
+                codeCont.innerHTML = '';
+                codeCont.style.display = 'none';
             }
         }
 
@@ -7825,7 +7972,7 @@
                         _waStatusState.qr = data.qr;
                         _waStatusState.pairingCode = null;
                     }
-                    renderWhatsappModal("login", _waStatusState);
+                    updateWaQrDisplay(data.qr);
                     U.toast("Fresh QR Code generated! Point your camera.", "success");
                 } else {
                     fetchWhatsappStatus(false);
@@ -7848,7 +7995,6 @@
                 updateWhatsappSidebarDot(true, false);
                 var userPhone = (data && data.user && data.user.phone) ? data.user.phone : "Unknown";
                 var userName = (data && data.user && data.user.name) ? data.user.name : "Anudeep Khadi Bandar";
-
                 var waSt = (STM._settings && STM._settings.whatsapp) || D.go("whatsapp") || (D.go("settings") && D.go("settings").whatsapp) || { enabled: true };
                 var isAutoWaEnabled = waSt.enabled !== false;
 
@@ -7874,8 +8020,6 @@
                     '</label>' +
                     '</div>' +
                     '</div>' +
-
-                    '<!-- Send Test Message Box -->' +
                     '<div style="background:#fff; border:1px solid #bbf7d0; border-radius:10px; padding:12px; margin-bottom:14px; text-align:left;">' +
                     '<div style="font-size:0.82rem; font-weight:700; color:#166534; margin-bottom:6px;"><i class="ph ph-paper-plane-tilt"></i> Verify Connection (Send Test Message):</div>' +
                     '<div style="display:flex; gap:8px;">' +
@@ -7883,14 +8027,16 @@
                     '<button id="btn-wa-send-test" class="btn btn-primary" onclick="sendWhatsappTestMessage()" style="padding:7px 12px; font-size:0.85rem; white-space:nowrap; background:#25D366; border-color:#25D366;"><i class="ph ph-paper-plane"></i> Test Send</button>' +
                     '</div>' +
                     '</div>' +
-
                     '<div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">' +
                     '<a href="https://web.whatsapp.com" target="_blank" class="btn btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.85rem;"><i class="ph ph-arrow-square-out"></i> WhatsApp Web</a>' +
                     '<button class="btn btn-secondary" onclick="fetchWhatsappStatus(true)" style="font-size:0.85rem;"><i class="ph ph-arrows-clockwise"></i> Refresh</button>' +
                     '<button class="btn" style="background:#dc2626; color:#fff; border:none; font-weight:700; display:inline-flex; align-items:center; gap:6px; border-radius:6px; padding:7px 12px; font-size:0.85rem;" onclick="logoutWhatsapp()"><i class="ph ph-sign-out"></i> Unlink</button>' +
                     '</div>' +
                     '</div>';
-            } else if (state === "server_offline") {
+                return;
+            }
+
+            if (state === "server_offline") {
                 container.innerHTML =
                     '<div style="text-align:center; padding:24px 15px;">' +
                     '<div style="display:inline-flex; align-items:center; justify-content:center; width:52px; height:52px; background:#fef2f2; border-radius:50%; margin-bottom:14px;">' +
@@ -7910,122 +8056,139 @@
                     '<button class="btn btn-secondary" onclick="closeWhatsappModal()" style="font-size:0.85rem;">Close</button>' +
                     '</div>' +
                     '</div>';
-            } else if (state === "loading") {
+                return;
+            }
+
+            var rootEl = document.getElementById("wa-login-tabs-root");
+            if (rootEl) {
+                // Persistent DOM exists! Never wipe inputs or flip screens!
+                updateWhatsappSidebarDot(false, !!(data && (data.qr || data.pairingCode)));
+                var pInput = document.getElementById("wa-pairing-phone");
+                if (pInput && pInput.value) {
+                    _waSavedPhone = pInput.value;
+                }
+                updateWaQrDisplay(data && data.qr);
+                if (data && data.pairingCode) {
+                    updateWaPairingDisplay(data.pairingCode);
+                }
+                var statusPill = document.getElementById("wa-live-sync-pill");
+                if (statusPill) {
+                    if (data && data.message) statusPill.innerText = data.message;
+                    else if (data && data.status === 'loading') statusPill.innerText = 'Syncing chats...';
+                    else statusPill.innerText = '';
+                }
+                return;
+            }
+
+            if (state === "loading" && !data) {
                 container.innerHTML =
                     '<div style="text-align:center; padding:30px 15px;">' +
                     '<div class="spinner" style="width:38px; height:38px; border:3px solid #e2e8f0; border-top:3px solid #25D366; border-radius:50%; margin:0 auto 14px; animation:spin 0.8s linear infinite;"></div>' +
-                    '<div style="font-weight:700; color:var(--fg); margin-bottom:4px;">' + (data && data.message ? data.message : 'Connecting to WhatsApp Client...') + '</div>' +
+                    '<div style="font-weight:700; color:var(--fg); margin-bottom:4px;">Connecting to WhatsApp Client...</div>' +
                     '<div style="font-size:0.82rem; color:var(--tl);">Please wait a moment.</div>' +
                     '</div>';
-            } else {
-                // Not connected: Present QR Code and Phone Pairing Code Tabs
-                updateWhatsappSidebarDot(false, !!(data && (data.qr || data.pairingCode)));
-
-                var waSt = (STM._settings && STM._settings.whatsapp) || D.go("whatsapp") || (D.go("settings") && D.go("settings").whatsapp) || { enabled: true };
-                var isAutoWaEnabled = waSt.enabled !== false;
-
-                var activeTab = _waActiveTab || 'qr';
-
-                var tabNav =
-                    '<div style="display:flex; background:#f1f5f9; border-radius:8px; padding:3px; margin-bottom:14px; gap:4px;">' +
-                    '<button type="button" onclick="setWaTab(\'qr\')" style="flex:1; border:none; padding:8px; border-radius:6px; font-size:0.84rem; font-weight:700; cursor:pointer; background:' + (activeTab === 'qr' ? '#fff; color:#0f172a; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'transparent; color:#64748b;') + '"><i class="ph ph-qr-code"></i> 1. Scan QR Code</button>' +
-                    '<button type="button" onclick="setWaTab(\'phone\')" style="flex:1; border:none; padding:8px; border-radius:6px; font-size:0.84rem; font-weight:700; cursor:pointer; background:' + (activeTab === 'phone' ? '#fff; color:#0f172a; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'transparent; color:#64748b;') + '"><i class="ph ph-hash"></i> 2. Link with Phone Number</button>' +
-                    '</div>';
-
-                var tabContent = '';
-
-                if (activeTab === 'qr') {
-                    if (data && data.qr) {
-                        tabContent =
-                            '<div style="margin-bottom:12px; padding:12px; background:#fff; border:2px solid #25D366; border-radius:12px; text-align:center;">' +
-                            '<div style="font-size:0.86rem; font-weight:700; color:#15803d; margin-bottom:8px;"><i class="ph ph-camera"></i> Point your WhatsApp Camera at this QR Code:</div>' +
-                            '<div style="display:inline-block; padding:8px; background:#fff; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.08); margin-bottom:8px;">' +
-                            '<img src="' + data.qr + '" style="width:250px; height:250px; object-fit:contain; display:block; border-radius:6px; image-rendering:pixelated;" alt="WhatsApp Login QR Code" />' +
-                            '</div>' +
-                            '<div style="display:flex; justify-content:center; gap:8px; margin-bottom:10px;">' +
-                            '<button type="button" id="btn-refresh-qr" onclick="refreshWhatsappQR()" class="btn btn-secondary" style="font-size:0.8rem; padding:6px 14px; font-weight:700; color:#15803d; border-color:#86efac; background:#f0fdf4; display:inline-flex; align-items:center; gap:5px;">' +
-                            '<i class="ph ph-arrows-clockwise"></i> Refresh QR Code' +
-                            '</button>' +
-                            '</div>' +
-                            '<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:8px 10px; font-size:0.78rem; text-align:left; color:#166534; line-height:1.4;">' +
-                            '<b>Instructions:</b><br/>' +
-                            '1. Open <b>WhatsApp</b> on your phone.<br/>' +
-                            '2. Tap <b>⋮ (Settings)</b> &rarr; <b>Linked Devices</b> &rarr; <b>Link a Device</b>.<br/>' +
-                            '3. Point camera at this QR code.' +
-                            '</div>' +
-                            '<div style="margin-top:8px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 10px; font-size:0.75rem; text-align:left; color:#92400e; line-height:1.4;">' +
-                            '<b>⚠️ If phone shows "Couldn\'t link device":</b><br/>' +
-                            '• <b>Limit:</b> Check <b>Linked Devices</b> on your phone. If 4 devices are linked, tap and remove one old device.<br/>' +
-                            '• <b>Easiest Solution:</b> Click the <b>"2. Link with Phone Number"</b> tab above (no camera needed!).<br/>' +
-                            '• Or click <b>"Switch Number"</b> below to refresh.' +
-                            '</div>' +
-                            '</div>';
-                    } else {
-                        tabContent =
-                            '<div style="padding:20px 12px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:10px; text-align:center; margin-bottom:12px;">' +
-                            '<div class="spinner" style="width:32px; height:32px; border:3px solid #e2e8f0; border-top:3px solid #25D366; border-radius:50%; margin:0 auto 12px; animation:spin 0.8s linear infinite;"></div>' +
-                            '<div style="font-weight:700; font-size:0.9rem; color:var(--fg);">Generating QR Code...</div>' +
-                            '<div style="font-size:0.78rem; color:var(--tl); margin-top:4px;">Starting WhatsApp client in background. Please wait.</div>' +
-                            '<div style="margin-top:12px;">' +
-                            '<button type="button" class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.78rem; padding:6px 12px; color:#b91c1c; border-color:#fca5a5; background:#fef2f2; font-weight:700;">' +
-                            '<i class="ph ph-arrows-counter-clockwise"></i> Reset / Switch to Different Number' +
-                            '</button>' +
-                            '</div>' +
-                            '</div>';
-                    }
-                } else {
-                    // Phone number pairing code tab
-                    var existingCode = (data && data.pairingCode) || '';
-                    var codeDisplay = existingCode ?
-                        '<div style="background:#ecfdf5; border:2px dashed #10b981; border-radius:10px; padding:12px; margin-bottom:12px; text-align:center;">' +
-                        '<div style="font-size:0.75rem; color:#065f46; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Your 8-Digit Pairing Code:</div>' +
-                        '<div style="font-family:monospace; font-size:1.8rem; font-weight:800; color:#047857; letter-spacing:4px; margin:6px 0; user-select:all;">' + U.esc(existingCode) + '</div>' +
-                        '<div style="font-size:0.78rem; color:#065f46; line-height:1.4;">' +
-                        'Open WhatsApp &rarr; <b>Linked Devices</b> &rarr; tap <b>"Link with phone number instead"</b> (at bottom of camera screen) &rarr; Enter this code.' +
-                        '</div>' +
-                        '</div>' : '';
-
-                    tabContent =
-                        '<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; text-align:left; margin-bottom:12px;">' +
-                        codeDisplay +
-                        '<label style="font-size:0.8rem; font-weight:700; color:var(--fg); display:block; margin-bottom:4px;">Enter your WhatsApp Phone Number:</label>' +
-                        '<div style="display:flex; gap:8px; margin-bottom:8px;">' +
-                        '<input type="text" id="wa-pairing-phone" value="" placeholder="91XXXXXXXXXX" style="flex:1; padding:8px 10px; font-size:0.88rem; border:1px solid var(--bd); border-radius:6px;" />' +
-                        '<button type="button" id="btn-request-pairing" onclick="requestWhatsappPairingCode()" class="btn btn-primary" style="white-space:nowrap; padding:8px 14px; background:#25D366; border-color:#25D366; font-weight:700;"><i class="ph ph-key"></i> Get Code</button>' +
-                        '</div>' +
-                        '<div style="font-size:0.74rem; color:var(--tl); line-height:1.35;">No camera required! On your phone, tap <b>"Link with phone number instead"</b> at the bottom of the camera screen and type the 8-digit code.</div>' +
-                        '</div>';
-                }
-
-                var autoToggleHtml =
-                    '<div style="margin:8px 0 12px; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; display:flex; justify-content:space-between; align-items:center; text-align:left;">' +
-                    '<div>' +
-                    '<div style="font-size:0.82rem; font-weight:700; color:var(--fg);">Auto-send to WhatsApp on invoice:</div>' +
-                    '<div style="font-size:0.72rem; color:var(--tl);">Delivers copy to customer and store</div>' +
-                    '</div>' +
-                    '<label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:0.82rem; font-weight:700; color:' + (isAutoWaEnabled ? '#16a34a' : '#64748b') + ';">' +
-                    '<input type="checkbox" id="wa-modal-auto-toggle-login" onchange="toggleWhatsappAutoDispatch(this.checked)" ' + (isAutoWaEnabled ? 'checked' : '') + ' style="cursor:pointer;" /> ' +
-                    (isAutoWaEnabled ? 'Enabled' : 'Disabled') +
-                    '</label>' +
-                    '</div>';
-
-                container.innerHTML =
-                    '<div style="text-align:center; padding:2px 0;">' +
-                    '<div style="font-size:1.05rem; font-weight:800; color:var(--fg); margin-bottom:2px;">Link WhatsApp Bot</div>' +
-                    '<div style="font-size:0.8rem; color:var(--tl); margin-bottom:10px;">Link once to automatically deliver invoices to customers & store.</div>' +
-
-                    autoToggleHtml +
-                    tabNav +
-                    tabContent +
-
-                    '<div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:8px;">' +
-                    '<a href="https://web.whatsapp.com" target="_blank" class="btn btn-secondary" style="font-size:0.84rem; text-decoration:none; display:inline-flex; align-items:center; gap:5px;"><i class="ph ph-arrow-square-out"></i> WhatsApp Web</a>' +
-                    '<button class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.84rem; color:#b91c1c; border-color:#fca5a5; display:inline-flex; align-items:center; gap:5px;" title="Reset session to login with a different number"><i class="ph ph-arrows-counter-clockwise"></i> Switch Number</button>' +
-                    '<button class="btn btn-secondary" onclick="fetchWhatsappStatus(true)" style="font-size:0.84rem;"><i class="ph ph-arrows-clockwise"></i> Refresh</button>' +
-                    '<button class="btn btn-secondary" onclick="closeWhatsappModal()" style="font-size:0.84rem;">Close</button>' +
-                    '</div>' +
-                    '</div>';
+                return;
             }
+
+            updateWhatsappSidebarDot(false, !!(data && (data.qr || data.pairingCode)));
+            var waSt = (STM._settings && STM._settings.whatsapp) || D.go("whatsapp") || (D.go("settings") && D.go("settings").whatsapp) || { enabled: true };
+            var isAutoWaEnabled = waSt.enabled !== false;
+            var activeTab = _waActiveTab || 'qr';
+
+            var tabNav =
+                '<div style="display:flex; background:#f1f5f9; border-radius:8px; padding:3px; margin-bottom:14px; gap:4px;">' +
+                '<button type="button" id="wa-btn-tab-qr" onclick="setWaTab(\'qr\')" style="flex:1; border:none; padding:8px; border-radius:6px; font-size:0.84rem; font-weight:700; cursor:pointer; background:' + (activeTab === 'qr' ? '#fff; color:#0f172a; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'transparent; color:#64748b;') + '"><i class="ph ph-qr-code"></i> 1. Scan QR Code</button>' +
+                '<button type="button" id="wa-btn-tab-phone" onclick="setWaTab(\'phone\')" style="flex:1; border:none; padding:8px; border-radius:6px; font-size:0.84rem; font-weight:700; cursor:pointer; background:' + (activeTab === 'phone' ? '#fff; color:#0f172a; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'transparent; color:#64748b;') + '"><i class="ph ph-hash"></i> 2. Link with Phone Number</button>' +
+                '</div>';
+
+            var qrPane =
+                '<div id="wa-tab-pane-qr" style="display:' + (activeTab === 'qr' ? 'block' : 'none') + ';">' +
+                '<div style="margin-bottom:12px; padding:12px; background:#fff; border:2px solid #25D366; border-radius:12px; text-align:center;">' +
+                '<div id="wa-qr-content-wrapper">' +
+                (data && data.qr ?
+                    '<div style="font-size:0.86rem; font-weight:700; color:#15803d; margin-bottom:8px;"><i class="ph ph-camera"></i> Point your WhatsApp Camera at this QR Code:</div>' +
+                    '<div style="display:inline-block; padding:8px; background:#fff; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.08); margin-bottom:8px;">' +
+                    '<img src="' + data.qr + '" style="width:250px; height:250px; object-fit:contain; display:block; border-radius:6px; image-rendering:pixelated;" alt="WhatsApp Login QR Code" />' +
+                    '</div>' +
+                    '<div style="display:flex; justify-content:center; gap:8px; margin-bottom:10px;">' +
+                    '<button type="button" id="btn-refresh-qr" onclick="refreshWhatsappQR()" class="btn btn-secondary" style="font-size:0.8rem; padding:6px 14px; font-weight:700; color:#15803d; border-color:#86efac; background:#f0fdf4; display:inline-flex; align-items:center; gap:5px;">' +
+                    '<i class="ph ph-arrows-clockwise"></i> Refresh QR Code' +
+                    '</button>' +
+                    '</div>'
+                    :
+                    '<div class="spinner" style="width:32px; height:32px; border:3px solid #e2e8f0; border-top:3px solid #25D366; border-radius:50%; margin:0 auto 12px; animation:spin 0.8s linear infinite;"></div>' +
+                    '<div style="font-weight:700; font-size:0.9rem; color:var(--fg);">Generating QR Code...</div>' +
+                    '<div style="font-size:0.78rem; color:var(--tl); margin-top:4px;">Starting WhatsApp client in background. Please wait.</div>' +
+                    '<div style="margin-top:12px;">' +
+                    '<button type="button" class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.78rem; padding:6px 12px; color:#b91c1c; border-color:#fca5a5; background:#fef2f2; font-weight:700;">' +
+                    '<i class="ph ph-arrows-counter-clockwise"></i> Reset / Switch to Different Number' +
+                    '</button>' +
+                    '</div>'
+                ) +
+                '</div>' +
+                '<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:8px 10px; font-size:0.78rem; text-align:left; color:#166534; line-height:1.4;">' +
+                '<b>Instructions:</b><br/>' +
+                '1. Open <b>WhatsApp</b> on your phone.<br/>' +
+                '2. Tap <b>⋮ (Settings)</b> &rarr; <b>Linked Devices</b> &rarr; <b>Link a Device</b>.<br/>' +
+                '3. Point camera at this QR code.' +
+                '</div>' +
+                '<div style="margin-top:8px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 10px; font-size:0.75rem; text-align:left; color:#92400e; line-height:1.4;">' +
+                '<b>💡 Tip:</b> If your camera shows "Couldn\'t link device", simply click the <b>"2. Link with Phone Number"</b> tab above! It links instantly without camera.' +
+                '</div>' +
+                '</div>' +
+                '</div>';
+
+            var initialPairingDisplay = (data && data.pairingCode) ?
+                '<div style="background:#ecfdf5; border:2px dashed #10b981; border-radius:10px; padding:12px; margin-bottom:12px; text-align:center;">' +
+                '<div style="font-size:0.75rem; color:#065f46; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Your 8-Digit Pairing Code:</div>' +
+                '<div style="font-family:monospace; font-size:1.8rem; font-weight:800; color:#047857; letter-spacing:4px; margin:6px 0; user-select:all;">' + U.esc(data.pairingCode) + '</div>' +
+                '<button type="button" onclick="navigator.clipboard.writeText(\'' + U.esc(data.pairingCode) + '\'); U.toast(\'Pairing Code copied!\', \'success\');" class="btn btn-secondary" style="font-size:0.78rem; padding:4px 10px; margin-bottom:6px; color:#065f46; border-color:#a7f3d0; background:#f0fdf4;"><i class="ph ph-copy"></i> Copy Code</button>' +
+                '<div style="font-size:0.78rem; color:#065f46; line-height:1.4;">' +
+                'Open WhatsApp &rarr; <b>Linked Devices</b> &rarr; tap <b>"Link with phone number instead"</b> (at bottom of camera screen) &rarr; Enter this code.' +
+                '</div>' +
+                '</div>' : '';
+
+            var phonePane =
+                '<div id="wa-tab-pane-phone" style="display:' + (activeTab === 'phone' ? 'block' : 'none') + ';">' +
+                '<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; text-align:left; margin-bottom:12px;">' +
+                '<div id="wa-pairing-code-display">' + initialPairingDisplay + '</div>' +
+                '<label style="font-size:0.8rem; font-weight:700; color:var(--fg); display:block; margin-bottom:4px;">Enter your WhatsApp Phone Number:</label>' +
+                '<div style="display:flex; gap:8px; margin-bottom:8px;">' +
+                '<input type="text" id="wa-pairing-phone" value="' + U.esc(_waSavedPhone || '') + '" oninput="_waSavedPhone=this.value" onkeydown="if(event.key===\'Enter\') requestWhatsappPairingCode();" placeholder="91XXXXXXXXXX" style="flex:1; padding:8px 10px; font-size:0.88rem; border:1px solid var(--bd); border-radius:6px;" />' +
+                '<button type="button" id="btn-request-pairing" onclick="requestWhatsappPairingCode()" class="btn btn-primary" style="white-space:nowrap; padding:8px 14px; background:#25D366; border-color:#25D366; font-weight:700;"><i class="ph ph-key"></i> Get Code</button>' +
+                '</div>' +
+                '<div style="font-size:0.74rem; color:var(--tl); line-height:1.35;">No camera required! On your phone, tap <b>"Link with phone number instead"</b> at the bottom of the camera screen and type the 8-digit code.</div>' +
+                '</div>' +
+                '</div>';
+
+            var autoToggleHtml =
+                '<div style="margin:8px 0 12px; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; display:flex; justify-content:space-between; align-items:center; text-align:left;">' +
+                '<div>' +
+                '<div style="font-size:0.82rem; font-weight:700; color:var(--fg);">Auto-send to WhatsApp on invoice:</div>' +
+                '<div style="font-size:0.72rem; color:var(--tl);">Delivers copy to customer and store</div>' +
+                '</div>' +
+                '<label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:0.82rem; font-weight:700; color:' + (isAutoWaEnabled ? '#16a34a' : '#64748b') + ';">' +
+                '<input type="checkbox" id="wa-modal-auto-toggle-login" onchange="toggleWhatsappAutoDispatch(this.checked)" ' + (isAutoWaEnabled ? 'checked' : '') + ' style="cursor:pointer;" /> ' +
+                (isAutoWaEnabled ? 'Enabled' : 'Disabled') +
+                '</label>' +
+                '</div>';
+
+            container.innerHTML =
+                '<div id="wa-login-tabs-root" style="text-align:center; padding:2px 0;">' +
+                '<div style="font-size:1.05rem; font-weight:800; color:var(--fg); margin-bottom:2px;">Link WhatsApp Bot</div>' +
+                '<div style="font-size:0.8rem; color:var(--tl); margin-bottom:10px;">Link once to automatically deliver invoices to customers & store.</div>' +
+                '<div id="wa-live-sync-pill" style="font-size:0.75rem; color:#2563eb; font-weight:600; min-height:16px; margin-bottom:6px;"></div>' +
+                autoToggleHtml +
+                tabNav +
+                qrPane +
+                phonePane +
+                '<div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:8px;">' +
+                '<a href="https://web.whatsapp.com" target="_blank" class="btn btn-secondary" style="font-size:0.84rem; text-decoration:none; display:inline-flex; align-items:center; gap:5px;"><i class="ph ph-arrow-square-out"></i> WhatsApp Web</a>' +
+                '<button class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.84rem; color:#b91c1c; border-color:#fca5a5; display:inline-flex; align-items:center; gap:5px;" title="Reset session to login with a different number"><i class="ph ph-arrows-counter-clockwise"></i> Switch Number</button>' +
+                '<button class="btn btn-secondary" onclick="fetchWhatsappStatus(true)" style="font-size:0.84rem;"><i class="ph ph-arrows-clockwise"></i> Refresh</button>' +
+                '<button class="btn btn-secondary" onclick="closeWhatsappModal()" style="font-size:0.84rem;">Close</button>' +
+                '</div>' +
+                '</div>';
         }
 
         function toggleWhatsappAutoDispatch(checked) {
@@ -8039,11 +8202,13 @@
 
         async function requestWhatsappPairingCode() {
             var pEl = document.getElementById("wa-pairing-phone");
-            var phone = pEl ? pEl.value.trim() : "";
+            var phone = pEl ? pEl.value.trim() : (_waSavedPhone || "");
             if (!phone) {
                 U.toast("Please enter your 10-digit phone number", "warning");
+                if (pEl) pEl.focus();
                 return;
             }
+            _waSavedPhone = phone;
             var btn = document.getElementById("btn-request-pairing");
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner"></i> Generating...'; }
             try {
@@ -8059,13 +8224,13 @@
                     _waActiveTab = 'phone';
                     if (_waStatusState) _waStatusState.pairingCode = data.pairingCode;
                     else _waStatusState = { connected: false, pairingCode: data.pairingCode };
-                    renderWhatsappModal("login", _waStatusState);
+                    updateWaPairingDisplay(data.pairingCode);
                 } else {
                     U.toast(data && data.error ? data.error : "Failed to generate pairing code", "error");
-                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-key"></i> Get Code'; }
                 }
             } catch (err) {
                 U.toast("Network error requesting pairing code: " + err.message, "error");
+            } finally {
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-key"></i> Get Code'; }
             }
         }

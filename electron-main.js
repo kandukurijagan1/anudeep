@@ -73,12 +73,18 @@ function startBackend() {
             const logDir = path.join(app.getPath('appData'), 'AnudeepKhadiBandar');
             if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
             const logPath = path.join(logDir, 'server.log');
-            const logFile = fs.openSync(logPath, 'a');
-            const { fork } = require('child_process');
-            serverChild = fork(serverJs, [], {
+            const nodeExe = findNodeExecutable();
+            const { spawn } = require('child_process');
+            const useNode = (nodeExe && nodeExe !== 'node' && fs.existsSync(nodeExe));
+            const execBinary = useNode ? nodeExe : process.execPath;
+            const extraEnv = useNode ? {} : { ELECTRON_RUN_AS_NODE: '1' };
+
+            console.log(`[Electron] Launching backend server with: ${execBinary}`);
+            serverChild = spawn(execBinary, [serverJs], {
                 cwd: __dirname,
-                env: { ...process.env, PORT: '3000' },
-                stdio: ['ignore', logFile, logFile, 'ipc']
+                env: { ...process.env, PORT: '3000', ...extraEnv },
+                stdio: ['ignore', logFile, logFile],
+                windowsHide: true
             });
 
             if (serverChild) {

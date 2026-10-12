@@ -55,12 +55,12 @@ The system provides multiple ways to run as a dedicated, high-speed POS workstat
    - Under **Build and deployment** > **Source**, choose **"Deploy from a branch"**.
    - Under **Branch**, select `main` and `/ (root)`, then click **Save**.
 3. Within 1–2 minutes, your website will be live at:
-   `https://nenduku644-hash.github.io/anudeep-deploy/`
+   `https://kandukurijagan1.github.io/anudeep/`
 
 ---
 
 ### Option 3: Full Stack Backend (with WhatsApp Web Bot & MongoDB)
 For automated WhatsApp sending from a server, deploy using the included `Dockerfile` and `render.yaml` to **Render.com** or **Railway**:
-1. Connect your repository `nenduku644-hash/anudeep-deploy` on [render.com](https://render.com).
+1. Connect your repository `kandukurijagan1/anudeep` on [render.com](https://render.com).
 2. Render will automatically detect `render.yaml` and `Dockerfile` (with Chromium pre-configured).
 3. Add your `MONGO_URI` environment variable and launch!

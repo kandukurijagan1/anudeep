@@ -3,18 +3,9 @@ $projectDir = if ($PSScriptRoot) { $PSScriptRoot } else { "C:\Users\ADMIN\Deskto
 $iconPath = Join-Path $projectDir "icon.ico"
 $shortcutPath = Join-Path $desktopDir "Anudeep Khadi Bandar - GST Billing.lnk"
 
-# Select best executable target
-$packagedExe = Join-Path $projectDir "dist\AKB-Billing-win32-x64\AKB-Billing.exe"
-$nativeExe = Join-Path $projectDir "AKB-Billing.exe"
+# Always use the launcher script so we get the Electron app
 $launcherBat = Join-Path $projectDir "Launch-AKB-App.bat"
-
-if (Test-Path $packagedExe) {
-    $targetPath = $packagedExe
-} elseif (Test-Path $nativeExe) {
-    $targetPath = $nativeExe
-} else {
-    $targetPath = $launcherBat
-}
+$targetPath = $launcherBat
 
 $wsh = New-Object -ComObject WScript.Shell
 $sc = $wsh.CreateShortcut($shortcutPath)

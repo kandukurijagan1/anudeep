@@ -1,5 +1,5 @@
 {
-  "nextInvoiceNo": 7,
+  "nextInvoiceNo": 8,
   "inactivityTimeout": 60000,
   "adminEmails": [
     "kandukurijagan99@gmail.com",
@@ -17,5 +17,6 @@
   },
   "whatsapp": {
     "enabled": true
-  }
+  },
+  "adminPassword": "sridhar@1975"
 }
