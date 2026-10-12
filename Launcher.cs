@@ -30,7 +30,7 @@ namespace AnudeepKhadiBandar
         private static ContextMenu trayMenu = null;
         private static bool isRunning = true;
         private static string appDir = AppDomain.CurrentDomain.BaseDirectory;
-        private static string activeUrl = "https://kandukurijagan1.github.io/anudeep/?mode=dedicated_app";
+        private static string activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
 
         [STAThread]
         static void Main(string[] args)
@@ -155,23 +155,39 @@ namespace AnudeepKhadiBandar
             }
         }
 
+        private static string FindServerJs()
+        {
+            string[] candidates = new string[]
+            {
+                Path.Combine(appDir, "server.js"),
+                Path.Combine(appDir, "anudeep-kadir-bandi", "server.js"),
+                @"C:\Users\ADMIN\Desktop\anudeep-kadir-bandi\server.js",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "anudeep-kadir-bandi", "server.js")
+            };
+            foreach (string p in candidates)
+            {
+                if (File.Exists(p)) return p;
+            }
+            return null;
+        }
+
         private static void EnsureBackendRunning()
         {
-            bool localResponding = IsUrlResponding("http://127.0.0.1:3000/api/health", 800);
+            bool localResponding = IsUrlResponding("http://127.0.0.1:3000/api/health", 500);
 
             if (!localResponding)
             {
-                string serverJs = Path.Combine(appDir, "server.js");
+                string serverJs = FindServerJs();
                 string nodeExe = FindNodeExe();
 
-                if (!string.IsNullOrEmpty(nodeExe) && File.Exists(serverJs))
+                if (!string.IsNullOrEmpty(nodeExe) && !string.IsNullOrEmpty(serverJs) && File.Exists(serverJs))
                 {
                     StartNodeProcess(nodeExe, serverJs);
 
-                    for (int i = 0; i < 60; i++)
+                    for (int i = 0; i < 200; i++)
                     {
-                        Thread.Sleep(250);
-                        if (IsUrlResponding("http://127.0.0.1:3000/api/health", 500))
+                        Thread.Sleep(100);
+                        if (IsUrlResponding("http://127.0.0.1:3000/api/health", 200))
                         {
                             localResponding = true;
                             break;
@@ -180,24 +196,19 @@ namespace AnudeepKhadiBandar
                 }
             }
 
-            if (localResponding)
-            {
-                activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
-            }
-            else
-            {
-                activeUrl = "https://kandukurijagan1.github.io/anudeep/?mode=dedicated_app";
-            }
+            // Always prioritize local backend on port 3000 for full WhatsApp & POS workstation integration
+            activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
         }
 
         private static void StartNodeProcess(string nodePath, string scriptPath)
         {
             try
             {
+                string projectDir = Path.GetDirectoryName(scriptPath);
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = nodePath;
                 psi.Arguments = "\"" + scriptPath + "\"";
-                psi.WorkingDirectory = appDir;
+                psi.WorkingDirectory = !string.IsNullOrEmpty(projectDir) ? projectDir : appDir;
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 psi.WindowStyle = ProcessWindowStyle.Hidden;
@@ -219,18 +230,15 @@ namespace AnudeepKhadiBandar
                     Thread.Sleep(6000);
                     if (!isRunning) break;
 
-                    // If configured to use local port 3000, check health and auto-heal if crashed
-                    if (activeUrl.Contains(":3000"))
+                    // Keep local Node backend (port 3000) alive at all times for WhatsApp and offline services
+                    bool alive = IsUrlResponding("http://127.0.0.1:3000/api/health", 1200);
+                    if (!alive && isRunning)
                     {
-                        bool alive = IsUrlResponding("http://127.0.0.1:3000/api/health", 1200);
-                        if (!alive && isRunning)
+                        string nodeExe = FindNodeExe();
+                        string serverJs = FindServerJs();
+                        if (!string.IsNullOrEmpty(nodeExe) && !string.IsNullOrEmpty(serverJs) && File.Exists(serverJs))
                         {
-                            string nodeExe = FindNodeExe();
-                            string serverJs = Path.Combine(appDir, "server.js");
-                            if (!string.IsNullOrEmpty(nodeExe) && File.Exists(serverJs))
-                            {
-                                StartNodeProcess(nodeExe, serverJs);
-                            }
+                            StartNodeProcess(nodeExe, serverJs);
                         }
                     }
                 }
@@ -485,11 +493,7 @@ namespace AnudeepKhadiBandar
                 embeddedServer = null;
             }
 
-            if (serverProcess != null && !serverProcess.HasExited)
-            {
-                try { serverProcess.Kill(); } catch { }
-                serverProcess = null;
-            }
+            // Keep background Node.js / WhatsApp server alive for persistent 24/7 connectivity!
 
             if (browserProcess != null && !browserProcess.HasExited)
             {

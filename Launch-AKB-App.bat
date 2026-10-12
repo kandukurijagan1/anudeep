@@ -2,24 +2,37 @@
 title Anudeep Khadi Bandar - Dedicated Workstation Launcher
 cd /d "%~dp0"
 
-:: 1. Launch via Electron
+:: 1. Ensure background Node.js server is running silently
+curl -s -m 1 http://127.0.0.1:3000/api/health >nul 2>&1
+if errorlevel 1 (
+    if exist "C:\Program Files\nodejs\node.exe" (
+        start "" /B "C:\Program Files\nodejs\node.exe" server.js
+    ) else if exist "node.exe" (
+        start "" /B "node.exe" server.js
+    ) else (
+        where node >nul 2>&1 && start "" /B node server.js
+    )
+)
+
+:: 2. Launch via Electron (Preferred: Full native workstation container)
 if exist "node_modules\electron" (
     start "" "node_modules\.bin\electron.cmd" .
     exit
 )
 
-:: 2. If packaged Electron app exists in dist, launch it directly
+:: 3. If packaged Electron app exists in dist, launch it directly
 if exist "dist\AKB-Billing-win32-x64\AKB-Billing.exe" (
     start "" "dist\AKB-Billing-win32-x64\AKB-Billing.exe"
     exit
 )
 
-:: 3. Launch high-speed native workstation launcher (AKB-Billing.exe)
+:: 4. Launch native workstation launcher (AKB-Billing.exe)
 if exist "AKB-Billing.exe" (
     start "" "AKB-Billing.exe"
     exit
 )
 
-:: 4. Fallback: Launch MS Edge or Chrome in dedicated app mode
-start msedge --app="https://kandukurijagan1.github.io/anudeep/?mode=dedicated_app"
+:: 5. Fallback: Launch MS Edge in dedicated app mode connected to local backend
+start msedge --app="http://127.0.0.1:3000/?mode=dedicated_app"
 exit
+

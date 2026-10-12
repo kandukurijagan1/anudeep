@@ -312,12 +312,19 @@ function findChromeExecutable() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
+  const userProfile = process.env.USERPROFILE || 'C:\\Users\\ADMIN';
+  const localAppData = process.env.LOCALAPPDATA || path.join(userProfile, 'AppData', 'Local');
+  const programFiles = process.env.PROGRAMFILES || 'C:\\Program Files';
+  const programFilesX86 = process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
+
   const possiblePaths = [
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    path.join(process.env.USERPROFILE || 'C:\\Users\\ADMIN', '.cache', 'puppeteer', 'chrome', 'win64-146.0.7680.31', 'chrome-win64', 'chrome.exe')
+    path.join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    path.join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    path.join(localAppData, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+    path.join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+    path.join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+    path.join(userProfile, '.cache', 'puppeteer', 'chrome', 'win64-146.0.7680.31', 'chrome-win64', 'chrome.exe')
   ];
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) return p;
@@ -351,56 +358,36 @@ async function safeDestroyClient() {
   killOrphanAuthBrowsers();
 }
 
-function killOrphanAuthBrowsers() {
+function killOrphanAuthBrowsers(forceKillAll = false) {
   if (process.platform !== 'win32') return;
+
+  // Ultra-fast pure-Node lock cleanup (< 1ms)
   try {
-    const devToolsFile = path.join(AKB_DIR, '.wwebjs_auth', 'session', 'DevToolsActivePort');
-    if (fs.existsSync(devToolsFile)) {
-      try {
-        const content = fs.readFileSync(devToolsFile, 'utf8').trim();
-        const port = content.split(/\r?\n/)[0];
-        if (port && /^\d+$/.test(port)) {
-          const netstatOut = execSync(`netstat -ano`, { encoding: 'utf8', timeout: 3000 });
-          const lines = netstatOut.split('\n');
-          for (const line of lines) {
-            if (line.includes(`:${port} `) && line.includes('LISTENING')) {
-              const parts = line.trim().split(/\s+/);
-              const pid = parts[parts.length - 1];
-              if (pid && pid !== '0' && /^\d+$/.test(pid)) {
-                console.log(`[WhatsApp] Terminating orphan Chrome PID ${pid} from DevTools port ${port}...`);
-                try { execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore', timeout: 2000 }); } catch (_) {}
-              }
-            }
+    const sessionDir = path.join(AKB_DIR, '.wwebjs_auth', 'session');
+    const defaultDir = path.join(sessionDir, 'Default');
+    const lockNames = ['lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket', 'DevToolsActivePort'];
+    for (const dir of [sessionDir, defaultDir]) {
+      if (fs.existsSync(dir)) {
+        for (const name of lockNames) {
+          const lp = path.join(dir, name);
+          if (fs.existsSync(lp)) {
+            try { fs.unlinkSync(lp); } catch (_) {}
           }
         }
-      } catch (err) {
-        console.warn('[WhatsApp] DevToolsActivePort cleanup note:', err.message);
       }
-      try { fs.unlinkSync(devToolsFile); } catch (_) {}
     }
   } catch (_) {}
 
-  // Also remove lockfile if present
-  try {
-    const lockfile = path.join(AKB_DIR, '.wwebjs_auth', 'session', 'lockfile');
-    if (fs.existsSync(lockfile)) fs.unlinkSync(lockfile);
-  } catch (_) {}
-
-  try {
-    const script = `
-      Get-CimInstance Win32_Process | Where-Object { 
-        ($_.Name -eq 'chrome.exe' -or $_.Name -eq 'msedge.exe') -and 
-        ($_.CommandLine -like '*AnudeepKhadiBandar*.wwebjs_auth*' -or $_.CommandLine -like '*puppeteer*')
-      } | ForEach-Object { 
-        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue 
-      }
-    `;
-    execSync(`powershell -NoProfile -Command "${script.replace(/\r?\n/g, ' ')}"`, { stdio: 'ignore', timeout: 5000 });
-  } catch (_) {}
+  // Only run process termination when explicitly needed (e.g. forced reset)
+  if (forceKillAll) {
+    try {
+      execSync('taskkill /F /IM chrome.exe /FI "WINDOWTITLE eq WhatsApp*"', { stdio: 'ignore', timeout: 1500 });
+    } catch (_) {}
+  }
 }
 
 function cleanAuthDirectory() {
-  killOrphanAuthBrowsers();
+  killOrphanAuthBrowsers(true);
   const authDir = path.join(AKB_DIR, '.wwebjs_auth');
   try {
     if (fs.existsSync(authDir)) {
@@ -554,20 +541,22 @@ async function initWhatsappClient(forceClean = false) {
       authTimeoutMs: 120000,
       qrMaxRetries: 10,
       webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html'
+        type: 'local',
+        path: path.join(AKB_DIR, '.wwebjs_cache'),
+        strict: false
       },
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
       puppeteer: {
         headless: true,
         executablePath: detectedChrome,
-        timeout: 120000,
+        timeout: 60000,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-extensions',
           '--disable-dev-shm-usage',
           '--disable-gpu',
+          '--disable-software-rasterizer',
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
@@ -577,10 +566,21 @@ async function initWhatsappClient(forceClean = false) {
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
-          '--js-flags="--max-old-space-size=256"',
-          '--renderer-process-limit=2',
+          '--disable-breakpad',
+          '--disable-component-update',
+          '--disable-domain-reliability',
+          '--disable-sync',
+          '--disable-translate',
+          '--disable-ipc-flooding-protection',
+          '--metrics-recording-only',
+          '--no-pings',
+          '--password-store=basic',
+          '--use-mock-keychain',
+          '--window-size=800,600',
+          '--disk-cache-size=104857600',
+          '--js-flags="--max-old-space-size=1024"',
           '--mute-audio',
-          '--disable-features=TranslateUI,BlinkGenPropertyTrees'
+          '--disable-features=TranslateUI,BlinkGenPropertyTrees,MediaRouter,OptimizationHints,DialMediaRouteProvider'
         ]
       }
     });
@@ -647,6 +647,7 @@ async function initWhatsappClient(forceClean = false) {
     client.on('authenticated', () => {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       console.log('⚡ [WhatsApp] Authenticated successfully! Device is linked.');
+      isWhatsappConnected = true;
       qrCodeDataUrl = null;
       lastPairingCode = null;
       isWhatsappInitializing = false;
@@ -662,10 +663,10 @@ async function initWhatsappClient(forceClean = false) {
         }
       } catch (_) {}
       broadcastRealtime('whatsapp_status', { 
-        connected: false, 
+        connected: true, 
         status: 'authenticated', 
         user: whatsappUserInfo,
-        message: 'Device linked! Finalizing sync with WhatsApp...'
+        message: 'Device linked! WhatsApp connected.'
       });
     });
 
@@ -808,6 +809,16 @@ app.get('/api/events', (req, res) => {
 
   // Initial connection handshake
   res.write(`event: connected\ndata: ${JSON.stringify({ status: 'connected', clientsCount: sseClients.size, isWhatsappConnected, timestamp: Date.now() })}\n\n`);
+
+  // Immediately push real-time WhatsApp status so the frontend never has to wait
+  const currentStatus = {
+    connected: isWhatsappConnected,
+    qr: isWhatsappConnected ? null : qrCodeDataUrl,
+    pairingCode: lastPairingCode,
+    user: whatsappUserInfo,
+    status: isWhatsappConnected ? 'connected' : (lastPairingCode ? 'pairing_code_ready' : (qrCodeDataUrl ? 'qr_ready' : (isWhatsappInitializing ? 'initializing' : 'disconnected')))
+  };
+  res.write(`event: whatsapp_status\ndata: ${JSON.stringify(currentStatus)}\n\n`);
 
   req.on('close', () => {
     sseClients.delete(clientObj);
@@ -1634,25 +1645,27 @@ app.get('/api/auth/valid-emails', (req, res) => {
 // ==========================================
 // 5. WHATSAPP ENDPOINTS
 // ==========================================
-app.get('/api/whatsapp/status', async (req, res) => {
+// 5. WHATSAPP ENDPOINTS
+// ==========================================
+app.get('/api/whatsapp/status', (req, res) => {
   if (client && !isWhatsappConnected) {
-    try {
-      const state = await Promise.race([
-        client.getState(),
-        new Promise(resolve => setTimeout(() => resolve(null), 800))
-      ]);
-      if (state === 'CONNECTED' || (client.info && client.info.wid)) {
-        isWhatsappConnected = true;
-        qrCodeDataUrl = null;
-        lastPairingCode = null;
-        if (!whatsappUserInfo && client.info) {
-          whatsappUserInfo = {
-            phone: (client.info.wid && client.info.wid.user) ? client.info.wid.user : '',
-            name: client.info.pushname || 'Anudeep Khadi Bandar'
-          };
-        }
+    if (client.info && (client.info.wid || client.info.me)) {
+      isWhatsappConnected = true;
+      qrCodeDataUrl = null;
+      lastPairingCode = null;
+      if (!whatsappUserInfo) {
+        whatsappUserInfo = {
+          phone: (client.info.wid && client.info.wid.user) ? client.info.wid.user : ((client.info.me && client.info.me.user) ? client.info.me.user : ''),
+          name: client.info.pushname || 'Anudeep Khadi Bandar'
+        };
       }
-    } catch (_) {}
+    }
+  }
+
+  // ⚡ AUTO-WAKE: If WhatsApp client is offline or uninitialized, start it automatically!
+  if (!client && !isWhatsappInitializing) {
+    console.log('[WhatsApp API] Inactive WhatsApp client detected during status request. Triggering background auto-wake...');
+    initWhatsappClient(false);
   }
 
   res.json({
@@ -1661,6 +1674,23 @@ app.get('/api/whatsapp/status', async (req, res) => {
     pairingCode: lastPairingCode,
     user: whatsappUserInfo,
     status: isWhatsappConnected ? 'connected' : (lastPairingCode ? 'pairing_code_ready' : (qrCodeDataUrl ? 'qr_ready' : (isWhatsappInitializing ? 'initializing' : 'disconnected')))
+  });
+});
+
+// Explicit endpoint to trigger immediate auto-connection
+app.post('/api/whatsapp/auto-connect', async (req, res) => {
+  if (isWhatsappConnected) {
+    return res.json({ success: true, connected: true, message: 'Already connected', user: whatsappUserInfo });
+  }
+  if (!client && !isWhatsappInitializing) {
+    console.log('[WhatsApp API] Triggering explicit auto-connect...');
+    initWhatsappClient(false);
+  }
+  res.json({
+    success: true,
+    connected: isWhatsappConnected,
+    initializing: isWhatsappInitializing,
+    status: isWhatsappConnected ? 'connected' : (qrCodeDataUrl ? 'qr_ready' : (lastPairingCode ? 'pairing_code_ready' : 'initializing'))
   });
 });
 

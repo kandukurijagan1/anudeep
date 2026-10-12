@@ -17,6 +17,8 @@ let splashWindow = null;
 let tray = null;
 let serverChild = null;
 let isQuitting = false;
+let isStartingBackend = false;
+let startBackendPromise = null;
 
 ipcMain.on('print-silent', (event) => {
     if (mainWindow) {
@@ -45,6 +47,28 @@ ipcMain.on('open-devtools', () => {
     }
 });
 
+// IPC Handler: Frontend requests ensuring the backend is active
+ipcMain.handle('ensure-backend-running', async () => {
+    const healthy = await checkServer('http://127.0.0.1:3000/api/health', 800);
+    if (healthy) return { running: true, message: 'Server is already running' };
+    const started = await startBackend();
+    return { running: started, message: started ? 'Server started successfully' : 'Failed to start server' };
+});
+
+ipcMain.handle('restart-backend', async () => {
+    if (serverChild) {
+        try { serverChild.kill(); } catch (_) {}
+        serverChild = null;
+    }
+    const started = await startBackend();
+    return { running: started };
+});
+
+ipcMain.handle('get-backend-status', async () => {
+    const healthy = await checkServer('http://127.0.0.1:3000/api/health', 800);
+    return { running: healthy };
+});
+
 // Check if local HTTP server is healthy
 function checkServer(url, timeout = 800) {
     return new Promise((resolve) => {
@@ -59,27 +83,57 @@ function checkServer(url, timeout = 800) {
     });
 }
 
-// Find node.exe in common locations or PATH
+// Find real node.exe executable path across all standard Windows locations and PATH
 function findNodeExecutable() {
+    const userProfile = process.env.USERPROFILE || 'C:\\Users\\ADMIN';
+    const localAppData = process.env.LOCALAPPDATA || path.join(userProfile, 'AppData', 'Local');
+    const appData = process.env.APPDATA || path.join(userProfile, 'AppData', 'Roaming');
+
     const candidates = [
         path.join(__dirname, 'node.exe'),
         'C:\\Program Files\\nodejs\\node.exe',
         'C:\\Program Files (x86)\\nodejs\\node.exe',
-        path.join(process.env.LOCALAPPDATA || '', 'Programs\\node\\node.exe'),
-        path.join(process.env.APPDATA || '', 'npm\\node.exe')
+        path.join(localAppData, 'Programs', 'node', 'node.exe'),
+        path.join(localAppData, 'Programs', 'nodejs', 'node.exe'),
+        path.join(appData, 'npm', 'node.exe'),
+        path.join(appData, 'nvm', 'node.exe'),
+        path.join(userProfile, '.nvm', 'versions', 'node', 'node.exe')
     ];
 
     for (const c of candidates) {
         if (c && fs.existsSync(c)) return c;
     }
-    return 'node';
+
+    // Search directories in PATH environment variable
+    const pathEnv = process.env.PATH || '';
+    const pathDirs = pathEnv.split(path.delimiter);
+    for (const dir of pathDirs) {
+        if (!dir) continue;
+        const target = path.join(dir.trim(), 'node.exe');
+        if (fs.existsSync(target)) return target;
+    }
+
+    return null;
 }
 
-// Start background Node.js server if not already running
+// Start background Node.js server with watchdog & auto-recovery
 function startBackend() {
-    return new Promise((resolve) => {
+    if (isStartingBackend && startBackendPromise) {
+        return startBackendPromise;
+    }
+    isStartingBackend = true;
+
+    startBackendPromise = (async () => {
         try {
-            console.log('[Electron] Starting background Node backend using Electron...');
+            // Check if already healthy first
+            const alreadyUp = await checkServer('http://127.0.0.1:3000/api/health', 800);
+            if (alreadyUp) {
+                console.log('[Electron] Backend is already running on port 3000.');
+                isStartingBackend = false;
+                return true;
+            }
+
+            console.log('[Electron] Starting background Node backend...');
             const serverJs = path.join(__dirname, 'server.js');
 
             let stdioConfig = 'ignore';
@@ -95,12 +149,11 @@ function startBackend() {
             }
 
             const nodeExe = findNodeExecutable();
-            const { spawn } = require('child_process');
-            const useNode = (nodeExe && nodeExe !== 'node' && fs.existsSync(nodeExe));
+            const useNode = (nodeExe && fs.existsSync(nodeExe));
             const execBinary = useNode ? nodeExe : process.execPath;
             const extraEnv = useNode ? {} : { ELECTRON_RUN_AS_NODE: '1' };
 
-            console.log(`[Electron] Launching backend server with: ${execBinary}`);
+            console.log(`[Electron] Launching backend server with: ${execBinary} (useNode: ${useNode})`);
             serverChild = spawn(execBinary, [serverJs], {
                 cwd: __dirname,
                 env: { ...process.env, PORT: '3000', ...extraEnv },
@@ -112,24 +165,53 @@ function startBackend() {
                 serverChild.on('error', (err) => {
                     console.warn('[Electron] Backend child process error:', err.message);
                 });
+                serverChild.on('exit', (code, signal) => {
+                    console.warn(`[Electron] Backend server exited (code: ${code}, signal: ${signal}).`);
+                    serverChild = null;
+                    if (!isQuitting) {
+                        setTimeout(() => {
+                            if (!isQuitting) {
+                                console.log('[Electron Watchdog] Auto-recovering exited backend server...');
+                                startBackend();
+                            }
+                        }, 2500);
+                    }
+                });
             }
 
-            // Poll for server readiness up to 10 seconds
-            let attempts = 0;
-            const interval = setInterval(async () => {
-                attempts++;
-                const ready = await checkServer('http://127.0.0.1:3000/api/health', 500);
-                if (ready || attempts > 20) {
-                    clearInterval(interval);
-                    resolve(ready);
+            // High-speed polling: check every 100ms for instant readiness (up to 150 attempts)
+            for (let attempt = 1; attempt <= 150; attempt++) {
+                await new Promise(r => setTimeout(r, 100));
+                const ready = await checkServer('http://127.0.0.1:3000/api/health', 150);
+                if (ready) {
+                    console.log(`[Electron] Backend verified ready in ${attempt * 100}ms`);
+                    isStartingBackend = false;
+                    return true;
                 }
-            }, 500);
+            }
+
+            console.warn('[Electron] Backend startup polling timed out after 15 seconds.');
+            isStartingBackend = false;
+            return false;
         } catch (e) {
             console.warn('[Electron] Error launching backend:', e.message);
-            resolve(false);
+            isStartingBackend = false;
+            return false;
         }
-    });
+    })();
+
+    return startBackendPromise;
 }
+
+// 🛡️ BACKGROUND SUPERVISOR: Keep backend alive at all times
+setInterval(async () => {
+    if (isQuitting || isStartingBackend) return;
+    const alive = await checkServer('http://127.0.0.1:3000/api/health', 1000);
+    if (!alive && !isQuitting && !isStartingBackend) {
+        console.log('[Electron Supervisor] Backend detected offline. Automatically reviving...');
+        startBackend();
+    }
+}, 8000);
 
 // Setup System Tray icon and workstation menu
 function createSystemTray() {
@@ -328,18 +410,18 @@ async function createMainWindow() {
         mainWindow.focus();
     });
 
-    // Check if server is already running
-    let isRunning = await checkServer('http://127.0.0.1:3000/api/health', 1000);
-    if (!isRunning) {
-        const started = await startBackend();
-        if (started) {
-            console.log('[Electron] Connected to newly started backend on port 3000');
-            isRunning = true;
-        } else {
-            console.log('[Electron] Backend failed to start. Falling back to local index.html with Cloud GAS sync.');
-        }
+    // Check if server is ready
+    let isRunning = false;
+    if (startBackendPromise) {
+        isRunning = await startBackendPromise;
     } else {
-        console.log('[Electron] Connected to existing server on port 3000');
+        isRunning = await checkServer('http://127.0.0.1:3000/api/health', 300);
+        if (!isRunning) isRunning = await startBackend();
+    }
+    if (isRunning) {
+        console.log('[Electron] Connected to backend on port 3000');
+    } else {
+        console.log('[Electron] Backend unavailable, loading local index.html directly.');
     }
 
     // Load local backend server or fallback directly to local index.html file
@@ -419,6 +501,7 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
+    startBackend();
     setupApplicationMenu();
     createSystemTray();
     createMainWindow();
@@ -433,28 +516,8 @@ app.on('before-quit', () => {
 });
 
 app.on('window-all-closed', () => {
-    if (serverChild) {
-        console.log('[Electron] Requesting graceful termination of background server...');
-        const req = http.request({
-            hostname: 'localhost',
-            port: 3000,
-            path: '/api/shutdown',
-            method: 'POST'
-        });
-        req.on('error', () => {});
-        req.end();
-
-        setTimeout(() => {
-            try {
-                serverChild.kill();
-            } catch (_) {}
-            if (process.platform !== 'darwin') {
-                app.quit();
-            }
-        }, 800);
-    } else {
-        if (process.platform !== 'darwin') {
-            app.quit();
-        }
+    // Keep background server alive for WhatsApp connection!
+    if (process.platform !== 'darwin') {
+        app.quit();
     }
 });

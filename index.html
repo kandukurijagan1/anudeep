@@ -5380,7 +5380,10 @@
                 var invNo = U.pi(inv.invoiceNo);
                 var textMsg = SM.formatWhatsAppText(inv);
 
-                // 1. Resolve WhatsApp API base URL
+                // 1. Resolve WhatsApp API base URL and ensure backend engine is awake
+                if (window.electronAPI && window.electronAPI.ensureBackendRunning) {
+                    window.electronAPI.ensureBackendRunning().catch(function(){});
+                }
                 var waApiBase = (typeof getWaApiUrl === 'function') ? getWaApiUrl() : 'http://127.0.0.1:3000/api';
 
                 U.toast("🚀 Auto-dispatching invoice #" + invNo + " to WhatsApp " + cleanPhone + "...", "info");
@@ -5395,15 +5398,18 @@
                     if (d && d.success) {
                         U.toast("📱 WhatsApp: Invoice #" + invNo + " delivered automatically to " + cleanPhone, "success");
                     } else if (d && d.error) {
-                        if (d.error.toLowerCase().includes("not connected")) {
-                            U.toast("⚠️ WhatsApp Bot not linked! Click 'WhatsApp Status' in sidebar to link.", "warning");
-                            if (typeof openWhatsappModal === 'function') openWhatsappModal();
+                        if (d.error.toLowerCase().includes("not connected") || d.error.toLowerCase().includes("still syncing")) {
+                            U.toast("⏳ WhatsApp connecting in background... Invoice #" + invNo + " queued for auto-delivery", "info");
+                            OM.push({ type: 'whatsapp_text', url: waApiBase + '/whatsapp/sendMessage', to: cleanPhone, message: textMsg });
                         } else {
                             U.toast("⚠️ WhatsApp: " + d.error, "warning");
                         }
                     }
                 }).catch(function (err) {
                     console.warn("WhatsApp background send err:", err);
+                    if (window.electronAPI && window.electronAPI.ensureBackendRunning) {
+                        window.electronAPI.ensureBackendRunning().catch(function(){});
+                    }
                     OM.push({ type: 'whatsapp_text', url: waApiBase + '/whatsapp/sendMessage', to: cleanPhone, message: textMsg });
                 });
 
@@ -7536,19 +7542,20 @@
                     DM.render();
                 } else if (type === 'whatsapp_status') {
                     _waStatusState = data;
+                    var isConn = !!(data.connected || data.status === 'authenticated' || data.status === 'ready');
                     if (typeof renderWhatsappModal === 'function') {
-                        if (data.connected) {
+                        if (isConn) {
                             renderWhatsappModal("connected", data);
-                        } else if (data.qr) {
-                            renderWhatsappModal("qr", data);
-                        } else if (data.status === 'initializing') {
-                            renderWhatsappModal("loading", { message: "Starting WhatsApp client..." });
+                        } else if (data.qr || data.pairingCode) {
+                            renderWhatsappModal("login", data);
+                        } else if (data.status === 'initializing' || data.status === 'loading') {
+                            renderWhatsappModal("loading", { message: data.message || "Starting WhatsApp client..." });
                         } else {
-                            renderWhatsappModal("offline", null);
+                            renderWhatsappModal("login", data);
                         }
                     }
                     if (typeof updateWhatsappSidebarDot === 'function') {
-                        updateWhatsappSidebarDot(!!data.connected, !!data.qr);
+                        updateWhatsappSidebarDot(isConn, !isConn && (data.status === 'initializing' || !!data.qr));
                     }
                 } else if (type === 'app_updated') {
                     RTM.playChime();
@@ -8320,21 +8327,17 @@
 
             if (state === "server_offline") {
                 container.innerHTML =
-                    '<div style="text-align:center; padding:24px 15px;">' +
-                    '<div style="display:inline-flex; align-items:center; justify-content:center; width:52px; height:52px; background:#fef2f2; border-radius:50%; margin-bottom:14px;">' +
-                    '<i class="ph ph-wifi-slash" style="font-size:1.6rem; color:#ef4444;"></i>' +
+                    '<div style="text-align:center; padding:24px 14px;">' +
+                    '<div style="display:inline-flex; align-items:center; justify-content:center; width:52px; height:52px; background:#eff6ff; border-radius:50%; margin-bottom:12px;">' +
+                    '<div class="spinner" style="width:28px; height:28px; border:3px solid #bfdbfe; border-top:3px solid #2563eb; border-radius:50%; animation:spin 0.8s linear infinite;"></div>' +
                     '</div>' +
-                    '<div style="font-weight:700; font-size:1rem; color:#991b1b; margin-bottom:6px;">Backend Server Offline</div>' +
-                    '<div style="font-size:0.82rem; color:var(--tl); margin-bottom:14px; line-height:1.5;">The Node.js backend server at <b>localhost:3000</b> is not running.<br/>WhatsApp Bot requires the backend to be active.</div>' +
-                    '<div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:10px 12px; font-size:0.78rem; text-align:left; color:#92400e; line-height:1.45; margin-bottom:14px;">' +
-                    '<b>To start the server:</b><br/>' +
-                    '1. Open a terminal in the project folder<br/>' +
-                    '2. Run: <code style="background:#fef3c7; padding:1px 6px; border-radius:3px; font-weight:700;">npm start</code><br/>' +
-                    '3. Wait for "Server running on port 3000" message<br/>' +
-                    '4. Click <b>Retry</b> below' +
+                    '<div style="font-weight:700; font-size:1.02rem; color:var(--fg); margin-bottom:6px;">Connecting WhatsApp Engine Automatically...</div>' +
+                    '<div style="font-size:0.82rem; color:var(--tl); margin-bottom:14px; line-height:1.5;">The system is automatically starting and linking the background WhatsApp engine.<br/>No terminal or manual commands needed!</div>' +
+                    '<div id="wa-autoconnect-status-pill" style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #86efac; color:#166534; font-size:0.8rem; font-weight:700; padding:6px 14px; border-radius:20px; margin-bottom:16px;">' +
+                    '<i class="ph ph-lightning"></i> Auto-reconnecting in background...' +
                     '</div>' +
                     '<div style="display:flex; gap:8px; justify-content:center;">' +
-                    '<button class="btn btn-primary" onclick="_waOfflineCount=0; _serverOffline=false; _serverFailCount=0; fetchWhatsappStatus(true);" style="font-size:0.85rem; padding:8px 18px;"><i class="ph ph-arrows-clockwise"></i> Retry Connection</button>' +
+                    '<button class="btn btn-primary" onclick="autoConnectWhatsappEngine(true)" style="font-size:0.85rem; padding:8px 18px; background:#25D366; border-color:#25D366;"><i class="ph ph-arrows-clockwise"></i> Force Re-connect</button>' +
                     '<button class="btn btn-secondary" onclick="closeWhatsappModal()" style="font-size:0.85rem;">Close</button>' +
                     '</div>' +
                     '</div>';
@@ -8589,44 +8592,63 @@
         }
 
         var _waOfflineCount = 0;
+        var _isAutoConnecting = false;
+
+        async function autoConnectWhatsappEngine(forceRestart) {
+            _isAutoConnecting = true;
+            var pill = document.getElementById("wa-autoconnect-status-pill");
+            if (pill) pill.innerHTML = '<i class="ph ph-lightning"></i> Launching backend service...';
+
+            if (window.electronAPI) {
+                try {
+                    if (forceRestart && window.electronAPI.restartBackend) {
+                        await window.electronAPI.restartBackend();
+                    } else if (window.electronAPI.ensureBackendRunning) {
+                        await window.electronAPI.ensureBackendRunning();
+                    }
+                } catch (e) {
+                    console.warn('[Electron] ensureBackendRunning note:', e);
+                }
+            }
+
+            // Also try explicit auto-connect POST to localhost:3000
+            try {
+                var directFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
+                await directFetch('http://127.0.0.1:3000/api/whatsapp/auto-connect', { method: 'POST' });
+            } catch (_) {}
+
+            _waOfflineCount = 0;
+            _serverOffline = false;
+            _serverFailCount = 0;
+            setTimeout(function() {
+                fetchWhatsappStatus(false);
+                _isAutoConnecting = false;
+            }, 1500);
+        }
+
         async function fetchWhatsappStatus(showToast) {
             try {
-                var candidates = [
-                    'http://127.0.0.1:3000/api/whatsapp/status',
-                    'http://localhost:3000/api/whatsapp/status'
-                ];
-                if (location.origin && location.origin.startsWith('http') && !candidates.includes(location.origin + '/api/whatsapp/status')) {
-                    candidates.unshift(location.origin + '/api/whatsapp/status');
-                }
-
-                var res = null;
                 var directFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
-
-                for (var i = 0; i < candidates.length; i++) {
-                    try {
-                        var ctrl = new AbortController();
-                        var tm = setTimeout(function () { ctrl.abort(); }, 5000);
-                        var attempt = await directFetch(candidates[i], { signal: ctrl.signal });
-                        clearTimeout(tm);
-                        if (attempt && attempt.ok) {
-                            res = attempt;
-                            waApiBase = candidates[i].replace('/whatsapp/status', '');
-                            break;
-                        }
-                    } catch (_) {}
-                }
-
-                if (!res) throw new Error('WhatsApp endpoint unreachable');
+                var endpoint = (typeof getWaApiUrl === 'function') ? (getWaApiUrl() + '/whatsapp/status') : 'http://127.0.0.1:3000/api/whatsapp/status';
+                var ctrl = new AbortController();
+                var tm = setTimeout(function () { ctrl.abort(); }, 3500);
+                var res = await directFetch(endpoint, { signal: ctrl.signal });
+                clearTimeout(tm);
+                if (!res || !res.ok) throw new Error('Status not ok');
+                waApiBase = endpoint.replace('/whatsapp/status', '');
                 var data = await res.json();
                 _waStatusState = data;
                 _waOfflineCount = 0;
                 _serverOffline = false;
                 _serverFailCount = 0;
-                if (data.connected) {
+                if (data.connected || data.status === 'authenticated' || data.status === 'ready') {
                     updateWhatsappSidebarDot(true, false);
                     renderWhatsappModal("connected", data);
                     if (showToast) U.toast("WhatsApp Bot is connected & active", "success");
-                } else if (data.status === 'loading' || data.status === 'authenticated') {
+                } else if (data.status === 'initializing') {
+                    updateWhatsappSidebarDot(false, true);
+                    renderWhatsappModal("loading", { message: "WhatsApp engine initializing in background..." });
+                } else if (data.status === 'loading') {
                     updateWhatsappSidebarDot(true, false);
                     renderWhatsappModal("loading", { message: data.message || "WhatsApp Linked! Syncing messages..." });
                 } else if (data.qr || data.pairingCode) {
@@ -8641,26 +8663,38 @@
                 _waOfflineCount++;
                 _waStatusState = { connected: false, offline: true };
                 updateWhatsappSidebarDot(false, false);
-                if (_waOfflineCount >= 4) {
+
+                // Auto-heal: If in Electron, trigger ensureBackendRunning immediately
+                if (window.electronAPI && window.electronAPI.ensureBackendRunning && !_isAutoConnecting) {
+                    autoConnectWhatsappEngine(false);
+                }
+
+                if (_waOfflineCount >= 10 && !window.electronAPI) {
                     _serverOffline = true;
                     renderWhatsappModal("server_offline", null);
                 } else {
-                    renderWhatsappModal("loading", { message: "Connecting to WhatsApp Bot..." });
+                    renderWhatsappModal("loading", { message: "Connecting to WhatsApp Bot & Backend Engine..." });
                 }
-                if (showToast) U.toast("WhatsApp server connecting...", "info");
+                if (showToast) U.toast("Connecting WhatsApp engine in background...", "info");
             }
         }
 
         function openWhatsappModal() {
             var modal = document.getElementById('whatsapp-modal');
             if (modal) modal.classList.add('active');
-            renderWhatsappModal("loading", { message: "Checking WhatsApp status..." });
+            renderWhatsappModal("loading", { message: "Connecting to WhatsApp..." });
             _waOfflineCount = 0;
             _serverOffline = false;
             _serverFailCount = 0;
+
+            // Immediately ensure backend is active
+            if (window.electronAPI && window.electronAPI.ensureBackendRunning) {
+                window.electronAPI.ensureBackendRunning().catch(function(){});
+            }
+
             fetchWhatsappStatus(false);
             if (_waPollInterval) clearInterval(_waPollInterval);
-            var _waPollDelay = 3000;
+            var _waPollDelay = 1000;
             function waPollTick() {
                 _waPollInterval = setTimeout(function () {
                     var m = document.getElementById('whatsapp-modal');
@@ -8669,11 +8703,11 @@
                         return;
                     }
                     if (_waStatusState && _waStatusState.connected) {
-                        _waPollDelay = 5000;
+                        _waPollDelay = 4000;
                         waPollTick();
                         return;
                     }
-                    _waPollDelay = 3000;
+                    _waPollDelay = 1000;
                     fetchWhatsappStatus(false);
                     waPollTick();
                 }, _waPollDelay);
@@ -8690,12 +8724,43 @@
             }
         }
 
-        // Background initial status check
+        // ⚡ INSTANT HIGH-SPEED AUTO-CONNECT ENGINE
+        // Runs immediate check at 50ms, followed by rapid 600ms polling until WhatsApp connects!
+        var _bootPollCount = 0;
+        var _bootPollTimer = null;
+        function _runFastBootPolling() {
+            _bootPollTimer = setInterval(function () {
+                _bootPollCount++;
+                if (_waStatusState && _waStatusState.connected) {
+                    clearInterval(_bootPollTimer);
+                    _bootPollTimer = null;
+                    return;
+                }
+                if (_bootPollCount >= 25) { // 15 seconds max fast polling
+                    clearInterval(_bootPollTimer);
+                    _bootPollTimer = null;
+                    return;
+                }
+                fetchWhatsappStatus(false);
+            }, 600);
+        }
+
         setTimeout(function () {
             try {
+                if (window.electronAPI && window.electronAPI.ensureBackendRunning) {
+                    window.electronAPI.ensureBackendRunning().catch(function(){});
+                }
                 fetchWhatsappStatus(false);
+                _runFastBootPolling();
             } catch (e) { }
-        }, 1500);
+        }, 50);
+
+        // Continuous background self-healing monitor for WhatsApp
+        setInterval(function() {
+            if (!_waStatusState || !_waStatusState.connected) {
+                fetchWhatsappStatus(false);
+            }
+        }, 8000);
     </script>
     <script>
 
