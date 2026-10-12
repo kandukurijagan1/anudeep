@@ -958,6 +958,15 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 
   const email = contact.toLowerCase().trim();
+  const authorizedEmails = getAuthorizedAdminEmails().map(e => e.toLowerCase().trim());
+  if (!authorizedEmails.includes(email)) {
+    console.warn(`[Auth] Rejected forgot-password OTP request for unauthorized email: ${email}`);
+    return res.status(403).json({
+      success: false,
+      error: 'Unauthorized email address. OTP can only be sent to authorized administrator emails.'
+    });
+  }
+
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   authOtpStore.set(email, { otp, expires: Date.now() + 15 * 60 * 1000 });
   console.log(`[Auth] Generated OTP for ${email}: ${otp}`);
@@ -988,6 +997,10 @@ app.post('/api/auth/verify-otp', (req, res) => {
   if (!contact) contact = req.body.phone || req.body.email || '';
 
   const lookupKey = (contact || '').toLowerCase().trim();
+  const authorizedEmails = getAuthorizedAdminEmails().map(e => e.toLowerCase().trim());
+  if (!authorizedEmails.includes(lookupKey)) {
+    return res.status(403).json({ success: false, error: 'Unauthorized email address.' });
+  }
   const stored = authOtpStore.get(lookupKey);
 
   const cleanOtp = (otp || '').trim();

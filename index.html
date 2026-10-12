@@ -2254,6 +2254,75 @@
             return 'http://127.0.0.1:3000';
         }
 
+        async function fetchLiveAuthorizedEmails() {
+            var list = ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'];
+            if (typeof STM !== 'undefined' && STM._settings && Array.isArray(STM._settings.adminEmails)) {
+                STM._settings.adminEmails.forEach(function (e) {
+                    if (e && typeof e === 'string') {
+                        var c = e.toLowerCase().trim();
+                        if (!list.includes(c)) list.push(c);
+                    }
+                });
+            }
+            try {
+                var localSt = JSON.parse(localStorage.getItem('akb_settings') || '{}');
+                if (Array.isArray(localSt.adminEmails)) {
+                    localSt.adminEmails.forEach(function (e) {
+                        if (e && typeof e === 'string') {
+                            var c = e.toLowerCase().trim();
+                            if (!list.includes(c)) list.push(c);
+                        }
+                    });
+                }
+            } catch (e) { }
+
+            try {
+                var base = getAuthBaseUrl();
+                var ctrlLocal = new AbortController();
+                var tmLocal = setTimeout(function () { ctrlLocal.abort(); }, 1500);
+                var _safeFetch = (typeof originalFetch !== 'undefined' ? originalFetch : window.fetch).bind(window);
+                var r = await _safeFetch(base + '/api/auth/valid-emails', { signal: ctrlLocal.signal });
+                clearTimeout(tmLocal);
+                if (r.ok) {
+                    var data = await r.json();
+                    if (data && Array.isArray(data.validEmails)) {
+                        data.validEmails.forEach(function (e) {
+                            if (e && typeof e === 'string') {
+                                var c = e.toLowerCase().trim();
+                                if (!list.includes(c)) list.push(c);
+                            }
+                        });
+                    }
+                }
+            } catch (_) { }
+
+            return list;
+        }
+
+        function getAuthorizedAdminEmails() {
+            var list = ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'];
+            if (typeof STM !== 'undefined' && STM._settings && Array.isArray(STM._settings.adminEmails)) {
+                STM._settings.adminEmails.forEach(function (e) {
+                    if (e && typeof e === 'string') {
+                        var c = e.toLowerCase().trim();
+                        if (!list.includes(c)) list.push(c);
+                    }
+                });
+            }
+            try {
+                var localSt = JSON.parse(localStorage.getItem('akb_settings') || '{}');
+                if (Array.isArray(localSt.adminEmails)) {
+                    localSt.adminEmails.forEach(function (e) {
+                        if (e && typeof e === 'string') {
+                            var c = e.toLowerCase().trim();
+                            if (!list.includes(c)) list.push(c);
+                        }
+                    });
+                }
+            } catch (e) { }
+            return list;
+        }
+
         const FP = {
             contact: '',
             token: '',
@@ -2307,13 +2376,25 @@
                     return U.toast('Please enter a valid email address (e.g. name@gmail.com)', 'warning');
                 }
                 var cleanEmail = contact.toLowerCase().trim();
-                this.contact = cleanEmail;
 
                 var btn = document.getElementById('card-btn-request-otp');
-                if (btn) { btn.innerText = 'Sending OTP...'; btn.disabled = true; }
+                if (btn) { btn.innerText = 'Checking authorization...'; btn.disabled = true; }
+
+                // 1. Strictly verify authorized admin email
+                var authorized = await fetchLiveAuthorizedEmails();
+                if (!authorized.includes(cleanEmail)) {
+                    if (btn) { btn.innerText = 'Send OTP to Email'; btn.disabled = false; }
+                    if (contactInput) contactInput.focus();
+                    return U.toast('Unauthorized email address. OTP can only be sent to authorized administrator emails.', 'error');
+                }
+
+                if (btn) { btn.innerText = 'Sending OTP...'; }
+                this.contact = cleanEmail;
 
                 var base = getAuthBaseUrl();
                 var otpSent = false;
+                var serverError = null;
+
                 try {
                     var ctrl = new AbortController();
                     var tm = setTimeout(function () { ctrl.abort(); }, 7000);
@@ -2327,9 +2408,16 @@
                     var data = await res.json();
                     if (data && data.success) {
                         otpSent = true;
+                    } else if (data && data.error) {
+                        serverError = data.error;
                     }
                 } catch (e) {
                     console.warn('[FP] Local server request skipped or failed:', e.message);
+                }
+
+                if (!otpSent && serverError) {
+                    if (btn) { btn.innerText = 'Send OTP to Email'; btn.disabled = false; }
+                    return U.toast(serverError, 'error');
                 }
 
                 if (!otpSent && typeof CLOUD_GAS_URL !== 'undefined') {
@@ -2343,6 +2431,10 @@
                 }
 
                 if (btn) { btn.innerText = 'Send OTP to Email'; btn.disabled = false; }
+
+                if (!otpSent) {
+                    return U.toast('Failed to dispatch OTP. Please check your network or try again.', 'error');
+                }
 
                 var targetDisp = document.getElementById('card-fp-target-display');
                 if (targetDisp) targetDisp.textContent = cleanEmail;

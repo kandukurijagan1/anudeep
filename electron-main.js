@@ -70,9 +70,18 @@ function startBackend() {
             console.log('[Electron] Starting background Node backend using Electron...');
             const serverJs = path.join(__dirname, 'server.js');
 
-            const logDir = path.join(app.getPath('appData'), 'AnudeepKhadiBandar');
-            if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-            const logPath = path.join(logDir, 'server.log');
+            let stdioConfig = 'ignore';
+            try {
+                const logDir = path.join(app.getPath('appData'), 'AnudeepKhadiBandar');
+                if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+                const logPath = path.join(logDir, 'server.log');
+                const logFile = fs.openSync(logPath, 'a');
+                stdioConfig = ['ignore', logFile, logFile];
+            } catch (err) {
+                console.warn('[Electron] Could not open log file, using default stdio:', err.message);
+                stdioConfig = 'ignore';
+            }
+
             const nodeExe = findNodeExecutable();
             const { spawn } = require('child_process');
             const useNode = (nodeExe && nodeExe !== 'node' && fs.existsSync(nodeExe));
@@ -83,7 +92,7 @@ function startBackend() {
             serverChild = spawn(execBinary, [serverJs], {
                 cwd: __dirname,
                 env: { ...process.env, PORT: '3000', ...extraEnv },
-                stdio: ['ignore', logFile, logFile],
+                stdio: stdioConfig,
                 windowsHide: true
             });
 
@@ -314,15 +323,17 @@ async function createMainWindow() {
         console.log('[Electron] Connected to existing server on port 3000');
     }
 
-    // Load local backend or base website
-    const targetUrl = isRunning 
-        ? 'http://127.0.0.1:3000/?mode=dedicated_app' 
-        : 'https://kandukurijagan1.github.io/anudeep/?mode=dedicated_app';
-    console.log('[Electron] Loading UI: ' + targetUrl);
-    try {
-        await mainWindow.loadURL(targetUrl);
-    } catch (e) {
-        console.warn('[Electron] Failed to load URL, falling back to local files:', e.message);
+    // Load local backend server or fallback directly to local index.html file
+    if (isRunning) {
+        console.log('[Electron] Loading UI from local backend server: http://127.0.0.1:3000/?mode=dedicated_app');
+        try {
+            await mainWindow.loadURL('http://127.0.0.1:3000/?mode=dedicated_app');
+        } catch (e) {
+            console.warn('[Electron] Failed to load local server URL, loading local index.html directly:', e.message);
+            await mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { mode: 'dedicated_app' } });
+        }
+    } else {
+        console.log('[Electron] Loading local index.html file directly...');
         await mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { mode: 'dedicated_app' } });
     }
 

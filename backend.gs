@@ -108,12 +108,24 @@ function doPost(e) {
           result = { validEmails: settings.adminEmails || ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'] };
           break;
         case 'sendOTP':
-          if (!payload.email) throw new Error('Email is required');
-          const targetEmail = String(payload.email).toLowerCase().trim();
+          const targetEmail = String(payload.email || (e && e.parameter && e.parameter.email) || '').toLowerCase().trim();
+          if (!targetEmail) return respond({ error: 'Email is required' }, 400);
+          const otpVal = payload.otp || (e && e.parameter && e.parameter.otp);
+          if (!otpVal) return respond({ error: 'OTP is required' }, 400);
+
+          const gasSettings = getSettingsFast();
+          const authorizedList = (gasSettings && gasSettings.adminEmails && Array.isArray(gasSettings.adminEmails) && gasSettings.adminEmails.length > 0)
+            ? gasSettings.adminEmails.map(function(em) { return String(em).toLowerCase().trim(); })
+            : ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'];
+
+          if (!authorizedList.includes(targetEmail)) {
+            return respond({ error: 'Unauthorized email address. OTP can only be sent to authorized administrator emails.' }, 403);
+          }
+
           MailApp.sendEmail({
             to: targetEmail,
             subject: "AKB Billing - Password Reset OTP",
-            body: `Your OTP for password reset is: ${payload.otp}. It is valid for 10 minutes.`
+            body: `Your OTP for password reset is: ${otpVal}. It is valid for 10 minutes.`
           });
           result = { success: true };
           break;

@@ -1,6 +1,6 @@
 {
   "nextInvoiceNo": 8,
-  "inactivityTimeout": 60000,
+  "inactivityTimeout": 600000,
   "adminEmails": [
     "kandukurijagan99@gmail.com",
     "kandukurijagan7@gmail.com",
