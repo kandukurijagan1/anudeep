@@ -166,7 +166,7 @@ const cache = {
 };
 
 // Reliable Dual-Path JSON Database helper (Project Root + AppData)
-const CLOUD_GAS_URL = 'https://script.google.com/macros/s/AKfycby6ur21LgiujqGDtV-PVhK5bkcmhEAy22Jx8moi6NOwH1h-HL9UEAoR5keq20cYtmxC/exec';
+const CLOUD_GAS_URL = 'https://script.google.com/macros/s/AKfycbywiBkF8bEYcDcwVbUbngBUlDcQ-eg3yJwRW9ee-FPeloIj61N_eJOYBcGVU1L2do4Z/exec';
 
 function readJsonFile(name, fallback = []) {
   try {
@@ -902,7 +902,7 @@ app.post('/api/auth/setup-pin', (req, res) => {
 const authOtpStore = new Map();
 
 async function sendOTPEmail(email, otp) {
-  const GAS_URL = "https://script.google.com/macros/s/AKfycby6ur21LgiujqGDtV-PVhK5bkcmhEAy22Jx8moi6NOwH1h-HL9UEAoR5keq20cYtmxC/exec";
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbywiBkF8bEYcDcwVbUbngBUlDcQ-eg3yJwRW9ee-FPeloIj61N_eJOYBcGVU1L2do4Z/exec";
   
   const payload = {
     action: 'sendOTP',
