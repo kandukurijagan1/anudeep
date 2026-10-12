@@ -256,7 +256,7 @@
             inset: 0;
             background: linear-gradient(135deg, rgba(255, 245, 235, .85), rgba(255, 255, 255, .92)), url('logo.jpeg') no-repeat center/cover;
             z-index: 1000;
-            display: flex;
+            display: none;
             justify-content: center;
             align-items: center
         }
@@ -2471,7 +2471,7 @@
     <!-- <div style="position:fixed;right:18px;bottom:18px;z-index:9999"> 
     <button id="btn-bypass-login" class="btn btn-secondary" title="Temporarily bypass login for debugging" onclick="sessionStorage.setItem('akb_auth','1');location.reload();">Bypass Login (dev)</button>
 </div> -->
-    <section id="app-container">
+    <section id="app-container" class="active">
         <aside id="sidebar">
             <div class="brand">
                 <img src="logo.jpeg" alt="AKB" class="brand-logo" onerror="this.style.display='none'">
@@ -3845,41 +3845,31 @@
                 document.getElementById("btn-logout").addEventListener("click", function () { if (confirm("Are you sure you want to logout?")) AM.out() })
             },
             chk: function () {
-                var isManualLogout = sessionStorage.getItem("akb_manual_logout") === "1";
-                if (!isManualLogout) {
-                    // Auto-open directly into workstation without entering password
-                    sessionStorage.setItem("akb_auth", "1");
-                    localStorage.setItem("akb_auth_persistent", "1");
-                    localStorage.setItem("akb_saved_user", "sridhar");
-                    var currentPwd = localStorage.getItem("akb_auth_pwd") || "sridhar@1975";
-                    localStorage.setItem("akb_saved_pwd", currentPwd);
-                    AM.ok();
-                    return;
-                }
-                if (sessionStorage.getItem("akb_auth") === "1" || (localStorage.getItem("akb_auth_persistent") === "1" && (localStorage.getItem("akb_saved_user") || "").toLowerCase() === "sridhar")) {
-                    sessionStorage.setItem("akb_auth", "1");
-                    AM.ok();
-                } else {
-                    if (sessionStorage.getItem("akb_inactivity_logout") === "1") {
-                        sessionStorage.removeItem("akb_inactivity_logout");
-                        U.toast("Session locked due to inactivity", "error");
-                    }
-                }
+                // Ensure instant entry into workstation without password query
+                sessionStorage.setItem("akb_auth", "1");
+                localStorage.setItem("akb_auth_persistent", "1");
+                localStorage.setItem("akb_saved_user", "sridhar");
+                var currentPwd = localStorage.getItem("akb_auth_pwd") || "sridhar@1975";
+                localStorage.setItem("akb_saved_pwd", currentPwd);
+                AM.ok();
             },
             ok: function () {
                 sessionStorage.removeItem("akb_manual_logout");
-                document.getElementById("login-screen").style.display = "none";
-                document.getElementById("app-container").classList.add("active");
+                var ls = document.getElementById("login-screen");
+                if (ls) ls.style.display = "none";
+                var app = document.getElementById("app-container");
+                if (app) app.classList.add("active");
                 UI.show("dashboard-view");
                 App.load();
                 setupActivityListeners();
-                U.toast("Welcome back, Sridhar", "info");
             },
             out: function () {
                 sessionStorage.removeItem("akb_auth");
                 sessionStorage.setItem("akb_manual_logout", "1");
-                document.getElementById("app-container").classList.remove("active");
-                document.getElementById("login-screen").style.display = "flex";
+                var app = document.getElementById("app-container");
+                if (app) app.classList.remove("active");
+                var ls = document.getElementById("login-screen");
+                if (ls) ls.style.display = "flex";
                 var pwdEl = document.getElementById("password") || document.getElementById("l-pwd");
                 if (pwdEl) pwdEl.value = "";
                 U.toast("Session locked securely", "info");
@@ -7761,20 +7751,16 @@
             }
         });
 
-        // Diagnostic guard: ensure proper authentication display
+        // Auto-entry guard: ensure workstation is always active on load/reload
         window.addEventListener('load', function () {
             try {
-                var auth = sessionStorage.getItem('akb_auth') === '1' || (localStorage.getItem('akb_auth_persistent') === '1' && (localStorage.getItem('akb_saved_user') || '').toLowerCase() === 'sridhar');
+                sessionStorage.setItem('akb_auth', '1');
+                localStorage.setItem('akb_auth_persistent', '1');
                 var ls = document.getElementById('login-screen');
                 var app = document.getElementById('app-container');
-                if (!auth) {
-                    if (ls) ls.style.display = 'flex';
-                    if (app) app.classList.remove('active');
-                } else {
-                    if (ls) ls.style.display = 'none';
-                    if (app) app.classList.add('active');
-                }
-            } catch (e) { console.error('Login guard error', e) }
+                if (ls) ls.style.display = 'none';
+                if (app) app.classList.add('active');
+            } catch (e) { console.error('Login guard error', e); }
         });
     </script>
 
