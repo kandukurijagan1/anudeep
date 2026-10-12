@@ -1,4 +1,4 @@
-const CACHE_NAME = 'akb-billing-v1.3.9';
+const CACHE_NAME = 'akb-billing-v1.4.0';
 const STATIC_ASSETS = [
   './',
   './index.html',

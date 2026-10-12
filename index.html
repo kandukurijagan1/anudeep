@@ -6427,7 +6427,8 @@
                     var isMeters = (p.calcType === 'meters' || p.billingType === 'meters');
                     var badge = isMeters ? '<span style="font-size:0.75rem; color:#0369a1; background:#e0f2fe; padding:2px 8px; border-radius:4px; font-weight:600;"><i class="ph ph-ruler"></i> Cloth (Meters)</span>' : '<span style="font-size:0.75rem; color:#475569; background:#f1f5f9; padding:2px 8px; border-radius:4px; font-weight:600;"><i class="ph ph-hash"></i> By Qty</span>';
                     var rateUnit = isMeters ? ' / mtr' : ' / pc';
-                    h += '<tr><td>' + U.esc(p.name) + '</td><td>' + U.esc(p.hsn) + '</td><td>' + badge + '</td><td>' + U.fm(p.price) + '<span style="font-size:0.75rem; color:var(--tl);">' + rateUnit + '</span></td><td class="text-right"><button class="btn-icon" onclick="PDM.edit(' + p.id + ')" title="Edit"><i class="ph ph-pencil-simple"></i></button> <button class="btn-icon" onclick="PDM.del(' + p.id + ')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td></tr>';
+                    var safeProdId = String(p.id).replace(/'/g, "\\'");
+                    h += '<tr><td>' + U.esc(p.name) + '</td><td>' + U.esc(p.hsn) + '</td><td>' + badge + '</td><td>' + U.fm(p.price) + '<span style="font-size:0.75rem; color:var(--tl);">' + rateUnit + '</span></td><td class="text-right"><button class="btn-icon" onclick="PDM.edit(\'' + safeProdId + '\')" title="Edit"><i class="ph ph-pencil-simple"></i></button> <button class="btn-icon" onclick="PDM.del(\'' + safeProdId + '\')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td></tr>';
                     dlh += '<option value="' + U.esc(p.name) + '">HSN: ' + U.esc(p.hsn) + ' | ₹' + U.fm(p.price) + rateUnit + '</option>';
                 });
                 if (tb) tb.innerHTML = h;
@@ -6445,7 +6446,8 @@
             },
 
             edit: function (id) {
-                var p = PDM._all.find(function (x) { return x.id === id }); if (!p) return;
+                var idStr = String(id || '').trim();
+                var p = PDM._all.find(function (x) { return String(x.id) === idStr || String(x._id) === idStr }); if (!p) return;
                 document.getElementById("p-id").value = p.id;
                 document.getElementById("p-n").value = p.name;
                 document.getElementById("p-h").value = p.hsn;
@@ -6582,7 +6584,8 @@
                 if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:1.5rem"><i class="ph ph-address-book"></i>No ' + type + 's added.</div>'; return }
                 var h = "";
                 list.forEach(function (p) {
-                    h += '<div class="party-entry"><div class="party-info"><div class="pn">' + U.esc(p.name) + '</div><div class="pd">' + (p.phone ? '📞 ' + U.esc(p.phone) + ' | ' : "") + U.esc(p.address || "") + (p.gstin ? ' | GSTIN: ' + U.esc(p.gstin) : "") + '</div></div><div style="display:flex;gap:.25rem"><button class="btn-icon" onclick="PM.edit(\'' + type + '\',' + p.id + ')" title="Edit"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" onclick="PM.del(\'' + type + '\',' + p.id + ')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></div></div>';
+                    var safePartyId = String(p.id).replace(/'/g, "\\'");
+                    h += '<div class="party-entry"><div class="party-info"><div class="pn">' + U.esc(p.name) + '</div><div class="pd">' + (p.phone ? '📞 ' + U.esc(p.phone) + ' | ' : "") + U.esc(p.address || "") + (p.gstin ? ' | GSTIN: ' + U.esc(p.gstin) : "") + '</div></div><div style="display:flex;gap:.25rem"><button class="btn-icon" onclick="PM.edit(\'' + type + '\',\'' + safePartyId + '\')" title="Edit"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" onclick="PM.del(\'' + type + '\',\'' + safePartyId + '\')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></div></div>';
                 });
                 el.innerHTML = h;
             },
@@ -6603,7 +6606,8 @@
 
             edit: function (type, id) {
                 PM._type = type;
-                var list = PM._parties[type] || [], p = list.find(function (x) { return x.id === id }); if (!p) return;
+                var idStr = String(id || '').trim();
+                var list = PM._parties[type] || [], p = list.find(function (x) { return String(x.id) === idStr || String(x._id) === idStr }); if (!p) return;
                 document.getElementById("pyt").textContent = "Edit " + (type === "receiver" ? "Receiver" : "Consignee");
                 document.getElementById("py-id").value = p.id;
                 document.getElementById("py-tp").value = type;
@@ -6747,24 +6751,31 @@
                 var h = "";
                 filtered.forEach(function (p) {
                     var sub = (p.phone ? '📞 ' + U.esc(p.phone) + ' | ' : "") + (p.gstin ? U.esc(p.gstin) : "-");
-                    h += '<div class="ppi" onclick="PM.selectParty(' + p.id + ')"><span class="ppn">' + U.esc(p.name) + '</span><span class="ppg">' + sub + '</span></div>';
+                    var safeId = String(p.id).replace(/'/g, "\\'");
+                    h += '<div class="ppi" onclick="PM.selectParty(\'' + safeId + '\')" style="cursor:pointer;"><span class="ppn">' + U.esc(p.name) + '</span><span class="ppg">' + sub + '</span></div>';
                 });
                 el.innerHTML = h;
             },
 
             selectParty: function (id) {
-                var list = PM._parties[PM._type] || [], p = list.find(function (x) { return x.id === id }); if (!p) return;
+                var idStr = String(id || '').trim();
+                var list = PM._parties[PM._type] || [];
+                var p = list.find(function (x) {
+                    return String(x.id) === idStr || String(x._id) === idStr || String(x.name).trim() === idStr;
+                });
+                if (!p) return;
                 var prefix = PM._type === "receiver" ? "b-r" : "b-s";
-                document.getElementById(prefix + "n").value = p.name;
+                document.getElementById(prefix + "n").value = p.name || "";
                 if (document.getElementById(prefix + "ph")) {
                     document.getElementById(prefix + "ph").value = p.phone || "";
                 }
                 document.getElementById(prefix + "a").value = p.address || "";
                 document.getElementById(prefix + "st").value = p.state || "";
                 document.getElementById(prefix + "g").value = p.gstin || "";
-                document.getElementById(prefix + "sc").value = p.statecode || "37";
+                var sc = p.statecode || p.stateCode || "37";
+                document.getElementById(prefix + "sc").value = sc;
                 if (PM._type === "receiver" || PM._type === "consignee") {
-                    if (p.statecode) document.getElementById("b-sc").value = p.statecode;
+                    document.getElementById("b-sc").value = sc;
                     if (p.state) document.getElementById("b-pos").value = p.state;
                 }
                 UI.cl("ppm");
