@@ -73,6 +73,7 @@ function startBackend() {
             const logDir = path.join(app.getPath('appData'), 'AnudeepKhadiBandar');
             if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
             const logPath = path.join(logDir, 'server.log');
+            const logFile = fs.openSync(logPath, 'a');
             const nodeExe = findNodeExecutable();
             const { spawn } = require('child_process');
             const useNode = (nodeExe && nodeExe !== 'node' && fs.existsSync(nodeExe));
