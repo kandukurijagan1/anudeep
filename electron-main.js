@@ -275,7 +275,7 @@ async function createMainWindow() {
         title: 'Anudeep Khadi Bandar - GST Billing Workstation',
         icon: path.join(__dirname, 'icon.ico'),
         backgroundColor: '#f3f4f6',
-        show: false,
+        show: true,
         autoHideMenuBar: true,
         webPreferences: {
             nodeIntegration: false,
