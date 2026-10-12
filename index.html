@@ -2209,9 +2209,9 @@
                     <p style="font-size:0.8rem; color:#6b7280; margin:0 0 12px 0;">Enter your admin email to receive a 6-digit verification OTP.</p>
                     <div class="form-group" style="margin-bottom:12px;">
                         <label style="display:block; margin-bottom:4px; font-weight:600; font-size:0.82rem;">Admin Email</label>
-                        <input type="email" id="card-fp-contact" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.88rem;" placeholder="e.g. kandukurijagan99@gmail.com" autocomplete="email">
+                        <input type="email" id="card-fp-contact" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.88rem;" value="kandukurijagan99@gmail.com" placeholder="kandukurijagan99@gmail.com" autocomplete="email" onkeydown="if(event.key==='Enter') FP.cardRequestOTP()">
                     </div>
-                    <button type="button" class="btn btn-primary w-full" onclick="FP.cardRequestOTP()" id="card-btn-request-otp" style="padding:10px; font-weight:600;"><i class="ph ph-paper-plane"></i> Send OTP to Email</button>
+                    <button type="button" class="btn btn-primary w-full" onclick="FP.cardRequestOTP()" id="card-btn-request-otp" style="padding:10px; font-weight:600;"><i class="ph ph-paper-plane-tilt"></i> Send OTP to Email</button>
                 </div>
 
                 <!-- Step 2: OTP -->
@@ -2221,7 +2221,7 @@
                     </div>
                     <div class="form-group" style="margin-bottom:12px;">
                         <label style="display:block; margin-bottom:4px; font-weight:600; font-size:0.82rem;">Enter 6-Digit OTP</label>
-                        <input type="text" id="card-fp-otp" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:1.15rem; letter-spacing:4px; text-align:center; font-weight:700;" placeholder="------" maxlength="6" autocomplete="one-time-code">
+                        <input type="text" id="card-fp-otp" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:1.15rem; letter-spacing:4px; text-align:center; font-weight:700;" placeholder="------" maxlength="6" autocomplete="one-time-code" onkeydown="if(event.key==='Enter') FP.cardVerifyOTP()">
                     </div>
                     <button type="button" class="btn btn-primary w-full" onclick="FP.cardVerifyOTP()" id="card-btn-verify-otp" style="padding:10px; font-weight:600;"><i class="ph ph-check"></i> Verify OTP</button>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
@@ -2235,7 +2235,7 @@
                     <p style="font-size:0.8rem; color:#6b7280; margin:0 0 12px 0;">OTP verified! Enter your new password below.</p>
                     <div class="form-group" style="margin-bottom:12px;">
                         <label style="display:block; margin-bottom:4px; font-weight:600; font-size:0.82rem;">New Password</label>
-                        <input type="password" id="card-fp-new-pwd" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.88rem;" placeholder="Enter new password (min 4 chars)" autocomplete="new-password">
+                        <input type="password" id="card-fp-new-pwd" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.88rem;" placeholder="Enter new password (min 4 chars)" autocomplete="new-password" onkeydown="if(event.key==='Enter') FP.cardResetPassword()">
                     </div>
                     <button type="button" class="btn btn-primary w-full" onclick="FP.cardResetPassword()" id="card-btn-reset-pwd" style="padding:10px; font-weight:600;"><i class="ph ph-lock-key"></i> Set New Password & Login</button>
                 </div>
@@ -2243,75 +2243,9 @@
         </div>
     </section>
 
-    <!-- Modal Fallback -->
-    <div id="modal-forgot-pwd"
-        style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); z-index:999999; align-items:center; justify-content:center; backdrop-filter: blur(3px);">
-        <div class="modal"
-            style="max-width:420px; width:92%; background:#fff; border-radius:12px; box-shadow:0 20px 40px rgba(0,0,0,0.25); padding:24px; position:relative;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; border-bottom:1px solid #e5e7eb; padding-bottom:10px;">
-                <h3 style="margin:0; font-size:1.2rem; color:#1f2937; font-weight:700;"><i class="ph ph-key" style="color:var(--p); margin-right:6px;"></i> Reset Password</h3>
-                <button type="button" class="btn-icon" onclick="document.getElementById('modal-forgot-pwd').style.display='none'"
-                    style="color:#6b7280; background:transparent; border:none; cursor:pointer; font-size:1.5rem; line-height:1;">&times;</button>
-            </div>
-
-            <!-- Step 1: Enter Email -->
-            <div id="fp-step-1">
-                <p style="font-size:0.82rem; color:#6b7280; margin:0 0 14px 0;">Enter your administrator email to receive a 6-digit verification OTP.</p>
-                <div class="form-group" style="margin-bottom:14px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:600; font-size:0.85rem;">Admin Email</label>
-                    <input type="email" id="fp-contact" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem;" placeholder="e.g. kandukurijagan99@gmail.com" value="" autocomplete="email">
-                </div>
-                <button type="button" class="btn btn-primary w-full" onclick="FP.requestOTP()" id="btn-request-otp" style="padding:10px; font-weight:600;"><i class="ph ph-paper-plane"></i> Send OTP to Email</button>
-                <div style="margin-top:14px; text-align:center; border-top:1px dashed #e5e7eb; padding-top:14px;">
-                    <button type="button" class="btn btn-secondary w-full" onclick="FP.instantDefaultReset()" style="font-size:0.82rem; padding:9px; color:#b45309; border-color:#f59e0b;"><i class="ph ph-arrow-counter-clockwise"></i> ⚡ Instant Reset to Default (sridhar@1975)</button>
-                </div>
-            </div>
-
-            <!-- Step 2: Enter OTP received in Email -->
-            <div id="fp-step-2" style="display:none;">
-                <div style="font-size:0.8rem; color:#15803d; margin-bottom:12px; background:#f0fdf4; border:1px solid #bbf7d0; padding:8px 12px; border-radius:6px;">
-                    <i class="ph ph-check-circle" style="vertical-align:middle;"></i> OTP sent to: <b id="fp-target-display">your email</b>. Please check your inbox and enter the 6-digit code.
-                </div>
-                <div class="form-group" style="margin-bottom:14px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:600; font-size:0.85rem;">Enter 6-Digit OTP</label>
-                    <input type="text" id="fp-otp" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:1.15rem; letter-spacing:4px; text-align:center; font-weight:700;" placeholder="------" maxlength="6" autocomplete="one-time-code">
-                </div>
-                <button type="button" class="btn btn-primary w-full" onclick="FP.verifyOTP()" id="btn-verify-otp" style="padding:10px; font-weight:600;"><i class="ph ph-check"></i> Verify OTP</button>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
-                    <a href="javascript:void(0)" onclick="FP.backToStep1()" style="font-size:0.8rem; color:#6b7280; text-decoration:none;">&larr; Change email</a>
-                    <a href="javascript:void(0)" onclick="FP.requestOTP()" style="font-size:0.8rem; color:var(--p); text-decoration:none; font-weight:500;">Resend OTP</a>
-                </div>
-            </div>
-
-            <!-- Step 3: Enter New Password -->
-            <div id="fp-step-3" style="display:none;">
-                <p style="font-size:0.82rem; color:#6b7280; margin:0 0 14px 0;">OTP verified successfully. Create a new password for your login.</p>
-                <div class="form-group" style="margin-bottom:14px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:600; font-size:0.85rem;">New Password</label>
-                    <input type="password" id="fp-new-pwd" class="form-control" style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem;" placeholder="Enter new password (min 4 characters)" autocomplete="new-password">
-                </div>
-                <button type="button" class="btn btn-primary w-full" onclick="FP.resetPassword()" id="btn-reset-pwd" style="padding:10px; font-weight:600;"><i class="ph ph-lock-key"></i> Set New Password & Login</button>
-            </div>
-        </div>
-    </div>
     <script>
         function showForgotPasswordModal() {
             FP.showForgotView();
-            var modal = document.getElementById('modal-forgot-pwd');
-            if (modal) {
-                modal.style.display = 'flex';
-                modal.style.zIndex = '999999';
-            }
-            FP.backToStep1();
-            var contactEl = document.getElementById('fp-contact');
-            if (contactEl) {
-                contactEl.value = '';
-                setTimeout(function() { contactEl.focus(); }, 100);
-            }
-            var otpEl = document.getElementById('fp-otp');
-            if (otpEl) otpEl.value = '';
-            var pwdEl = document.getElementById('fp-new-pwd');
-            if (pwdEl) pwdEl.value = '';
         }
         function getAuthBaseUrl() {
             if (location.origin && location.origin.startsWith('http') && !location.origin.includes('github.io') && !location.origin.includes('vercel.app')) {
@@ -2334,8 +2268,13 @@
                 this.cardBackToStep1();
                 var contactInput = document.getElementById('card-fp-contact');
                 if (contactInput) {
-                    contactInput.value = '';
-                    setTimeout(function() { contactInput.focus(); }, 100);
+                    if (!contactInput.value) {
+                        contactInput.value = 'kandukurijagan99@gmail.com';
+                    }
+                    setTimeout(function() {
+                        contactInput.focus();
+                        contactInput.select();
+                    }, 50);
                 }
             },
             showLoginView: function () {
@@ -2521,202 +2460,10 @@
                 sessionStorage.setItem("akb_auth", "1");
                 AM.ok();
             },
-            backToStep1: function () {
-                var s1 = document.getElementById('fp-step-1');
-                var s2 = document.getElementById('fp-step-2');
-                var s3 = document.getElementById('fp-step-3');
-                if (s1) s1.style.display = 'block';
-                if (s2) s2.style.display = 'none';
-                if (s3) s3.style.display = 'none';
-                var contactEl = document.getElementById('fp-contact');
-                if (contactEl) contactEl.focus();
-            },
-            instantDefaultReset: function () {
-                localStorage.setItem("akb_auth_pwd", "sridhar@1975");
-                localStorage.setItem("akb_saved_user", "sridhar");
-                localStorage.setItem("akb_saved_pwd", "sridhar@1975");
-                localStorage.setItem("akb_auth_persistent", "1");
-                var pwdInput = document.getElementById("password");
-                if (pwdInput) pwdInput.value = "sridhar@1975";
-                var userInput = document.getElementById("username");
-                if (userInput) userInput.value = "sridhar";
-                document.getElementById('modal-forgot-pwd').style.display = 'none';
-                U.toast("Password reset to default (sridhar@1975)! Logging in...", "success");
-                sessionStorage.removeItem("akb_manual_logout");
-                sessionStorage.setItem("akb_auth", "1");
-                AM.ok();
-            },
-            requestOTP: async function () {
-                var contactInput = document.getElementById('fp-contact');
-                var contact = contactInput ? contactInput.value.trim() : '';
-                if (!contact) {
-                    if (contactInput) contactInput.focus();
-                    return U.toast('Please enter your email address first', 'warning');
-                }
-                if (!contact.includes('@')) {
-                    if (contactInput) contactInput.focus();
-                    return U.toast('Please enter a valid email address (e.g. name@gmail.com)', 'warning');
-                }
-
-                var cleanEmail = contact.toLowerCase().trim();
-                this.contact = cleanEmail;
-
-                var btn = document.getElementById('btn-request-otp');
-                if (btn) { btn.innerText = 'Sending OTP...'; btn.disabled = true; }
-
-                var base = getAuthBaseUrl();
-                var otpSent = false;
-                try {
-                    var ctrl = new AbortController();
-                    var tm = setTimeout(function () { ctrl.abort(); }, 7000);
-                    var res = await originalFetch(base + '/api/auth/forgot-password', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contact: cleanEmail }),
-                        signal: ctrl.signal
-                    });
-                    clearTimeout(tm);
-                    var data = await res.json();
-                    if (data && data.success) {
-                        otpSent = true;
-                    }
-                } catch (e) {
-                    console.warn('[FP] Local server request skipped or failed:', e.message);
-                }
-
-                // If local server was offline, trigger direct cloud Google Apps Script OTP
-                if (!otpSent && typeof CLOUD_GAS_URL !== 'undefined') {
-                    try {
-                        var cloudCode = Math.floor(100000 + Math.random() * 900000).toString();
-                        FP.fallbackOtp = cloudCode;
-                        sessionStorage.setItem('akb_fp_otp', cloudCode);
-                        originalFetch(CLOUD_GAS_URL + '?action=sendOTP&email=' + encodeURIComponent(cleanEmail) + '&otp=' + cloudCode, { mode: 'no-cors' }).catch(function(){});
-                        otpSent = true;
-                    } catch (_) {}
-                }
-
-                if (btn) { btn.innerText = 'Send OTP to Email'; btn.disabled = false; }
-
-                // Advance to Step 2
-                var targetDisp = document.getElementById('fp-target-display');
-                if (targetDisp) targetDisp.textContent = cleanEmail;
-
-                var s1 = document.getElementById('fp-step-1');
-                var s2 = document.getElementById('fp-step-2');
-                if (s1) s1.style.display = 'none';
-                if (s2) s2.style.display = 'block';
-
-                var otpInput = document.getElementById('fp-otp');
-                if (otpInput) {
-                    otpInput.value = ''; // Input is clean and empty for user to type
-                    setTimeout(function() { otpInput.focus(); }, 150);
-                }
-
-                U.toast('OTP has been sent to ' + cleanEmail + '. Check your inbox!', 'success');
-            },
-            verifyOTP: async function () {
-                var otpInput = document.getElementById('fp-otp');
-                var otp = otpInput ? otpInput.value.trim() : '';
-                if (!otp) {
-                    if (otpInput) otpInput.focus();
-                    return U.toast('Please enter the 6-digit OTP received in your email', 'warning');
-                }
-
-                var btn = document.getElementById('btn-verify-otp');
-                if (btn) { btn.innerText = 'Verifying...'; btn.disabled = true; }
-
-                var verified = false;
-                var base = getAuthBaseUrl();
-                try {
-                    var ctrl = new AbortController();
-                    var tm = setTimeout(function () { ctrl.abort(); }, 4000);
-                    var res = await originalFetch(base + '/api/auth/verify-otp', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contact: this.contact, otp: otp }),
-                        signal: ctrl.signal
-                    });
-                    clearTimeout(tm);
-                    var data = await res.json();
-                    if (data && data.success) {
-                        verified = true;
-                        this.token = data.token;
-                    }
-                } catch (e) { }
-
-                // Fallback validation if server is offline or unreachable
-                if (!verified) {
-                    var savedOtp = sessionStorage.getItem('akb_fp_otp') || this.fallbackOtp;
-                    if (otp === '123456' || (savedOtp && otp === savedOtp.trim())) {
-                        verified = true;
-                        this.token = 'local_verified_token_' + Date.now();
-                    }
-                }
-
-                if (btn) { btn.innerText = 'Verify OTP'; btn.disabled = false; }
-
-                if (verified) {
-                    U.toast('OTP verified successfully! Now set your new password.', 'success');
-                    var s2 = document.getElementById('fp-step-2');
-                    var s3 = document.getElementById('fp-step-3');
-                    if (s2) s2.style.display = 'none';
-                    if (s3) s3.style.display = 'block';
-
-                    var newPwdInput = document.getElementById('fp-new-pwd');
-                    if (newPwdInput) {
-                        newPwdInput.value = '';
-                        setTimeout(function() { newPwdInput.focus(); }, 150);
-                    }
-                } else {
-                    U.toast('Invalid OTP code. Please enter the correct 6 digits from your email.', 'error');
-                    if (otpInput) {
-                        otpInput.select();
-                        otpInput.focus();
-                    }
-                }
-            },
-            resetPassword: async function () {
-                var newPwdInput = document.getElementById('fp-new-pwd');
-                var newPwd = newPwdInput ? newPwdInput.value.trim() : '';
-                if (!newPwd || newPwd.length < 4) {
-                    if (newPwdInput) newPwdInput.focus();
-                    return U.toast('Password must be at least 4 characters long', 'warning');
-                }
-
-                var btn = document.getElementById('btn-reset-pwd');
-                if (btn) { btn.innerText = 'Saving...'; btn.disabled = true; }
-
-                localStorage.setItem("akb_auth_pwd", newPwd);
-                localStorage.setItem("akb_saved_user", "sridhar");
-                localStorage.setItem("akb_saved_pwd", newPwd);
-                localStorage.setItem("akb_auth_persistent", "1");
-
-                var base = getAuthBaseUrl();
-                if (this.token) {
-                    try {
-                        await originalFetch(base + '/api/auth/reset-password', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ token: this.token, newPassword: newPwd })
-                        });
-                    } catch (e) {
-                        console.warn('Backend password sync deferred:', e.message);
-                    }
-                }
-
-                if (btn) { btn.innerText = 'Set New Password & Login'; btn.disabled = false; }
-                document.getElementById('modal-forgot-pwd').style.display = 'none';
-
-                var pwdInput = document.getElementById('password');
-                if (pwdInput) pwdInput.value = newPwd;
-                var userInput = document.getElementById('username');
-                if (userInput) userInput.value = 'sridhar';
-
-                U.toast('Password changed successfully! Logging in...', 'success');
-                sessionStorage.removeItem("akb_manual_logout");
-                sessionStorage.setItem("akb_auth", "1");
-                AM.ok();
-            }
+            backToStep1: function () { this.cardBackToStep1(); },
+            requestOTP: function () { return this.cardRequestOTP(); },
+            verifyOTP: function () { return this.cardVerifyOTP(); },
+            resetPassword: function () { return this.cardResetPassword(); }
         };
     </script>
 
