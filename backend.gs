@@ -71,7 +71,7 @@ function doGet(e) {
       case 'getSettings': result = getSettingsFast(); break;
       case 'getValidEmails': {
         const adminSt = getSettingsFast();
-        result = { validEmails: (adminSt && adminSt.adminEmails) || ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'] };
+        result = { validEmails: (adminSt && adminSt.adminEmails) || [] };
         break;
       }
       default: return respond({ error: 'Invalid GET action: ' + action }, 400);
@@ -105,7 +105,7 @@ function doPost(e) {
       switch (action) {
         case 'getValidEmails':
           const settings = getSettingsFast();
-          result = { validEmails: settings.adminEmails || ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'] };
+          result = { validEmails: settings.adminEmails || [] };
           break;
         case 'sendOTP':
           const targetEmail = String(payload.email || (e && e.parameter && e.parameter.email) || '').toLowerCase().trim();
@@ -116,7 +116,7 @@ function doPost(e) {
           const gasSettings = getSettingsFast();
           const authorizedList = (gasSettings && gasSettings.adminEmails && Array.isArray(gasSettings.adminEmails) && gasSettings.adminEmails.length > 0)
             ? gasSettings.adminEmails.map(function(em) { return String(em).toLowerCase().trim(); })
-            : ['kandukurijagan99@gmail.com', 'kandukurijagan7@gmail.com', 'kandukurijagan642@gmail.com'];
+            : [];
 
           if (!authorizedList.includes(targetEmail)) {
             return respond({ error: 'Unauthorized email address. OTP can only be sent to authorized administrator emails.' }, 403);

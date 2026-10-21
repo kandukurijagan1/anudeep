@@ -2,16 +2,18 @@
 title Anudeep Khadi Bandar - Dedicated Workstation Launcher
 cd /d "%~dp0"
 
-:: 1. Ensure background Node.js server is running silently
+:: 1. Ensure background Node.js server is running
 curl -s -m 1 http://127.0.0.1:3000/api/health >nul 2>&1
 if errorlevel 1 (
+    echo Starting background server on port 3000...
     if exist "C:\Program Files\nodejs\node.exe" (
-        start "" /B "C:\Program Files\nodejs\node.exe" server.js
+        start "AKB-Backend-Server" /min "C:\Program Files\nodejs\node.exe" "%~dp0server.js"
     ) else if exist "node.exe" (
-        start "" /B "node.exe" server.js
+        start "AKB-Backend-Server" /min "%~dp0node.exe" "%~dp0server.js"
     ) else (
-        where node >nul 2>&1 && start "" /B node server.js
+        start "AKB-Backend-Server" /min node "%~dp0server.js"
     )
+    timeout /t 2 /nobreak >nul 2>&1
 )
 
 :: 2. Launch via Electron (Preferred: Full native workstation container)

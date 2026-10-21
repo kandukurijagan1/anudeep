@@ -10,13 +10,33 @@ node_modules/
 .wwebjs_auth/
 .wwebjs_cache/
 
-# Temporary and Uploads
+# Local Database and Customer Data (runtime stores in %APPDATA%/AnudeepKhadiBandar/data)
+data/
+
+# Build and Packaging Artifacts
+dist/
+*.zip
+AKB-Billing-App.zip
+
+# Logs and Scratch files
 tmp/
 *.log
+*.txt
+deleted.txt
+git
+main
+
+# Temporary PDFs and Test Dumps
 *.pdf
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+test*.js
+test*.pdf
+temp*
+
+# Ad-hoc patch and replace scripts
+replace*.js
+patch.js
+clean.js
+add_flags.js
 
 # OS and Editor files
 .DS_Store

@@ -157,9 +157,11 @@ namespace AnudeepKhadiBandar
 
         private static string FindServerJs()
         {
+            string appDataServer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AnudeepKhadiBandar", "server.js");
             string[] candidates = new string[]
             {
                 Path.Combine(appDir, "server.js"),
+                appDataServer,
                 Path.Combine(appDir, "anudeep-kadir-bandi", "server.js"),
                 @"C:\Users\ADMIN\Desktop\anudeep-kadir-bandi\server.js",
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "anudeep-kadir-bandi", "server.js")

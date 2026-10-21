@@ -1,15 +1,11 @@
 {
-  "nextInvoiceNo": 8,
-  "inactivityTimeout": 600000,
-  "adminEmails": [
-    "kandukurijagan99@gmail.com",
-    "kandukurijagan7@gmail.com",
-    "kandukurijagan642@gmail.com",
-    "endukuniku35@gmail.com"
-  ],
+  "nextInvoiceNo": 15,
+  "inactivityTimeout": 60000,
+  "adminEmails": [],
   "telegram": {
     "token": "8799482746:AAGiDi8HEoV7KGQNyer4772H_d1qv9fznac",
-    "chatId": "6877857251"
+    "chatId": "6877857251",
+    "isConfigured": true
   },
   "emailSettings": {
     "defaultCC": "",
@@ -18,5 +14,5 @@
   "whatsapp": {
     "enabled": true
   },
-  "adminPassword": "sridhar@1975"
+  "notes": "Tested successfully"
 }

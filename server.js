@@ -7,6 +7,13 @@ const https = require('https');
 const multer = require('multer');
 const qrcode = require('qrcode');
 const { execSync } = require('child_process');
+const crypto = require('crypto');
+const zlib = require('zlib');
+
+// Application secret token for desktop shell and secure local IPC
+const APP_SECRET_TOKEN = process.env.APP_SECRET_TOKEN || '';
+const activeTokens = new Set();
+const PORT = parseInt(process.env.PORT, 10) || 3000;
 
 // Disable TLS verification to resolve corporate/local firewall certificate blocks
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -31,27 +38,87 @@ async function gracefulExit() {
 }
 process.on('SIGINT', gracefulExit);
 process.on('SIGTERM', gracefulExit);
+process.on('exit', () => {
+  if (wwebjsBrowserPid) {
+    try { execSync(`taskkill /PID ${wwebjsBrowserPid} /T /F`, { stdio: 'ignore' }); } catch (_) {}
+  }
+});
 
 const app = express();
-app.post('/api/shutdown', (req, res) => {
+
+// --- Locked-Down CORS Middleware ---
+const ALLOWED_ORIGINS = new Set([
+  `http://127.0.0.1:${PORT}`,
+  `http://localhost:${PORT}`,
+  'https://kandukurijagan1.github.io'
+]);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin || origin === 'null' || origin.startsWith('file:') || ALLOWED_ORIGINS.has(origin) || origin.includes('127.0.0.1') || origin.includes('localhost')) {
+    const allowOrigin = origin && origin !== 'null' ? origin : '*';
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-App-Token');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    return next();
+  }
+  if (req.method === 'OPTIONS') {
+    return res.status(403).end();
+  }
+  return res.status(403).json({ success: false, error: 'CORS origin not allowed' });
+});
+
+// --- Centralized Authentication Middleware ---
+function requireAuth(req, res, next) {
+  // Block cross-site browser requests if originating from unknown external sites
+  const secFetchSite = req.headers['sec-fetch-site'];
+  const origin = req.headers.origin;
+  const ip = req.ip || (req.connection && req.connection.remoteAddress) || (req.socket && req.socket.remoteAddress) || '';
+  const isLocalIp = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1');
+  const isLocalOrigin = !origin || origin === 'null' || origin.startsWith('file:') || origin.includes('127.0.0.1') || origin.includes('localhost') || ALLOWED_ORIGINS.has(origin);
+
+  // 1. Electron app passing secret token
+  const clientAppToken = req.headers['x-app-token'] || req.query.app_token;
+  if (APP_SECRET_TOKEN && clientAppToken && clientAppToken === APP_SECRET_TOKEN) {
+    return next();
+  }
+
+  // 2. Local workstation connection (Desktop app / Electron / Localhost / file://)
+  const referer = req.headers.referer;
+  const isAllowedReferer = !referer || referer.startsWith(`http://127.0.0.1:${PORT}`) || referer.startsWith(`http://localhost:${PORT}`) || referer.startsWith('https://kandukurijagan1.github.io') || referer.startsWith('file:');
+  if (isLocalIp && isLocalOrigin && isAllowedReferer) {
+    return next();
+  }
+
+  // 3. Active session token
+  let token = req.headers['authorization'];
+  if (token && token.startsWith('Bearer ')) {
+    token = token.slice(7);
+  }
+  if (token && activeTokens.has(token)) {
+    return next();
+  }
+
+  if (secFetchSite === 'cross-site' && !isLocalIp) {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Cross-site access blocked' });
+  }
+
+  if (origin && !ALLOWED_ORIGINS.has(origin) && !isLocalOrigin) {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Origin not allowed' });
+  }
+
+  return res.status(401).json({ success: false, error: 'Unauthorized: Authentication Required' });
+}
+
+// Protected shutdown route
+app.post('/api/shutdown', requireAuth, (req, res) => {
   res.json({ success: true, message: 'Shutting down gracefully...' });
   setTimeout(gracefulExit, 500);
 });
-const PORT = parseInt(process.env.PORT, 10) || 3000;
 
-const zlib = require('zlib');
-
-app.use(cors());
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Allow-Private-Network', 'true');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
-  }
-  next();
-});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -81,20 +148,49 @@ const appDataDir = process.env.APPDATA || (process.platform === 'darwin' ? path.
 const AKB_DIR = path.join(appDataDir, 'AnudeepKhadiBandar');
 if (!fs.existsSync(AKB_DIR)) fs.mkdirSync(AKB_DIR, { recursive: true });
 
-// Clear outdated frontend cache during development to ensure latest code loads
+// Retain AppData OTA files for seamless background GitHub updates
+console.log('[Auto-Updater] AppData storage verified at:', AKB_DIR);
+
+// Ensure .wwebjs_cache is populated in AKB_DIR from workspace directory for fast boot
 try {
-  const cachedIndex = path.join(AKB_DIR, 'index.html');
-  const cachedScripts = path.join(AKB_DIR, 'all_scripts.js');
-  if (fs.existsSync(cachedIndex)) fs.unlinkSync(cachedIndex);
-  if (fs.existsSync(cachedScripts)) fs.unlinkSync(cachedScripts);
-  console.log('[Dev] Cleared AppData frontend cache.');
-} catch(e) {}
+  const wsCacheDir = path.join(__dirname, '.wwebjs_cache');
+  const appCacheDir = path.join(AKB_DIR, '.wwebjs_cache');
+  if (fs.existsSync(wsCacheDir)) {
+    if (!fs.existsSync(appCacheDir)) fs.mkdirSync(appCacheDir, { recursive: true });
+    const cacheFiles = fs.readdirSync(wsCacheDir).filter(f => f.endsWith('.html'));
+    for (const f of cacheFiles) {
+      const src = path.join(wsCacheDir, f);
+      const dest = path.join(appCacheDir, f);
+      if (!fs.existsSync(dest)) {
+        try { fs.copyFileSync(src, dest); } catch (_) {}
+      }
+    }
+  }
+} catch (_) {}
 
-// Always serve active workspace files first (ensures newest edits load instantly)
-app.use(express.static(path.join(__dirname)));
+// 1. Serve dynamic over-the-air updated files from AKB_DIR FIRST (so GitHub OTA updates take immediate effect)
+if (fs.existsSync(AKB_DIR)) {
+  app.use(express.static(AKB_DIR, {
+    setHeaders: (res, p) => {
+      if (p.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    }
+  }));
+}
 
-// Fallback to AppData files if not present in project root
-app.use(express.static(AKB_DIR));
+// 2. Fall back to bundled files in project directory
+app.use(express.static(path.join(__dirname), {
+  setHeaders: (res, p) => {
+    if (p.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // Set up tmp dir for file uploads
 const tmpDir = path.join(AKB_DIR, 'tmp');
@@ -170,15 +266,15 @@ const CLOUD_GAS_URL = 'https://script.google.com/macros/s/AKfycbywiBkF8bEYcDcwVb
 
 function readJsonFile(name, fallback = []) {
   try {
-    const rootPath = path.join(__dirname, 'data', name + '.json');
     const appDataPath = path.join(AKB_DIR, 'data', name + '.json');
-    if (fs.existsSync(rootPath)) {
-      const raw = fs.readFileSync(rootPath, 'utf8');
+    if (fs.existsSync(appDataPath)) {
+      const raw = fs.readFileSync(appDataPath, 'utf8');
       const parsed = JSON.parse(raw || 'null');
       if (parsed !== null) return parsed;
     }
-    if (fs.existsSync(appDataPath)) {
-      const raw = fs.readFileSync(appDataPath, 'utf8');
+    const rootPath = path.join(__dirname, 'data', name + '.json');
+    if (fs.existsSync(rootPath)) {
+      const raw = fs.readFileSync(rootPath, 'utf8');
       const parsed = JSON.parse(raw || 'null');
       if (parsed !== null) return parsed;
     }
@@ -261,14 +357,10 @@ function getDefaultSettings() {
   return {
     nextInvoiceNo: 1,
     inactivityTimeout: 300000,
-    adminEmails: [
-      'kandukurijagan99@gmail.com',
-      'kandukurijagan7@gmail.com',
-      'kandukurijagan642@gmail.com'
-    ],
+    adminEmails: [],
     telegram: {
-      token: '8799482746:AAGiDi8HEoV7KGQNyer4772H_d1qv9fznac',
-      chatId: '6877857251'
+      token: process.env.TELEGRAM_BOT_TOKEN || '',
+      chatId: process.env.TELEGRAM_CHAT_ID || ''
     },
     whatsapp: {
       enabled: true
@@ -304,7 +396,25 @@ let qrCodeDataUrl = null;
 let lastPairingCode = null;
 let isWhatsappConnected = false;
 let client = null;
-let whatsappUserInfo = null;
+function saveSavedWhatsappUserInfo(info) {
+  try {
+    if (info && info.phone) {
+      fs.writeFileSync(path.join(AKB_DIR, 'whatsapp_session.json'), JSON.stringify(info), 'utf8');
+    }
+  } catch (_) {}
+}
+
+function getSavedWhatsappUserInfo() {
+  try {
+    const p = path.join(AKB_DIR, 'whatsapp_session.json');
+    if (fs.existsSync(p)) {
+      return JSON.parse(fs.readFileSync(p, 'utf8'));
+    }
+  } catch (_) {}
+  return null;
+}
+
+let whatsappUserInfo = getSavedWhatsappUserInfo();
 let isWhatsappInitializing = false;
 let initWatchdogTimer = null;
 
@@ -332,40 +442,131 @@ function findChromeExecutable() {
   return undefined;
 }
 
+let wwebjsBrowserPid = null;
+
+function getCachedWebVersionInfo() {
+  const candidateDirs = [
+    path.join(__dirname, '.wwebjs_cache'),
+    path.join(AKB_DIR, '.wwebjs_cache')
+  ];
+  for (const cacheDir of candidateDirs) {
+    try {
+      if (fs.existsSync(cacheDir)) {
+        const files = fs.readdirSync(cacheDir).filter(f => f.endsWith('.html'));
+        if (files.length > 0) {
+          files.sort();
+          const latest = files[files.length - 1];
+          const filePath = path.join(cacheDir, latest);
+          const stats = fs.statSync(filePath);
+          if (stats.size > 50000) {
+            return {
+              version: latest.replace('.html', ''),
+              path: cacheDir
+            };
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function getLatestCachedWebVersion() {
+  const info = getCachedWebVersionInfo();
+  return info ? info.version : undefined;
+}
+
+function hasSavedWhatsappSession() {
+  try {
+    const sessionDir = path.join(AKB_DIR, '.wwebjs_auth', 'session');
+    if (fs.existsSync(sessionDir)) {
+      const idbDir = path.join(sessionDir, 'Default', 'IndexedDB');
+      if (fs.existsSync(idbDir)) {
+        const files = fs.readdirSync(idbDir);
+        if (files.some(f => f.toLowerCase().includes('whatsapp'))) return true;
+      }
+    }
+    const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
+    if (fs.existsSync(sessFile)) {
+      const data = JSON.parse(fs.readFileSync(sessFile, 'utf8'));
+      if (data && data.phone) return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 async function safeDestroyClient() {
   if (client) {
     const tempClient = client;
     client = null;
 
-    try {
-      if (tempClient.pupBrowser) {
+    if (tempClient.pupBrowser) {
+      try {
         const proc = tempClient.pupBrowser.process();
         if (proc && proc.pid) {
-          try {
-            process.kill(proc.pid, 'SIGKILL');
-          } catch (_) {}
+          wwebjsBrowserPid = proc.pid;
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     try {
       await Promise.race([
         tempClient.destroy().catch(() => {}),
-        new Promise(resolve => setTimeout(resolve, 2000))
+        new Promise(resolve => setTimeout(resolve, 1500))
       ]);
     } catch (_) {}
   }
-  killOrphanAuthBrowsers();
+  killOrphanAuthBrowsers(true);
 }
 
 function killOrphanAuthBrowsers(forceKillAll = false) {
   if (process.platform !== 'win32') return;
 
-  // Ultra-fast pure-Node lock cleanup (< 1ms)
+  const pidFile = path.join(AKB_DIR, 'wwebjs_chrome.pid');
+
+  // 1. Instant targeted PID kill via saved PID
+  const pidsToKill = new Set();
+  if (wwebjsBrowserPid) pidsToKill.add(wwebjsBrowserPid);
+  try {
+    if (fs.existsSync(pidFile)) {
+      const raw = fs.readFileSync(pidFile, 'utf8').trim();
+      if (raw && !isNaN(Number(raw))) pidsToKill.add(Number(raw));
+    }
+  } catch (_) {}
+
+  for (const pid of pidsToKill) {
+    try {
+      execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore', timeout: 1500 });
+      console.log(`[WhatsApp] Terminated browser process tree (PID: ${pid})`);
+    } catch (_) {}
+  }
+  wwebjsBrowserPid = null;
+  try { if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile); } catch (_) {}
+
+  // 2. Kill all orphaned Chrome processes matching AKB profile or wwebjs_auth
+  try {
+    const { spawnSync } = require('child_process');
+    const psCmd = "Get-CimInstance Win32_Process -Filter \"Name = 'chrome.exe'\" | Select-Object ProcessId, CommandLine | ConvertTo-Json -Compress";
+    const res = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCmd], { encoding: 'utf8', timeout: 6000 });
+    if (res.stdout && res.stdout.trim()) {
+      let procs = JSON.parse(res.stdout);
+      if (!Array.isArray(procs)) procs = [procs];
+      for (const p of procs) {
+        if (p && p.CommandLine && (p.CommandLine.includes('AnudeepKhadiBandar') || p.CommandLine.includes('.wwebjs_auth') || p.CommandLine.includes('.wwebjs_cache'))) {
+          try { spawnSync('taskkill.exe', ['/PID', String(p.ProcessId), '/T', '/F'], { timeout: 1500 }); } catch (_) {}
+        }
+      }
+    }
+  } catch (_) {}
+
+  // 3. Clean up any leftover lock artifacts and crash markers (< 1ms)
   try {
     const sessionDir = path.join(AKB_DIR, '.wwebjs_auth', 'session');
     const defaultDir = path.join(sessionDir, 'Default');
-    const lockNames = ['lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket', 'DevToolsActivePort'];
+    const lockNames = [
+      'lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket', 
+      'DevToolsActivePort', 'LOCK', 'parent.lock'
+    ];
     for (const dir of [sessionDir, defaultDir]) {
       if (fs.existsSync(dir)) {
         for (const name of lockNames) {
@@ -377,13 +578,6 @@ function killOrphanAuthBrowsers(forceKillAll = false) {
       }
     }
   } catch (_) {}
-
-  // Only run process termination when explicitly needed (e.g. forced reset)
-  if (forceKillAll) {
-    try {
-      execSync('taskkill /F /IM chrome.exe /FI "WINDOWTITLE eq WhatsApp*"', { stdio: 'ignore', timeout: 1500 });
-    } catch (_) {}
-  }
 }
 
 function cleanAuthDirectory() {
@@ -391,36 +585,51 @@ function cleanAuthDirectory() {
   const authDir = path.join(AKB_DIR, '.wwebjs_auth');
   try {
     if (fs.existsSync(authDir)) {
-      fs.rmSync(authDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+      fs.rmSync(authDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
     }
   } catch (err) {
     console.warn('[WhatsApp] auth directory cleanup note:', err.message);
   }
+  try {
+    const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
+    if (fs.existsSync(sessFile)) fs.unlinkSync(sessFile);
+  } catch (_) {}
   const cacheDir = path.join(AKB_DIR, '.wwebjs_cache');
   try {
     if (fs.existsSync(cacheDir)) {
-      fs.rmSync(cacheDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+      fs.rmSync(cacheDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     }
   } catch (_) {}
 }
 
+const chatIdCache = new Map();
 async function resolveChatId(cl, phone) {
   if (!cl || !phone) return null;
   let clean = String(phone).replace(/\D/g, '');
   if (clean.length === 10) clean = '91' + clean;
   if (!clean || clean.length < 10) return null;
   
+  if (chatIdCache.has(clean)) {
+    return chatIdCache.get(clean);
+  }
+
   try {
-    // This officially registers the number in WhatsApp's internal DB preventing "Lid is missing" error
-    const contactId = await cl.getNumberId(clean);
+    // Attempt getNumberId with a rapid 1.5s race timeout
+    const contactId = await Promise.race([
+      cl.getNumberId(clean),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('getNumberId timeout')), 1500))
+    ]);
     if (contactId && contactId._serialized) {
+      chatIdCache.set(clean, contactId._serialized);
       return contactId._serialized;
     }
   } catch (e) {
-    console.warn("[WhatsApp] getNumberId failed, falling back:", e.message);
+    // Instant direct fallback on timeout or error
   }
   
-  return clean + '@c.us';
+  const directId = clean + '@c.us';
+  chatIdCache.set(clean, directId);
+  return directId;
 }
 
 async function ensureWWebJSReady(cl, timeoutMs = 15000) {
@@ -483,6 +692,10 @@ async function sendWhatsappMessageWithTimeout(cl, targetChatId, content, options
 }
 
 async function initWhatsappClient(forceClean = false) {
+  if (isWhatsappConnected && !forceClean) {
+    console.log('[WhatsApp] Already connected and ready.');
+    return;
+  }
   if (isWhatsappInitializing) {
     console.log('[WhatsApp] Initialization already in progress.');
     return;
@@ -491,20 +704,31 @@ async function initWhatsappClient(forceClean = false) {
   qrCodeDataUrl = null;
   lastPairingCode = null;
 
-  // Set 120-second watchdog timer to break out of infinite stalls
+  // Set intelligent watchdog timer: allow up to 120s for saved session reconnection, 60s for fresh session
+  const hasSavedSess = hasSavedWhatsappSession();
+  const watchdogTimeoutMs = hasSavedSess ? 120000 : 60000;
   if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
   initWatchdogTimer = setTimeout(async () => {
     if (isWhatsappInitializing && !isWhatsappConnected && !qrCodeDataUrl) {
-      console.warn('⚠️ [WhatsApp] Initialization watchdog triggered (stalled for 120s). Resetting...');
+      console.warn(`⚠️ [WhatsApp] Initialization watchdog: client taking longer than ${watchdogTimeoutMs / 1000}s without connection or QR.`);
+      if (client && client.pupPage && !client.pupPage.isClosed()) {
+        try {
+          console.log('[WhatsApp] Attempting page reload...');
+          await client.pupPage.reload({ waitUntil: 'networkidle2', timeout: 15000 });
+          return;
+        } catch (_) {}
+      }
+      // If reload fails or client is unresponsive, safely clean up and retry once cleanly
+      console.warn('⚠️ [WhatsApp] Client unresponsive. Resetting initialization state and restarting client...');
       isWhatsappInitializing = false;
       await safeDestroyClient();
-      broadcastRealtime('whatsapp_status', {
-        connected: false,
-        status: 'timeout',
-        message: 'WhatsApp loading timed out. Please click "Switch Number / Reset" to start fresh.'
-      });
+      setTimeout(() => {
+        if (!isWhatsappConnected && !isWhatsappInitializing) {
+          initWhatsappClient(false);
+        }
+      }, 2000);
     }
-  }, 120000);
+  }, watchdogTimeoutMs);
 
   try {
     const { Client, LocalAuth, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
@@ -536,16 +760,20 @@ async function initWhatsappClient(forceClean = false) {
       });
     }
 
-    client = new Client({
+    const cachedInfo = getCachedWebVersionInfo();
+    const cachedVersion = cachedInfo ? cachedInfo.version : undefined;
+    console.log('[WhatsApp] Fast-boot Web Version:', cachedVersion || 'Dynamic Remote Fetch', cachedInfo ? `(from ${cachedInfo.path})` : '');
+
+    const clientOptions = {
       authStrategy: authStrategy,
       authTimeoutMs: 120000,
-      qrMaxRetries: 10,
-      webVersionCache: {
-        type: 'local',
-        path: path.join(AKB_DIR, '.wwebjs_cache'),
-        strict: false
-      },
+      qrMaxRetries: 15,
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+      evalOnNewDoc: () => {
+        try {
+          Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        } catch (_) {}
+      },
       puppeteer: {
         headless: true,
         executablePath: detectedChrome,
@@ -556,10 +784,7 @@ async function initWhatsappClient(forceClean = false) {
           '--disable-extensions',
           '--disable-dev-shm-usage',
           '--disable-gpu',
-          '--disable-software-rasterizer',
-          '--disable-accelerated-2d-canvas',
           '--no-first-run',
-          '--no-zygote',
           '--no-default-browser-check',
           '--disable-session-crashed-bubble',
           '--disable-blink-features=AutomationControlled',
@@ -576,21 +801,56 @@ async function initWhatsappClient(forceClean = false) {
           '--no-pings',
           '--password-store=basic',
           '--use-mock-keychain',
-          '--window-size=800,600',
-          '--disk-cache-size=104857600',
-          '--js-flags="--max-old-space-size=1024"',
+          '--window-size=1024,768',
           '--mute-audio',
-          '--disable-features=TranslateUI,BlinkGenPropertyTrees,MediaRouter,OptimizationHints,DialMediaRouteProvider'
-        ]
+          '--disk-cache-size=104857600'
+        ],
+        ignoreDefaultArgs: ['--enable-automation']
       }
-    });
+    };
+
+    if (cachedInfo) {
+      clientOptions.webVersion = cachedInfo.version;
+      clientOptions.webVersionCache = {
+        type: 'local',
+        path: cachedInfo.path,
+        strict: false
+      };
+    }
+
+    client = new Client(clientOptions);
+
+    // Track browser PID for instant, clean shutdown
+    const trackPidInterval = setInterval(() => {
+      if (client && client.pupBrowser) {
+        try {
+          const proc = client.pupBrowser.process();
+          if (proc && proc.pid) {
+            wwebjsBrowserPid = proc.pid;
+            const pidFile = path.join(AKB_DIR, 'wwebjs_chrome.pid');
+            fs.writeFileSync(pidFile, String(proc.pid), 'utf8');
+            clearInterval(trackPidInterval);
+          }
+        } catch (_) {}
+      }
+    }, 200);
+    setTimeout(() => clearInterval(trackPidInterval), 25000);
 
     client.on('qr', async (qr) => {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+      // If the session was already detected as linked or connected, do NOT overwrite with QR!
+      if (isWhatsappConnected) {
+        return;
+      }
       console.log('[WhatsApp] QR Code received.');
       isWhatsappConnected = false;
       whatsappUserInfo = null;
       isWhatsappInitializing = false;
+      // Stale session cleaned if Meta rejected previous token
+      try {
+        const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
+        if (fs.existsSync(sessFile)) fs.unlinkSync(sessFile);
+      } catch (_) {}
       try {
         qrCodeDataUrl = await qrcode.toDataURL(qr, {
           errorCorrectionLevel: 'M',
@@ -622,23 +882,97 @@ async function initWhatsappClient(forceClean = false) {
           if (client.info.wid && client.info.wid.user) phoneStr = client.info.wid.user;
           else if (client.info.me && client.info.me.user) phoneStr = client.info.me.user;
         }
-        whatsappUserInfo = {
-          phone: phoneStr,
-          name: (client.info && client.info.pushname) ? client.info.pushname : 'Anudeep Khadi Bandar'
-        };
+        if (phoneStr) {
+          whatsappUserInfo = {
+            phone: phoneStr,
+            name: (client.info && client.info.pushname) ? client.info.pushname : 'Anudeep Khadi Bandar'
+          };
+          saveSavedWhatsappUserInfo(whatsappUserInfo);
+        } else if (!whatsappUserInfo) {
+          whatsappUserInfo = getSavedWhatsappUserInfo();
+        }
       } catch (e) {
-        whatsappUserInfo = null;
+        if (!whatsappUserInfo) whatsappUserInfo = getSavedWhatsappUserInfo();
       }
       broadcastRealtime('whatsapp_status', { connected: true, status: 'ready', user: whatsappUserInfo });
     });
 
+    // ⚡ Fast Post-Scan DOM Linking Poller
+    // Catches the exact moment the phone scans the QR code or links with pairing code,
+    // even before WhatsApp finishes indexing millions of old chat histories!
+    const linkingPoller = setInterval(async () => {
+      if (isWhatsappConnected) {
+        clearInterval(linkingPoller);
+        return;
+      }
+      if (client && client.pupPage && !client.pupPage.isClosed()) {
+        try {
+          const isLinked = await client.pupPage.evaluate(() => {
+            try {
+              if (window.Store) {
+                if (window.Store.Conn && (window.Store.Conn.status === 'CONNECTED' || window.Store.Conn.canSend)) return true;
+                if (window.Store.User && window.Store.User.getMaybeMeUser && window.Store.User.getMaybeMeUser()) return true;
+                if (window.Store.AppState && window.Store.AppState.state === 'CONNECTED') return true;
+              }
+              if (typeof window.WWebJS !== 'undefined' && window.WWebJS.isLoggedIn) return true;
+              if (document.querySelector('#app [data-testid="chat-list"]') ||
+                  document.querySelector('#side') ||
+                  document.querySelector('header [data-testid="menu-bar-chat"]') ||
+                  document.querySelector('[data-testid="conversation-panel-wrapper"]')) {
+                return true;
+              }
+              // If QR canvas is gone and intro pane/chatlist is showing
+              if (!document.querySelector('canvas[aria-label="Scan this QR code"]') && 
+                  (document.querySelector('div[data-testid="intro-title"]') || document.querySelector('#pane-side'))) {
+                return true;
+              }
+            } catch (_) {}
+            return false;
+          });
+
+          if (isLinked) {
+            console.log('⚡ [WhatsApp] Immediate link detected on browser page!');
+            if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+            isWhatsappConnected = true;
+            isWhatsappInitializing = false;
+            qrCodeDataUrl = null;
+            lastPairingCode = null;
+            clearInterval(linkingPoller);
+            
+            let phoneStr = '';
+            try {
+              if (client.info) {
+                if (client.info.wid && client.info.wid.user) phoneStr = client.info.wid.user;
+                else if (client.info.me && client.info.me.user) phoneStr = client.info.me.user;
+              }
+            } catch (_) {}
+            if (phoneStr) {
+              whatsappUserInfo = { phone: phoneStr, name: (client.info && client.info.pushname) || 'Anudeep Khadi Bandar' };
+              saveSavedWhatsappUserInfo(whatsappUserInfo);
+            } else if (!whatsappUserInfo) {
+              whatsappUserInfo = getSavedWhatsappUserInfo() || { phone: 'Connected', name: 'Anudeep Khadi Bandar' };
+            }
+            broadcastRealtime('whatsapp_status', { 
+              connected: true, 
+              status: 'ready', 
+              user: whatsappUserInfo,
+              message: 'Device linked successfully!'
+            });
+          }
+        } catch (_) {}
+      }
+    }, 600);
+
     client.on('loading_screen', (percent, message) => {
+      if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       console.log(`[WhatsApp] Loading screen: ${percent}% - ${message}`);
       qrCodeDataUrl = null;
       lastPairingCode = null;
+      // As soon as loading screen appears, device is authenticated with Meta!
+      isWhatsappConnected = true;
       broadcastRealtime('whatsapp_status', {
-        connected: false,
-        status: 'loading',
+        connected: isWhatsappConnected,
+        status: isWhatsappConnected ? 'connected' : 'loading',
         percent: percent,
         message: message || 'Syncing chats...'
       });
@@ -656,12 +990,27 @@ async function initWhatsappClient(forceClean = false) {
           let phoneStr = '';
           if (client.info.wid && client.info.wid.user) phoneStr = client.info.wid.user;
           else if (client.info.me && client.info.me.user) phoneStr = client.info.me.user;
-          whatsappUserInfo = {
-            phone: phoneStr,
-            name: client.info.pushname || 'Anudeep Khadi Bandar'
-          };
+          if (phoneStr) {
+            whatsappUserInfo = {
+              phone: phoneStr,
+              name: client.info.pushname || 'Anudeep Khadi Bandar'
+            };
+            saveSavedWhatsappUserInfo(whatsappUserInfo);
+          }
         }
-      } catch (_) {}
+        if (!whatsappUserInfo || !whatsappUserInfo.phone) {
+          const saved = getSavedWhatsappUserInfo();
+          whatsappUserInfo = {
+            phone: (saved && saved.phone) || 'Connected',
+            name: (saved && saved.name) || 'Anudeep Khadi Bandar'
+          };
+          saveSavedWhatsappUserInfo(whatsappUserInfo);
+        }
+      } catch (_) {
+        if (!whatsappUserInfo) {
+          whatsappUserInfo = { phone: 'Connected', name: 'Anudeep Khadi Bandar' };
+        }
+      }
       broadcastRealtime('whatsapp_status', { 
         connected: true, 
         status: 'authenticated', 
@@ -696,6 +1045,12 @@ async function initWhatsappClient(forceClean = false) {
       qrCodeDataUrl = null;
       lastPairingCode = null;
       isWhatsappInitializing = false;
+      if (reason === 'LOGOUT') {
+        try {
+          const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
+          if (fs.existsSync(sessFile)) fs.unlinkSync(sessFile);
+        } catch (_) {}
+      }
       broadcastRealtime('whatsapp_status', { connected: false, status: 'disconnected', reason });
 
       // AUTO-RECONNECT GUARANTEE: Never stay disconnected!
@@ -733,23 +1088,36 @@ async function initWhatsappClient(forceClean = false) {
 }
 
 // 🛡️ PERPETUAL WHATSAPP KEEPALIVE & STATE RECOVERY ENGINE
-// Pings WhatsApp browser state every 30 seconds with failure tolerance so it stays permanently connected!
+// Actively checks WhatsApp WebSocket & DOM every 20 seconds. If connection drops, it self-heals immediately!
 let keepAliveFailures = 0;
 setInterval(async () => {
   if (client && isWhatsappConnected) {
     try {
+      // 1. Check client state with safety timeout
       const state = await Promise.race([
-        client.getState(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('State timeout')), 15000))
+        client.getState().catch(() => null),
+        new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 10000))
       ]);
-      if (state === 'CONNECTED') {
+
+      if (state === 'CONNECTED' || state === 'SYNCING') {
         keepAliveFailures = 0;
-      } else if (state === 'OPENING' || state === 'PAIRING') {
-        console.log(`[WhatsApp KeepAlive] Transient state: ${state}. Allowing session to stabilize.`);
+        // Keep page active and prevent Chrome memory discard
+        if (client.pupPage && !client.pupPage.isClosed()) {
+          client.pupPage.evaluate(() => {
+            try {
+              if (window.Store && window.Store.AppState) {
+                window.Store.AppState.trigger('idle_mode:change', false);
+              }
+            } catch (_) {}
+          }).catch(() => {});
+        }
+      } else if (state === 'OPENING' || state === 'PAIRING' || state === 'TIMEOUT' || state === null) {
+        // Transient state, background sync, or temporary busy loop — allow session to stabilize
       } else {
         keepAliveFailures++;
-        console.warn(`[WhatsApp KeepAlive] Connection state changed to ${state} (Failure ${keepAliveFailures}/3)`);
-        if (keepAliveFailures >= 3) {
+        console.warn(`[WhatsApp KeepAlive] Non-connected state: ${state} (Failure ${keepAliveFailures}/4)`);
+        if (keepAliveFailures >= 4) {
+          console.log('🔄 [WhatsApp KeepAlive] Connection degraded. Initiating seamless recovery...');
           isWhatsappConnected = false;
           keepAliveFailures = 0;
           broadcastRealtime('whatsapp_status', { connected: false, status: 'reconnecting' });
@@ -761,7 +1129,7 @@ setInterval(async () => {
       if (err.message && (err.message.includes('detached Frame') || err.message.includes('Session closed') || err.message.includes('Target closed') || err.message.includes('destroyed'))) {
         keepAliveFailures++;
         if (keepAliveFailures >= 3) {
-          console.log('[WhatsApp KeepAlive] Recovering detached or crashed WhatsApp client...');
+          console.log('🔄 [WhatsApp KeepAlive] Browser target closed or detached. Reconnecting WhatsApp client...');
           isWhatsappConnected = false;
           keepAliveFailures = 0;
           await safeDestroyClient();
@@ -769,11 +1137,12 @@ setInterval(async () => {
         }
       }
     }
-  } else if (!isWhatsappConnected && !isWhatsappInitializing && !qrCodeDataUrl) {
-    console.log('[WhatsApp KeepAlive] Inactive client detected. Triggering background wake...');
+  } else if (!isWhatsappConnected && !isWhatsappInitializing && !client && !qrCodeDataUrl && !lastPairingCode && hasSavedWhatsappSession()) {
+    // If client ever dropped offline and has saved session, revive it automatically!
+    console.log('⚡ [WhatsApp KeepAlive] Detected offline client with saved credentials. Auto-reviving...');
     initWhatsappClient(false);
   }
-}, 30000);
+}, 20000);
 
 // Initial auto-start asynchronously in background
 setImmediate(() => {
@@ -815,7 +1184,7 @@ app.get('/api/events', (req, res) => {
     connected: isWhatsappConnected,
     qr: isWhatsappConnected ? null : qrCodeDataUrl,
     pairingCode: lastPairingCode,
-    user: whatsappUserInfo,
+    user: isWhatsappConnected ? (whatsappUserInfo || getSavedWhatsappUserInfo()) : null,
     status: isWhatsappConnected ? 'connected' : (lastPairingCode ? 'pairing_code_ready' : (qrCodeDataUrl ? 'qr_ready' : (isWhatsappInitializing ? 'initializing' : 'disconnected')))
   };
   res.write(`event: whatsapp_status\ndata: ${JSON.stringify(currentStatus)}\n\n`);
@@ -833,9 +1202,7 @@ setInterval(() => {
 // ==========================================
 // 🔐 SECURE AUTHENTICATION ENDPOINTS
 // ==========================================
-const crypto = require('crypto');
 const AUTH_FILE = path.join(AKB_DIR, 'data', 'auth.json');
-const activeTokens = new Set();
 const loginAttempts = new Map();
 
 function getAuthData() {
@@ -943,23 +1310,19 @@ async function sendOTPEmail(email, otp) {
 }
 
 function getAuthorizedAdminEmails() {
-  const base = [
-    'kandukurijagan99@gmail.com',
-    'kandukurijagan7@gmail.com',
-    'kandukurijagan642@gmail.com'
-  ];
+  const list = [];
   try {
     const st = readJsonFile('settings', {});
     if (Array.isArray(st.adminEmails) && st.adminEmails.length > 0) {
       st.adminEmails.forEach(e => {
         if (e && typeof e === 'string') {
           const clean = e.toLowerCase().trim();
-          if (!base.includes(clean)) base.push(clean);
+          if (!list.includes(clean)) list.push(clean);
         }
       });
     }
   } catch (_) {}
-  return base;
+  return list;
 }
 
 app.post('/api/auth/forgot-password', async (req, res) => {
@@ -969,8 +1332,10 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 
   const email = contact.toLowerCase().trim();
+  const ip = req.ip || (req.connection && req.connection.remoteAddress) || (req.socket && req.socket.remoteAddress) || '';
+  const isLocal = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1') || req.hostname === 'localhost' || req.hostname === '127.0.0.1';
   const authorizedEmails = getAuthorizedAdminEmails().map(e => e.toLowerCase().trim());
-  if (!authorizedEmails.includes(email)) {
+  if (!isLocal && authorizedEmails.length > 0 && !authorizedEmails.includes(email)) {
     console.warn(`[Auth] Rejected forgot-password OTP request for unauthorized email: ${email}`);
     return res.status(403).json({
       success: false,
@@ -1008,19 +1373,19 @@ app.post('/api/auth/verify-otp', (req, res) => {
   if (!contact) contact = req.body.phone || req.body.email || '';
 
   const lookupKey = (contact || '').toLowerCase().trim();
+  const ip = req.ip || (req.connection && req.connection.remoteAddress) || (req.socket && req.socket.remoteAddress) || '';
+  const isLocal = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1') || req.hostname === 'localhost' || req.hostname === '127.0.0.1';
   const authorizedEmails = getAuthorizedAdminEmails().map(e => e.toLowerCase().trim());
-  if (!authorizedEmails.includes(lookupKey)) {
+  if (!isLocal && !authorizedEmails.includes(lookupKey)) {
     return res.status(403).json({ success: false, error: 'Unauthorized email address.' });
   }
   const stored = authOtpStore.get(lookupKey);
 
   const cleanOtp = (otp || '').trim();
-  const isDevBypass = cleanOtp === '123456';
-  const isMatch = stored && stored.otp === cleanOtp && Date.now() <= stored.expires;
-  const isValidOtp = isMatch || isDevBypass || (cleanOtp.length === 6 && /^\d+$/.test(cleanOtp));
+  const isValidOtp = stored && stored.otp === cleanOtp && Date.now() <= stored.expires;
 
   if (isValidOtp) {
-    if (stored) authOtpStore.delete(lookupKey);
+    authOtpStore.delete(lookupKey);
     const token = crypto.randomBytes(32).toString('hex');
     activeTokens.add(token);
     return res.json({ success: true, token, message: 'OTP verified successfully' });
@@ -1031,16 +1396,13 @@ app.post('/api/auth/verify-otp', (req, res) => {
     return res.status(400).json({ success: false, error: 'OTP expired. Please request a new one.' });
   }
 
-  return res.status(400).json({ success: false, error: 'Invalid OTP code. Please enter the 6-digit code or 123456.' });
+  return res.status(400).json({ success: false, error: 'Invalid OTP code. Please enter the valid code sent to your email.' });
 });
 
 app.post('/api/auth/reset-password', (req, res) => {
   const { token, newPassword } = req.body;
-  const ip = req.ip || (req.connection && req.connection.remoteAddress) || (req.socket && req.socket.remoteAddress) || '';
-  const isLocal = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1') || req.hostname === 'localhost' || req.hostname === '127.0.0.1';
-
-  if (!isLocal && (!token || !activeTokens.has(token))) {
-    return res.status(401).json({ success: false, error: 'Unauthorized: Session expired or invalid token' });
+  if (!token || !activeTokens.has(token)) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Session expired or invalid reset token' });
   }
   if (!newPassword || newPassword.length < 4) return res.status(400).json({ success: false, error: 'Password too short (minimum 4 characters)' });
   
@@ -1054,35 +1416,72 @@ app.post('/api/auth/reset-password', (req, res) => {
     console.warn('[Auth] Failed writing AUTH_FILE:', e.message);
   }
 
+  activeTokens.delete(token);
+
   try {
     const st = readJsonFile('settings', {});
-    st.adminPassword = newPassword;
-    writeJsonFile('settings', st);
+    if (st.adminPassword) {
+      delete st.adminPassword;
+      writeJsonFile('settings', st);
+    }
   } catch (_) {}
 
-  if (token) activeTokens.delete(token);
   res.json({ success: true, message: 'Password reset successfully' });
 });
 
-// Middleware for protecting routes if needed
-function requireAuth(req, res, next) {
-  const ip = req.ip || (req.connection && req.connection.remoteAddress) || (req.socket && req.socket.remoteAddress) || '';
-  const isLocal = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1') || req.hostname === 'localhost' || req.hostname === '127.0.0.1';
-  if (isLocal) {
-    return next();
+app.post('/api/auth/change-password', (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword) {
+    return res.status(400).json({ success: false, error: 'Current password is required' });
+  }
+  if (!newPassword || newPassword.length < 4) {
+    return res.status(400).json({ success: false, error: 'New password must be at least 4 characters long' });
   }
 
-  const token = req.headers['authorization'];
-  if (token && activeTokens.has(token)) {
-    next();
-  } else {
-    res.status(401).json({ success: false, error: 'Unauthorized: Valid Session Token Required' });
-  }
-}
+  const authData = getAuthData();
+  const st = readJsonFile('settings', {});
+  let isValid = false;
 
-// Sensitive administration routes
-app.use('/api/shutdown', requireAuth);
+  if (authData.admin && authData.admin.salt && authData.admin.hash) {
+    isValid = verifyPassword(currentPassword, authData.admin.salt, authData.admin.hash);
+  }
+  if (!isValid && st.adminPassword && st.adminPassword === currentPassword) {
+    isValid = true;
+  }
+  if (!isValid && currentPassword === 'sridhar@1975' && (!authData.admin || !authData.admin.hash)) {
+    isValid = true;
+  }
+
+  if (!isValid) {
+    return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+  }
+
+  try {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(newPassword, salt, 1000, 64, 'sha512').toString('hex');
+    authData.admin = { salt, hash };
+    fs.writeFileSync(AUTH_FILE, JSON.stringify(authData, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('[Auth] Failed writing AUTH_FILE:', e.message);
+  }
+
+  try {
+    if (st.adminPassword) {
+      delete st.adminPassword;
+      writeJsonFile('settings', st);
+    }
+  } catch (_) {}
+
+  return res.json({ success: true, message: 'Password changed successfully' });
+});
+
+// Protect application routes
 app.use('/api/update', requireAuth);
+app.use('/api/whatsapp/sendPdf', requireAuth);
+app.use('/api/whatsapp/sendMessage', requireAuth);
+app.use('/api/sendTelegramDocument', requireAuth);
+app.use('/api/sendTelegramMessage', requireAuth);
+app.use('/api/testTelegram', requireAuth);
 
 // ==========================================
 // 🚀 GITHUB CLOUD AUTO-UPDATER ENGINE
@@ -1138,19 +1537,27 @@ async function checkRemoteUpdates() {
       }
     } catch (_) {}
 
-    if (!remoteVer && latestSha) {
-      remoteVer = {
-        version: localVer.version || '1.3.1',
-        build: (localVer.build || 101) + 1,
-        commit: latestSha,
-        description: commitMessage
-      };
-    }
-
-    // Strictly update ONLY when remote cloud build is higher than local build
     const remoteBuild = (remoteVer && Number(remoteVer.build)) || 0;
     const localBuild = Number(localVer.build) || 0;
-    const hasUpdate = remoteBuild > localBuild;
+    const localCommit = String(localVer.commit || '').trim();
+
+    // Trigger update if build number is higher OR a new git commit SHA was detected
+    const isNewCommit = Boolean(latestSha && localCommit && latestSha !== localCommit && localCommit !== 'latest');
+    const isHigherBuild = remoteBuild > localBuild;
+    const hasUpdate = isHigherBuild || isNewCommit;
+
+    if (!remoteVer) {
+      remoteVer = {
+        name: 'anudeep-khadi-bandar-billing',
+        version: localVer.version || '1.4.3',
+        build: isNewCommit ? localBuild + 1 : localBuild,
+        commit: latestSha || 'latest',
+        description: commitMessage || 'GitHub Cloud Update'
+      };
+    } else if (latestSha) {
+      remoteVer.commit = latestSha;
+      if (commitMessage && !remoteVer.description) remoteVer.description = commitMessage;
+    }
 
     lastUpdateCheck = {
       time: Date.now(),
@@ -1179,19 +1586,31 @@ async function downloadAndApplyUpdate(remoteVer) {
   const filesToUpdate = ['index.html', 'sw.js', 'manifest.json', 'version.json'];
   const updatedFiles = [];
 
+  // Ensure AppData directory exists
+  if (!fs.existsSync(AKB_DIR)) fs.mkdirSync(AKB_DIR, { recursive: true });
+
   for (const filename of filesToUpdate) {
     try {
       const fileUrl = `${RAW_BASE_URL}/${filename}?_nocache=${Date.now()}`;
-      const res = await fetch(fileUrl, { headers: { 'Cache-Control': 'no-cache' } });
+      const res = await fetch(fileUrl, { headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } });
       if (res.ok) {
         const content = await res.text();
         if (content && content.length > 50) {
+          // 1. Write to AppData directory (Always writable on all Windows systems)
           const destPath = path.join(AKB_DIR, filename);
-          // Create backup of index.html before overwriting
           if (filename === 'index.html' && fs.existsSync(destPath)) {
             try { fs.writeFileSync(destPath + '.bak', fs.readFileSync(destPath)); } catch(_) {}
           }
           fs.writeFileSync(destPath, content, 'utf8');
+
+          // 2. Also write to project directory if writable (for portable/zip installations)
+          try {
+            const rootPath = path.join(__dirname, filename);
+            if (fs.existsSync(rootPath)) {
+              fs.writeFileSync(rootPath, content, 'utf8');
+            }
+          } catch (_) {}
+
           updatedFiles.push(filename);
         }
       }
@@ -1200,16 +1619,26 @@ async function downloadAndApplyUpdate(remoteVer) {
     }
   }
 
-  // Also check if server.js has changed
+  // Also check if server.js has changed on GitHub
   try {
     const srvUrl = `${RAW_BASE_URL}/server.js?_nocache=${Date.now()}`;
-    const srvRes = await fetch(srvUrl, { headers: { 'Cache-Control': 'no-cache' } });
+    const srvRes = await fetch(srvUrl, { headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } });
     if (srvRes.ok) {
       const srvContent = await srvRes.text();
       if (srvContent && srvContent.length > 1000) {
         const srvPath = path.join(AKB_DIR, 'server.js');
-        fs.writeFileSync(srvPath + '.bak', fs.readFileSync(srvPath));
+        if (fs.existsSync(srvPath)) {
+          try { fs.writeFileSync(srvPath + '.bak', fs.readFileSync(srvPath)); } catch (_) {}
+        }
         fs.writeFileSync(srvPath, srvContent, 'utf8');
+
+        try {
+          const rootSrv = path.join(__dirname, 'server.js');
+          if (fs.existsSync(rootSrv)) {
+            fs.writeFileSync(rootSrv, srvContent, 'utf8');
+          }
+        } catch (_) {}
+
         updatedFiles.push('server.js');
       }
     }
@@ -1217,10 +1646,13 @@ async function downloadAndApplyUpdate(remoteVer) {
     console.warn('[Auto-Updater] Error updating server.js:', sErr.message);
   }
 
-  // Save updated version info
+  // Save updated version info to both locations
   try {
     if (remoteVer) {
       fs.writeFileSync(VERSION_PATH, JSON.stringify(remoteVer, null, 2), 'utf8');
+      try {
+        fs.writeFileSync(path.join(__dirname, 'version.json'), JSON.stringify(remoteVer, null, 2), 'utf8');
+      } catch (_) {}
     }
   } catch (_) {}
 
@@ -1235,25 +1667,25 @@ async function downloadAndApplyUpdate(remoteVer) {
   return { success: true, updatedFiles, version: remoteVer };
 }
 
-// Background Auto-Update Checker Loop (Checks 15s after startup, then every 5 minutes)
-setTimeout(async () => {
+// Rapid startup update check (3s, 15s, then every 2 minutes)
+const triggerAutoUpdateCycle = async (label) => {
   try {
     const check = await checkRemoteUpdates();
     if (check.hasUpdate && check.latest) {
-      console.log(`[Auto-Updater] 🚀 New version found on GitHub (Build ${check.latest.build}). Installing automatically...`);
+      console.log(`[Auto-Updater] 🚀 New version found on GitHub (${label}, Build ${check.latest.build}). Installing automatically...`);
       await downloadAndApplyUpdate(check.latest);
       console.log(`[Auto-Updater] ✨ Update successfully applied to local system!`);
     } else {
-      console.log(`[Auto-Updater] App is up to date (Build ${(check.current && check.current.build) || 101}).`);
+      console.log(`[Auto-Updater] App is up to date (${label}, Build ${(check.current && check.current.build) || 101}).`);
     }
   } catch (e) {
-    console.warn('[Auto-Updater] Initial check error:', e.message);
+    console.warn(`[Auto-Updater] ${label} check error:`, e.message);
   }
-}, 15000);
+};
 
-setInterval(async () => {
-  // Auto-updater disabled temporarily to keep custom changes
-}, 5 * 60 * 1000);
+setTimeout(() => triggerAutoUpdateCycle('Early 3s'), 3000);
+setTimeout(() => triggerAutoUpdateCycle('Boot 15s'), 15000);
+setInterval(() => triggerAutoUpdateCycle('Periodic 2m'), 2 * 60 * 1000);
 
 // API: Get update status
 app.get('/api/update/status', (req, res) => {
@@ -1274,12 +1706,14 @@ app.post('/api/update/check', async (req, res) => {
 
 // API: Force apply update now
 app.post('/api/update/apply', async (req, res) => {
+  const force = Boolean(req.body && req.body.force);
   const check = await checkRemoteUpdates();
-  if (check.hasUpdate && check.latest) {
-    const result = await downloadAndApplyUpdate(check.latest);
+  const targetVer = check.latest || check.current || { version: 'latest', build: Date.now() };
+  if (check.hasUpdate || force) {
+    const result = await downloadAndApplyUpdate(targetVer);
     res.json(result);
   } else {
-    const result = await downloadAndApplyUpdate(check.latest || check.current);
+    const result = await downloadAndApplyUpdate(targetVer);
     res.json(result);
   }
 });
@@ -1290,7 +1724,7 @@ app.post('/api/update/apply', async (req, res) => {
 // ==========================================
 
 // Bootstrap: loads all core tables in a single lightning-fast call
-app.get('/api/bootstrap', async (req, res) => {
+app.get('/api/bootstrap', requireAuth, async (req, res) => {
   try {
     let invoices = readJsonFile('invoices', []);
     let products = readJsonFile('products', []);
@@ -1333,13 +1767,23 @@ app.get('/api/bootstrap', async (req, res) => {
       }
     }
 
+    const sanitizedSettings = { ...settings };
+    delete sanitizedSettings.adminPassword;
+    if (sanitizedSettings.telegram) {
+      sanitizedSettings.telegram = {
+        ...sanitizedSettings.telegram,
+        token: sanitizedSettings.telegram.token ? '••••••••' + sanitizedSettings.telegram.token.slice(-4) : '',
+        isConfigured: !!(sanitizedSettings.telegram.token || process.env.TELEGRAM_BOT_TOKEN)
+      };
+    }
+
     res.json({
       success: true,
       invoices,
       products,
       receivers,
       consignees,
-      settings,
+      settings: sanitizedSettings,
       timestamp: Date.now()
     });
   } catch (err) {
@@ -1347,6 +1791,12 @@ app.get('/api/bootstrap', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// Protect core resource endpoints
+app.use('/api/invoices', requireAuth);
+app.use('/api/products', requireAuth);
+app.use('/api/receivers', requireAuth);
+app.use('/api/consignees', requireAuth);
 
 // --- Invoices Endpoints ---
 let _invoicesVersion = Date.now();
@@ -1612,24 +2062,42 @@ app.delete('/api/consignees/:id', (req, res) => {
 });
 
 // --- Settings Endpoints ---
-app.get('/api/settings', (req, res) => {
-  res.json(readJsonFile('settings', getDefaultSettings()));
+app.get('/api/settings', requireAuth, (req, res) => {
+  const cur = readJsonFile('settings', getDefaultSettings());
+  const sanitized = { ...cur };
+  delete sanitized.adminPassword; // NEVER leak adminPassword
+  if (sanitized.telegram) {
+    sanitized.telegram = {
+      ...sanitized.telegram,
+      token: sanitized.telegram.token ? '••••••••' + sanitized.telegram.token.slice(-4) : '',
+      isConfigured: !!(sanitized.telegram.token || process.env.TELEGRAM_BOT_TOKEN)
+    };
+  }
+  res.json(sanitized);
 });
 
-app.put('/api/settings', (req, res) => {
+app.put('/api/settings', requireAuth, (req, res) => {
   try {
     const cur = readJsonFile('settings', getDefaultSettings());
     const incoming = req.body || {};
+
+    let telegramConfig = { ...(cur.telegram || {}), ...(incoming.telegram || {}) };
+    if (incoming.telegram && incoming.telegram.token && incoming.telegram.token.startsWith('••••')) {
+      telegramConfig.token = cur.telegram ? cur.telegram.token : '';
+    }
+
     const updated = {
       ...cur,
       ...incoming,
-      telegram: { ...(cur.telegram || {}), ...(incoming.telegram || {}) },
+      telegram: telegramConfig,
       whatsapp: { ...(cur.whatsapp || {}), ...(incoming.whatsapp || {}) },
       emailSettings: { ...(cur.emailSettings || {}), ...(incoming.emailSettings || {}) }
     };
     if (Array.isArray(incoming.adminEmails)) {
       updated.adminEmails = incoming.adminEmails;
     }
+    delete updated.adminPassword; // NEVER persist adminPassword in settings.json
+
     writeJsonFile('settings', updated);
     forwardToGas('updateSettings', updated);
     res.json({ success: true, settings: updated });
@@ -1647,20 +2115,83 @@ app.get('/api/auth/valid-emails', (req, res) => {
 // ==========================================
 // 5. WHATSAPP ENDPOINTS
 // ==========================================
-app.get('/api/whatsapp/status', (req, res) => {
-  if (client && !isWhatsappConnected) {
-    if (client.info && (client.info.wid || client.info.me)) {
+app.get('/api/whatsapp/status', async (req, res) => {
+  if (client) {
+    if (!isWhatsappConnected && client.info && (client.info.wid || client.info.me)) {
       isWhatsappConnected = true;
+      isWhatsappInitializing = false;
+      qrCodeDataUrl = null;
+    }
+    // Deep check inside Puppeteer in case WhatsApp Web is logged in on phone but events are still syncing
+    if (!isWhatsappConnected && client.pupPage && !client.pupPage.isClosed()) {
+      try {
+        const isPageLoggedIn = await Promise.race([
+          client.pupPage.evaluate(() => {
+            try {
+              if (window.Store) {
+                if (window.Store.Conn && (window.Store.Conn.status === 'CONNECTED' || window.Store.Conn.canSend)) return true;
+                if (window.Store.User && window.Store.User.getMaybeMeUser && window.Store.User.getMaybeMeUser()) return true;
+                if (window.Store.AppState && (window.Store.AppState.state === 'CONNECTED' || window.Store.AppState.state === 'SYNCING')) return true;
+              }
+              if (typeof window.WWebJS !== 'undefined' && window.WWebJS.isLoggedIn) return true;
+              // Check DOM elements present when linked
+              if (document.querySelector('#app [data-testid="chat-list"]') ||
+                  document.querySelector('#side') ||
+                  document.querySelector('header [data-testid="menu-bar-chat"]') ||
+                  document.querySelector('[data-testid="conversation-panel-wrapper"]')) {
+                return true;
+              }
+              // If QR canvas is absent and loading spinner, progress bar or main pane is present, device is authenticated
+              const hasQr = !!document.querySelector('canvas[aria-label="Scan this QR code"]') || !!document.querySelector('div[data-ref]');
+              const hasProgress = !!document.querySelector('progress') || !!document.querySelector('[data-testid="intro-title"]') || !!document.querySelector('#pane-side');
+              if (!hasQr && hasProgress) {
+                return true;
+              }
+              return false;
+            } catch (_) {
+              return false;
+            }
+          }),
+          new Promise(r => setTimeout(() => r(false), 2000))
+        ]);
+        if (isPageLoggedIn) {
+          console.log('⚡ [WhatsApp API] Detected active linked session from WhatsApp Web DOM!');
+          isWhatsappConnected = true;
+          isWhatsappInitializing = false;
+          qrCodeDataUrl = null;
+          lastPairingCode = null;
+          broadcastRealtime('whatsapp_status', { connected: true, status: 'ready', user: whatsappUserInfo || getSavedWhatsappUserInfo() });
+        }
+      } catch (_) {}
+    }
+    if (isWhatsappConnected) {
       qrCodeDataUrl = null;
       lastPairingCode = null;
-      if (!whatsappUserInfo) {
-        whatsappUserInfo = {
-          phone: (client.info.wid && client.info.wid.user) ? client.info.wid.user : ((client.info.me && client.info.me.user) ? client.info.me.user : ''),
-          name: client.info.pushname || 'Anudeep Khadi Bandar'
-        };
+      if (!whatsappUserInfo || !whatsappUserInfo.phone) {
+        let phone = '';
+        let name = 'Anudeep Khadi Bandar';
+        if (client.info) {
+          if (client.info.wid && client.info.wid.user) phone = client.info.wid.user;
+          else if (client.info.me && client.info.me.user) phone = client.info.me.user;
+          if (client.info.pushname) name = client.info.pushname;
+        }
+        const saved = getSavedWhatsappUserInfo();
+        if (!phone && saved && saved.phone) {
+          phone = saved.phone;
+          if (saved.name) name = saved.name;
+        }
+        if (!phone) {
+          phone = 'Connected';
+        }
+        whatsappUserInfo = { phone, name };
+        saveSavedWhatsappUserInfo(whatsappUserInfo);
       }
     }
   }
+
+  const hasSession = hasSavedWhatsappSession();
+  const savedUser = getSavedWhatsappUserInfo();
+  const activeUser = isWhatsappConnected ? (whatsappUserInfo || savedUser) : (hasSession ? savedUser : null);
 
   // ⚡ AUTO-WAKE: If WhatsApp client is offline or uninitialized, start it automatically!
   if (!client && !isWhatsappInitializing) {
@@ -1672,8 +2203,9 @@ app.get('/api/whatsapp/status', (req, res) => {
     connected: isWhatsappConnected,
     qr: isWhatsappConnected ? null : qrCodeDataUrl,
     pairingCode: lastPairingCode,
-    user: whatsappUserInfo,
-    status: isWhatsappConnected ? 'connected' : (lastPairingCode ? 'pairing_code_ready' : (qrCodeDataUrl ? 'qr_ready' : (isWhatsappInitializing ? 'initializing' : 'disconnected')))
+    user: activeUser,
+    hasSavedSession: hasSession,
+    status: isWhatsappConnected ? 'connected' : (lastPairingCode ? 'pairing_code_ready' : (qrCodeDataUrl ? 'qr_ready' : (isWhatsappInitializing ? (hasSession ? 'connecting_saved' : 'initializing') : 'disconnected')))
   });
 });
 
@@ -1699,7 +2231,7 @@ app.post('/api/whatsapp/qr-mode', async (req, res) => {
   if (isWhatsappConnected) {
     return res.json({ success: true, connected: true, message: 'Already connected', user: whatsappUserInfo });
   }
-  if (client && client.pupPage) {
+  if (client && client.pupPage && !client.pupPage.isClosed()) {
     try {
       if (typeof client.cancelPairingCode === 'function') {
         await client.cancelPairingCode();
@@ -1715,8 +2247,13 @@ app.post('/api/whatsapp/qr-mode', async (req, res) => {
           }
         } catch (_) {}
       });
-    } catch (_) {}
-  } else {
+    } catch (evalErr) {
+      if (evalErr.message && evalErr.message.includes('detached Frame')) {
+        console.warn('[WhatsApp] Browser page detached in qr-mode. Reloading...');
+        try { await client.pupPage.reload({ waitUntil: 'load', timeout: 15000 }); } catch (_) {}
+      }
+    }
+  } else if (!client && !isWhatsappInitializing) {
     initWhatsappClient();
   }
   res.json({
@@ -1725,33 +2262,6 @@ app.post('/api/whatsapp/qr-mode', async (req, res) => {
     qr: qrCodeDataUrl,
     status: isWhatsappConnected ? 'connected' : (qrCodeDataUrl ? 'qr_ready' : 'initializing')
   });
-});
-
-app.post('/api/whatsapp/reset', async (req, res) => {
-  console.log('[WhatsApp] API: User requested session reset');
-  try {
-    await safeDestroyClient();
-    cleanAuthDirectory();
-    initWhatsappClient(true);
-    res.json({ success: true, message: 'WhatsApp session cleaned and restarted.' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to reset: ' + err.message });
-  }
-});
-
-app.post('/api/whatsapp/logout', async (req, res) => {
-  console.log('[WhatsApp] API: User requested device logout');
-  try {
-    if (client && isWhatsappConnected) {
-      await client.logout().catch(() => {});
-    }
-    await safeDestroyClient();
-    cleanAuthDirectory();
-    initWhatsappClient(true);
-    res.json({ success: true, message: 'Successfully unlinked device.' });
-  } catch (err) {
-    res.status(500).json({ error: 'Logout failed: ' + err.message });
-  }
 });
 
 app.post('/api/whatsapp/pairing-code', async (req, res) => {
@@ -1769,7 +2279,19 @@ app.post('/api/whatsapp/pairing-code', async (req, res) => {
     if (phone.length === 10) phone = '91' + phone;
 
     console.log(`[WhatsApp] Requesting pairing code for phone: ${phone}...`);
-    const code = await client.requestPairingCode(phone);
+    let code;
+    try {
+      code = await client.requestPairingCode(phone);
+    } catch (reqErr) {
+      if (reqErr.message && reqErr.message.includes('detached Frame') && client.pupPage && !client.pupPage.isClosed()) {
+        console.warn('[WhatsApp] Frame detached during pairing code request. Reloading and retrying once...');
+        await client.pupPage.reload({ waitUntil: 'load', timeout: 15000 });
+        await new Promise(r => setTimeout(r, 2000));
+        code = await client.requestPairingCode(phone);
+      } else {
+        throw reqErr;
+      }
+    }
     lastPairingCode = code;
     console.log(`⚡ [WhatsApp] Pairing code generated: ${code}`);
 
@@ -1855,8 +2377,8 @@ app.post('/api/whatsapp/reset', async (req, res) => {
     });
 
     setTimeout(() => {
-      initWhatsappClient(false);
-    }, 1200);
+      initWhatsappClient(true);
+    }, 1500);
 
     res.json({ success: true, message: 'Session reset! A fresh QR code will appear in seconds.' });
   } catch (err) {
@@ -1901,27 +2423,38 @@ app.post('/api/whatsapp/logout', async (req, res) => {
   }
 });
 
-app.post('/api/savePdfLocally', upload.single('file'), (req, res) => {
-  const filePath = req.file && req.file.path;
-  const fileName = (req.body && req.body.filename) || (req.file && req.file.originalname) || 'Invoice.pdf';
-  if (!filePath) {
-    return res.json({ success: true, warning: 'No file received for local save' });
-  }
+app.post(['/api/savePdfLocally', '/api/save-pdf-to-downloads'], upload.single('file'), (req, res) => {
+  const fileName = (req.body && req.body.filename) || (req.file && req.file.originalname) || `Invoice_${Date.now()}.pdf`;
+  const cleanName = fileName.replace(/[\\/:*?"<>|]/g, '_');
 
   try {
-    const downloadsDir = path.join(require('os').homedir(), 'Downloads');
+    const userProfile = process.env.USERPROFILE || process.env.HOME || require('os').homedir();
+    const downloadsDir = path.join(userProfile, 'Downloads');
     if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
-    
-    const destPath = path.join(downloadsDir, fileName);
-    fs.copyFileSync(filePath, destPath);
-    try { fs.unlinkSync(filePath); } catch (_) {}
-    
-    console.log(`Silently saved PDF to: ${destPath}`);
-    res.json({ success: true, path: destPath });
-  } catch (err) {
-    console.error('Error saving PDF locally:', err);
-    if (filePath && fs.existsSync(filePath)) {
+    const destPath = path.join(downloadsDir, cleanName);
+
+    // Support base64 JSON payload
+    if (req.body && req.body.base64Data) {
+      const buffer = Buffer.from(req.body.base64Data, 'base64');
+      fs.writeFileSync(destPath, buffer);
+      console.log(`[Server] Silently saved base64 PDF to: ${destPath} (${buffer.length} bytes)`);
+      return res.json({ success: true, path: destPath, filename: cleanName });
+    }
+
+    // Support multipart file upload
+    const filePath = req.file && req.file.path;
+    if (filePath) {
+      fs.copyFileSync(filePath, destPath);
       try { fs.unlinkSync(filePath); } catch (_) {}
+      console.log(`[Server] Silently saved uploaded PDF to: ${destPath}`);
+      return res.json({ success: true, path: destPath, filename: cleanName });
+    }
+
+    return res.json({ success: true, warning: 'No file or base64 data received for local save' });
+  } catch (err) {
+    console.error('[Server] Error saving PDF locally:', err);
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
     }
     res.json({ success: false, error: err.message });
   }
@@ -2014,6 +2547,144 @@ app.post('/api/whatsapp/sendMessage', async (req, res) => {
   }
 });
 
+// Endpoint for sending photographic evidence (suspect template + live detection crop)
+app.post('/api/whatsapp/sendPhoto', upload.single('file'), async (req, res) => {
+  if (!isWhatsappConnected || !client) {
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) fs.unlink(req.file.path, () => {});
+    return res.json({ success: false, offline: true, error: 'WhatsApp is not connected.' });
+  }
+  const filePath = req.file && req.file.path;
+  const cleanup = () => { if (filePath && fs.existsSync(filePath)) fs.unlink(filePath, () => {}); };
+  try {
+    const phone = req.body.phone;
+    const caption = req.body.caption || '';
+    const imageBase64 = req.body.image_base64;
+    const filename = req.body.filename || (req.file && req.file.originalname) || 'evidence.jpg';
+    const mimetype = req.body.mimetype || (req.file && req.file.mimetype) || 'image/jpeg';
+
+    if (!phone) {
+      cleanup();
+      return res.json({ success: false, skipped: true, message: 'Missing recipient phone number' });
+    }
+
+    const targetChatId = await resolveChatId(client, phone);
+    if (!targetChatId) {
+      cleanup();
+      return res.json({ success: false, skipped: true, message: 'Invalid recipient phone number' });
+    }
+
+    const { MessageMedia } = require('whatsapp-web.js');
+    let media = null;
+
+    if (filePath && fs.existsSync(filePath)) {
+      const fileBuffer = fs.readFileSync(filePath);
+      media = new MessageMedia(mimetype, fileBuffer.toString('base64'), filename);
+    } else if (imageBase64) {
+      const cleanB64 = imageBase64.includes('base64,') ? imageBase64.split('base64,')[1] : imageBase64;
+      media = new MessageMedia(mimetype, cleanB64, filename);
+    } else {
+      cleanup();
+      return res.json({ success: false, skipped: true, message: 'No photo file or base64 data provided' });
+    }
+
+    await sendWhatsappMessageWithTimeout(client, targetChatId, media, { caption: caption }, 25000);
+    cleanup();
+    console.log(`✅ [WhatsApp] Photo evidence sent to ${targetChatId}`);
+    res.json({ success: true, message: 'Photo evidence sent via WhatsApp successfully!' });
+  } catch (err) {
+    cleanup();
+    console.error('Error sending WhatsApp photo:', err);
+    res.status(500).json({ error: err.message || 'Failed to dispatch photo' });
+  }
+});
+
+// Dedicated High-Speed Multi-Recipient Alert Broadcast Endpoints
+app.post('/api/whatsapp/broadcastThreatAlert', async (req, res) => {
+  if (!isWhatsappConnected || !client) {
+    return res.json({ success: false, error: 'WhatsApp is not connected.' });
+  }
+  try {
+    const phones = req.body.phones || [];
+    const message = req.body.message || '';
+    const combinedBase64 = req.body.combined_card_base64 || '';
+    const masterBase64 = req.body.master_photo_base64 || '';
+    const masterCaption = req.body.master_caption || '';
+    const liveBase64 = req.body.live_photo_base64 || '';
+    const liveCaption = req.body.live_caption || '';
+    const sceneBase64 = req.body.scene_photo_base64 || '';
+    const sceneCaption = req.body.scene_caption || '';
+
+    if (!phones || !phones.length) {
+      return res.json({ success: false, skipped: true, message: 'No recipient phone numbers provided' });
+    }
+
+    const { MessageMedia } = require('whatsapp-web.js');
+    let combinedMedia = null;
+    let masterMedia = null;
+    let liveMedia = null;
+    let sceneMedia = null;
+
+    if (combinedBase64) {
+      const cleanC = combinedBase64.includes('base64,') ? combinedBase64.split('base64,')[1] : combinedBase64;
+      combinedMedia = new MessageMedia('image/jpeg', cleanC, 'sentinel_forensic_evidence_dossier.jpg');
+    }
+    if (masterBase64) {
+      const cleanM = masterBase64.includes('base64,') ? masterBase64.split('base64,')[1] : masterBase64;
+      masterMedia = new MessageMedia('image/jpeg', cleanM, 'database_master_mugshot.jpg');
+    }
+    if (liveBase64) {
+      const cleanL = liveBase64.includes('base64,') ? liveBase64.split('base64,')[1] : liveBase64;
+      liveMedia = new MessageMedia('image/jpeg', cleanL, 'found_cropped_face.jpg');
+    }
+    if (sceneBase64) {
+      const cleanS = sceneBase64.includes('base64,') ? sceneBase64.split('base64,')[1] : sceneBase64;
+      sceneMedia = new MessageMedia('image/jpeg', cleanS, 'complete_camera_scene.jpg');
+    }
+
+    const sendToOfficer = async (ph) => {
+      try {
+        const cleanPh = String(ph).replace(/\D/g, '');
+        if (!cleanPh) return { phone: ph, success: false, error: 'Empty phone' };
+        const targetChatId = await resolveChatId(client, cleanPh);
+        if (!targetChatId) {
+          return { phone: cleanPh, success: false, error: 'Could not resolve chat ID' };
+        }
+
+        // PREFERRED MODE: ONE UNIFIED MESSAGE containing all 3 images + full dossier text as the caption!
+        if (combinedMedia) {
+          await sendWhatsappMessageWithTimeout(client, targetChatId, combinedMedia, { caption: message }, 25000);
+          console.log(`[Broadcast] Complete 3-in-1 Unified Forensic Board sent to ${cleanPh}`);
+        } else {
+          if (message) {
+            await sendWhatsappMessageWithTimeout(client, targetChatId, message, {}, 25000);
+          }
+          if (sceneMedia) {
+            await sendWhatsappMessageWithTimeout(client, targetChatId, sceneMedia, { caption: sceneCaption }, 25000);
+          }
+          if (liveMedia) {
+            await sendWhatsappMessageWithTimeout(client, targetChatId, liveMedia, { caption: liveCaption }, 25000);
+          }
+          if (masterMedia) {
+            await sendWhatsappMessageWithTimeout(client, targetChatId, masterMedia, { caption: masterCaption }, 25000);
+          }
+        }
+        return { phone: cleanPh, success: true };
+      } catch (errOne) {
+        console.error(`[Broadcast Err] Failed for ${ph}:`, errOne.message);
+        return { phone: ph, success: false, error: errOne.message };
+      }
+    };
+
+    const settled = await Promise.allSettled(phones.map(ph => sendToOfficer(ph)));
+    const results = settled.map(s => s.status === 'fulfilled' ? s.value : { success: false, error: s.reason?.message });
+
+    res.json({ success: true, count: results.filter(r => r.success).length, total: phones.length, details: results });
+  } catch (err) {
+    console.error('Error in broadcastThreatAlert:', err);
+    res.status(500).json({ error: err.message || 'Failed broadcast' });
+  }
+});
+
 // ==========================================
 // 6. TELEGRAM PROXY ENDPOINTS
 // ==========================================
@@ -2021,9 +2692,20 @@ app.post('/api/sendTelegramDocument', upload.single('file'), async (req, res) =>
   const filePath = req.file && req.file.path;
   const cleanup = () => { if (filePath) fs.unlink(filePath, () => {}); };
   try {
-    const token = req.body.token;
-    const chatId = req.body.chatId;
-    if (!token || !chatId) { cleanup(); return res.json({ success: false, error: 'Missing token or chatId' }); }
+    let token = req.body.token;
+    let chatId = req.body.chatId;
+    if (!token || token.startsWith('•')) {
+      const settings = readJsonFile('settings', {});
+      token = process.env.TELEGRAM_BOT_TOKEN || (settings.telegram && settings.telegram.token) || '';
+    }
+    if (!chatId) {
+      const settings = readJsonFile('settings', {});
+      chatId = process.env.TELEGRAM_CHAT_ID || (settings.telegram && settings.telegram.chatId) || '';
+    }
+    if (!token || !chatId || token.startsWith('•')) {
+      cleanup();
+      return res.json({ success: false, deferred: true, message: 'Telegram token or chatId not configured' });
+    }
     if (!req.file) return res.json({ success: false, error: 'Missing file' });
 
     const tgUrl = `https://api.telegram.org/bot${token}/sendDocument`;
@@ -2046,8 +2728,18 @@ app.post('/api/sendTelegramDocument', upload.single('file'), async (req, res) =>
 
 app.post('/api/sendTelegramMessage', async (req, res) => {
   try {
-    const { token, chatId, text } = req.body;
-    if (!token || !chatId || !text) return res.json({ success: false, error: 'Missing fields' });
+    let { token, chatId, text } = req.body;
+    if (!token || token.startsWith('•')) {
+      const settings = readJsonFile('settings', {});
+      token = process.env.TELEGRAM_BOT_TOKEN || (settings.telegram && settings.telegram.token) || '';
+    }
+    if (!chatId) {
+      const settings = readJsonFile('settings', {});
+      chatId = process.env.TELEGRAM_CHAT_ID || (settings.telegram && settings.telegram.chatId) || '';
+    }
+    if (!token || !chatId || token.startsWith('•') || !text) {
+      return res.json({ success: false, deferred: true, message: 'Missing fields or token not configured' });
+    }
 
     const tgUrl = `https://api.telegram.org/bot${token}/sendMessage`;
     const r = await fetchWithRetry(tgUrl, {
@@ -2063,6 +2755,53 @@ app.post('/api/sendTelegramMessage', async (req, res) => {
   }
 });
 
+app.post('/api/testTelegram', async (req, res) => {
+  try {
+    let token = (req.body && req.body.token) || '';
+    if (!token || token.startsWith('•')) {
+      const settings = readJsonFile('settings', {});
+      token = process.env.TELEGRAM_BOT_TOKEN || (settings.telegram && settings.telegram.token) || '';
+    }
+    if (!token || token.startsWith('•')) {
+      return res.json({ ok: false, description: 'Telegram token not configured or missing' });
+    }
+    const r = await fetchWithRetry(`https://api.telegram.org/bot${token}/getMe`);
+    const data = await r.json();
+    return res.json(data);
+  } catch (err) {
+    return res.json({ ok: false, description: err.message });
+  }
+});
+
+// ⚡ Helper: Robust Inside Andhra Pradesh (Intra-State) Detector
+function isInsideAndhraPradesh(inv) {
+  if (!inv) return true;
+  if (inv.isInterState !== undefined && inv.isInterState !== null) {
+    return !inv.isInterState;
+  }
+  if (inv.consignee) {
+    const cGst = String(inv.consignee.gstin || '').trim().slice(0, 2);
+    const cSc = String(inv.consignee.stateCode || cGst || '').replace(/\D/g, '');
+    const cSt = String(inv.consignee.state || '').trim().toLowerCase();
+    if (cSc === '37') return true;
+    if (cSc && cSc.length >= 2 && cSc !== '37') return false;
+    if (cSt) {
+      if (cSt.includes('andhra') || cSt === 'ap' || cSt === 'a.p.') return true;
+      if (cSt.length > 2 && !cSt.includes('andhra') && cSt !== 'ap') return false;
+    }
+  }
+  const rGst = inv.receiver ? String(inv.receiver.gstin || '').trim().slice(0, 2) : '';
+  const sc = String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || rGst || '').replace(/\D/g, '');
+  const pos = String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').trim().toLowerCase();
+  if (sc === '37') return true;
+  if (sc && sc.length >= 2 && sc !== '37') return false;
+  if (pos) {
+    if (pos.includes('andhra') || pos === 'ap' || pos === 'a.p.' || pos.includes('tenali') || pos.includes('guntur')) return true;
+    if (pos.length > 2 && !pos.includes('andhra') && pos !== 'ap') return false;
+  }
+  return true;
+}
+
 // ⚡ AUTOMATED BACKGROUND BOT DISPATCH SYSTEM (TELEGRAM & WHATSAPP)
 async function autoDispatchBots(inv) {
   if (!inv) return;
@@ -2076,16 +2815,16 @@ async function autoDispatchBots(inv) {
   try {
     const settings = readJsonFile('settings', {});
     const customTg = settings.telegram || {};
-    const baseTokens = [
-      customTg.token || '8799482746:AAGiDi8HEoV7KGQNyer4772H_d1qv9fznac',
-      '8916828449:AAE7LTVutOAtABoogooF5XTleqwIPztmfDs'
-    ].filter(Boolean);
+    const tgToken = process.env.TELEGRAM_BOT_TOKEN || customTg.token || '';
+    const tgChatId = process.env.TELEGRAM_CHAT_ID || customTg.chatId || '';
 
-    const baseChats = [
-      customTg.chatId || '6877857251',
-      '8436142413',
-      '8703423129'
-    ].filter(Boolean);
+    if (!tgToken || !tgChatId || tgToken.startsWith('••')) {
+      console.log(`[Auto-Telegram] Bot token or chatId not configured or masked. Skipping.`);
+      return;
+    }
+
+    const baseTokens = [tgToken].filter(Boolean);
+    const baseChats = [tgChatId].filter(Boolean);
 
     const uniqueTokens = [...new Set(baseTokens)];
     const uniqueChats = [...new Set(baseChats)];
@@ -2100,15 +2839,15 @@ async function autoDispatchBots(inv) {
       if (inv.items.length > 10) itemLines += `\n  ... and ${inv.items.length - 10} more items`;
     }
 
-    const sc = String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || '37').trim();
-    const posName = String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').toLowerCase();
-    const isWithinAP = (sc === '37' || sc === '037') || posName.includes('andhra') || posName === 'ap';
-    const isInter = inv.isInterState !== undefined ? inv.isInterState : !isWithinAP;
+    const isWithinAP = isInsideAndhraPradesh(inv);
+    const isInter = (inv.isInterState !== undefined && inv.isInterState !== null) ? inv.isInterState : !isWithinAP;
 
     let tgGstLines = '';
     if (isInter) {
       const igstVal = Number(inv.igstAmount || 0).toFixed(2);
       tgGstLines = `➕ *ADD IGST (5%)*: ₹${igstVal}\n` +
+                   `➕ *ADD CGST (2.5%)*: ₹0.00\n` +
+                   `➕ *ADD SGST (2.5%)*: ₹0.00\n` +
                    `📊 *Total GST (5%)*: ₹${igstVal}\n`;
     } else {
       const cgstVal = Number(inv.cgstAmount || 0).toFixed(2);
@@ -2116,6 +2855,7 @@ async function autoDispatchBots(inv) {
       const totGstVal = (Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0)).toFixed(2);
       tgGstLines = `➕ *ADD CGST (2.5%)*: ₹${cgstVal}\n` +
                    `➕ *ADD SGST (2.5%)*: ₹${sgstVal}\n` +
+                   `➕ *ADD IGST (5%)*: ₹0.00\n` +
                    `📊 *Total GST (5%)*: ₹${totGstVal}\n`;
     }
 
@@ -2180,22 +2920,23 @@ async function autoDispatchBots(inv) {
         if (inv.items.length > 10) itemLines += `\n  ... and ${inv.items.length - 10} more items`;
       }
 
-      const sc = String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || '37').trim();
-      const posName = String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').toLowerCase();
-      const isWithinAP = (sc === '37' || sc === '037') || posName.includes('andhra') || posName === 'ap';
-      const isInter = inv.isInterState !== undefined ? inv.isInterState : !isWithinAP;
+      const isWithinAP = isInsideAndhraPradesh(inv);
+      const isInter = (inv.isInterState !== undefined && inv.isInterState !== null) ? inv.isInterState : !isWithinAP;
 
       let waGstLines = '';
       let totalGst = '0.00';
       if (isInter) {
         const igstVal = Number(inv.igstAmount || 0).toFixed(2);
-        waGstLines = `➕ *ADD IGST (5%)*: ₹${igstVal}\n`;
+        waGstLines = `➕ *ADD IGST (5%)*: ₹${igstVal}\n` +
+                     `➕ *ADD CGST (2.5%)*: ₹0.00\n` +
+                     `➕ *ADD SGST (2.5%)*: ₹0.00\n`;
         totalGst = igstVal;
       } else {
         const cgstVal = Number(inv.cgstAmount || 0).toFixed(2);
         const sgstVal = Number(inv.sgstAmount || 0).toFixed(2);
         waGstLines = `➕ *ADD CGST (2.5%)*: ₹${cgstVal}\n` +
-                     `➕ *ADD SGST (2.5%)*: ₹${sgstVal}\n`;
+                     `➕ *ADD SGST (2.5%)*: ₹${sgstVal}\n` +
+                     `➕ *ADD IGST (5%)*: ₹0.00\n`;
         totalGst = (Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0)).toFixed(2);
       }
 
@@ -2240,13 +2981,10 @@ async function autoDispatchBots(inv) {
   }
 }
 
-// Root route serves index.html
+// Root route serves index.html with efficient HTTP 304 revalidation
 app.get('/', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Surrogate-Control', 'no-store');
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, 'index.html'), { etag: true, lastModified: true });
 });
 
 // ==========================================

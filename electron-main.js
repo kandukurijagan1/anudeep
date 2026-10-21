@@ -1,13 +1,21 @@
-const { app, BrowserWindow, Menu, Tray, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, Tray, shell, ipcMain, session } = require('electron');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 const fs = require('fs');
+const crypto = require('crypto');
+
+// Configure application identity for Windows taskbar and instance management
+app.setName('Anudeep Khadi Bandar - GST Billing');
+app.setAppUserModelId('com.akb.billing');
+
+// Generate secure token for Electron-to-Backend authentication
+const APP_SECRET_TOKEN = process.env.APP_SECRET_TOKEN || crypto.randomBytes(32).toString('hex');
 
 // Ensure single instance lock for dedicated workstation
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
-    console.log('[Electron] Another instance is already running. Focusing existing instance...');
+    console.log('[Electron] Another instance is already running. Quitting secondary process...');
     app.quit();
     process.exit(0);
 }
@@ -30,8 +38,10 @@ ipcMain.on('reload-app', async (event, hard) => {
     if (mainWindow) {
         if (hard) {
             try { await mainWindow.webContents.session.clearCache(); } catch (_) {}
+            mainWindow.webContents.reloadIgnoringCache();
+        } else {
+            mainWindow.webContents.reload();
         }
-        mainWindow.webContents.reloadIgnoringCache();
     }
 });
 
@@ -68,6 +78,103 @@ ipcMain.handle('get-backend-status', async () => {
     const healthy = await checkServer('http://127.0.0.1:3000/api/health', 800);
     return { running: healthy };
 });
+
+ipcMain.handle('get-app-token', () => {
+    return APP_SECRET_TOKEN;
+});
+
+// ⚡ IPC Handler: Direct save PDF to user's Downloads folder without any prompt dialog
+ipcMain.handle('save-pdf-to-downloads', async (event, { base64Data, filename, openAfterSave }) => {
+    try {
+        const downloadsDir = app.getPath('downloads');
+        if (!fs.existsSync(downloadsDir)) {
+            fs.mkdirSync(downloadsDir, { recursive: true });
+        }
+        const safeName = (filename || `Invoice_${Date.now()}.pdf`).replace(/[\\/:*?"<>|]/g, '_');
+        const targetPath = path.join(downloadsDir, safeName);
+        const buffer = Buffer.from(base64Data, 'base64');
+        fs.writeFileSync(targetPath, buffer);
+        console.log(`[Electron IPC] Saved PDF to Downloads: ${targetPath} (${buffer.length} bytes)`);
+
+        if (openAfterSave) {
+            try { await shell.openPath(targetPath); } catch (_) {}
+        }
+
+        return { success: true, filePath: targetPath, filename: safeName };
+    } catch (err) {
+        console.error('[Electron IPC] Error saving PDF to downloads:', err);
+        return { success: false, error: err.message };
+    }
+});
+
+// ⚡ IPC Handler: Open file with default system application (e.g. PDF reader)
+ipcMain.handle('open-file', async (event, filePath) => {
+    try {
+        if (filePath && fs.existsSync(filePath)) {
+            await shell.openPath(filePath);
+            return { success: true };
+        }
+        return { success: false, error: 'File not found' };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+// ⚡ IPC Handler: Show file in File Explorer
+ipcMain.handle('show-in-folder', async (event, filePath) => {
+    try {
+        if (filePath && fs.existsSync(filePath)) {
+            shell.showItemInFolder(filePath);
+            return { success: true };
+        } else {
+            const downloadsDir = app.getPath('downloads');
+            await shell.openPath(downloadsDir);
+            return { success: true };
+        }
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+// ⚡ IPC Handler: Get downloads folder path
+ipcMain.handle('get-downloads-path', () => {
+    return app.getPath('downloads');
+});
+
+// ⚡ Global silent download interceptor: routes all downloads directly to Downloads folder without prompting Save As dialog
+function setupDownloadInterceptor(sess) {
+    if (!sess || (typeof sess.listenerCount === 'function' && sess.listenerCount('will-download') > 0)) return;
+    sess.on('will-download', (event, item, webContents) => {
+        try {
+            const downloadsDir = app.getPath('downloads');
+            if (!fs.existsSync(downloadsDir)) {
+                try { fs.mkdirSync(downloadsDir, { recursive: true }); } catch (_) {}
+            }
+            const originalName = item.getFilename() || 'Invoice.pdf';
+            const filename = originalName.replace(/[\\/:*?"<>|]/g, '_');
+            const targetPath = path.join(downloadsDir, filename);
+
+            // Setting save path directly suppresses Chromium's default OS Save As dialog
+            item.setSavePath(targetPath);
+
+            item.once('done', (event, state) => {
+                if (state === 'completed') {
+                    console.log(`[Electron will-download] Silently saved download to: ${targetPath}`);
+                    if (webContents && !webContents.isDestroyed()) {
+                        webContents.send('download-completed', {
+                            filename: filename,
+                            filePath: targetPath
+                        });
+                    }
+                } else {
+                    console.warn(`[Electron will-download] Download finished with state: ${state}`);
+                }
+            });
+        } catch (err) {
+            console.error('[Electron will-download] Interceptor error:', err);
+        }
+    });
+}
 
 // Check if local HTTP server is healthy
 function checkServer(url, timeout = 800) {
@@ -134,7 +241,8 @@ function startBackend() {
             }
 
             console.log('[Electron] Starting background Node backend...');
-            const serverJs = path.join(__dirname, 'server.js');
+            const appDataServerJs = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'server.js');
+            const serverJs = (fs.existsSync(appDataServerJs) && fs.statSync(appDataServerJs).size > 1000) ? appDataServerJs : path.join(__dirname, 'server.js');
 
             let stdioConfig = 'ignore';
             try {
@@ -156,7 +264,7 @@ function startBackend() {
             console.log(`[Electron] Launching backend server with: ${execBinary} (useNode: ${useNode})`);
             serverChild = spawn(execBinary, [serverJs], {
                 cwd: __dirname,
-                env: { ...process.env, PORT: '3000', ...extraEnv },
+                env: { ...process.env, PORT: '3000', APP_SECRET_TOKEN, ...extraEnv },
                 stdio: stdioConfig,
                 windowsHide: true
             });
@@ -182,7 +290,7 @@ function startBackend() {
             // High-speed polling: check every 100ms for instant readiness (up to 150 attempts)
             for (let attempt = 1; attempt <= 150; attempt++) {
                 await new Promise(r => setTimeout(r, 100));
-                const ready = await checkServer('http://127.0.0.1:3000/api/health', 150);
+                const ready = await checkServer('http://127.0.0.1:3000/api/health', 400);
                 if (ready) {
                     console.log(`[Electron] Backend verified ready in ${attempt * 100}ms`);
                     isStartingBackend = false;
@@ -263,8 +371,7 @@ function createSystemTray() {
             {
                 label: '❌ Exit Application',
                 click: () => {
-                    isQuitting = true;
-                    app.quit();
+                    cleanupAndQuit();
                 }
             }
         ]);
@@ -313,14 +420,14 @@ function setupApplicationMenu() {
                     label: '🔄 Reload Window',
                     accelerator: 'CmdOrCtrl+R',
                     click: (item, focusedWindow) => {
-                        if (focusedWindow) focusedWindow.webContents.reloadIgnoringCache();
+                        if (focusedWindow) focusedWindow.webContents.reload();
                     }
                 },
                 {
                     label: '🔄 Force Reload (F5)',
                     accelerator: 'F5',
                     click: (item, focusedWindow) => {
-                        if (focusedWindow) focusedWindow.webContents.reloadIgnoringCache();
+                        if (focusedWindow) focusedWindow.webContents.reload();
                     }
                 },
                 {
@@ -353,8 +460,7 @@ function setupApplicationMenu() {
                     label: 'Exit Workstation',
                     accelerator: 'CmdOrCtrl+Q',
                     click: () => {
-                        isQuitting = true;
-                        app.quit();
+                        cleanupAndQuit();
                     }
                 }
             ]
@@ -389,7 +495,7 @@ async function createMainWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: false,
+            webSecurity: true,
             preload: path.join(__dirname, 'preload.js')
         }
     });
@@ -399,23 +505,20 @@ async function createMainWindow() {
     // Workstation maximized desktop layout
     mainWindow.maximize();
 
-    mainWindow.once('ready-to-show', async () => {
-        try {
-            await mainWindow.webContents.session.clearCache();
-            console.log('[Electron] Cleared web cache to ensure latest UI.');
-        } catch (e) {
-            console.warn('[Electron] Failed to clear cache', e);
-        }
+    mainWindow.once('ready-to-show', () => {
         mainWindow.show();
         mainWindow.focus();
     });
+
+    // ⚡ Intercept all downloads and silently save directly to Downloads folder without prompting Save As dialog
+    setupDownloadInterceptor(mainWindow.webContents.session);
 
     // Check if server is ready
     let isRunning = false;
     if (startBackendPromise) {
         isRunning = await startBackendPromise;
     } else {
-        isRunning = await checkServer('http://127.0.0.1:3000/api/health', 300);
+        isRunning = await checkServer('http://127.0.0.1:3000/api/health', 800);
         if (!isRunning) isRunning = await startBackend();
     }
     if (isRunning) {
@@ -428,28 +531,26 @@ async function createMainWindow() {
     if (isRunning) {
         console.log('[Electron] Loading UI from local backend server: http://127.0.0.1:3000/?mode=dedicated_app');
         try {
-            await mainWindow.loadURL('http://127.0.0.1:3000/?mode=dedicated_app');
+            await mainWindow.loadURL(`http://127.0.0.1:3000/?mode=dedicated_app&app_token=${APP_SECRET_TOKEN}`);
         } catch (e) {
             console.warn('[Electron] Failed to load local server URL, loading local index.html directly:', e.message);
-            await mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { mode: 'dedicated_app' } });
+            const appDataIndex = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'index.html');
+            const targetHtml = (fs.existsSync(appDataIndex) && fs.statSync(appDataIndex).size > 1000) ? appDataIndex : path.join(__dirname, 'index.html');
+            await mainWindow.loadFile(targetHtml, { query: { mode: 'dedicated_app', app_token: APP_SECRET_TOKEN } });
         }
     } else {
         console.log('[Electron] Loading local index.html file directly...');
-        await mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { mode: 'dedicated_app' } });
+        const appDataIndex = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'index.html');
+            const targetHtml = (fs.existsSync(appDataIndex) && fs.statSync(appDataIndex).size > 1000) ? appDataIndex : path.join(__dirname, 'index.html');
+            await mainWindow.loadFile(targetHtml, { query: { mode: 'dedicated_app', app_token: APP_SECRET_TOKEN } });
     }
 
-    // Intercept external links (WhatsApp, Telegram, Google Sheets, external URLs)
+    // Intercept external links and prevent multiple internal windows from opening
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-        if (url.startsWith('http://wa.me') ||
-            url.startsWith('https://api.whatsapp.com') ||
-            url.startsWith('https://web.whatsapp.com') ||
-            url.startsWith('https://t.me') ||
-            url.startsWith('https://docs.google.com') ||
-            url.startsWith('https://script.google.com')) {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
             shell.openExternal(url);
-            return { action: 'deny' };
         }
-        return { action: 'allow' };
+        return { action: 'deny' };
     });
 
     // Enable Right-Click "Inspect Element" for fast diagnostics
@@ -475,7 +576,7 @@ async function createMainWindow() {
             {
                 label: '🔄 Reload Window',
                 click: () => {
-                    mainWindow.webContents.reloadIgnoringCache();
+                    mainWindow.webContents.reload();
                 }
             }
         ]);
@@ -492,15 +593,35 @@ async function createMainWindow() {
 }
 
 // Single instance handler: bring window to front
-app.on('second-instance', () => {
+app.on('second-instance', (event, commandLine, workingDirectory) => {
+    console.log('[Electron] Secondary instance detected. Focusing active workstation window...');
     if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.show();
         mainWindow.focus();
+        mainWindow.setAlwaysOnTop(true);
+        setTimeout(() => {
+            if (mainWindow) mainWindow.setAlwaysOnTop(false);
+        }, 300);
+    } else if (splashWindow) {
+        if (splashWindow.isMinimized()) splashWindow.restore();
+        splashWindow.show();
+        splashWindow.focus();
     }
 });
 
 app.whenReady().then(() => {
+    if (session && session.defaultSession) {
+        setupDownloadInterceptor(session.defaultSession);
+
+        // Enforce Content-Security-Policy
+        session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+            const csp = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://127.0.0.1:3000 http://localhost:3000 https://script.google.com https://*.google.com https://*.googleapis.com https://api.telegram.org https://web.whatsapp.com https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' data: https://unpkg.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https: http:;";
+            const responseHeaders = { ...details.responseHeaders };
+            responseHeaders['Content-Security-Policy'] = [csp];
+            callback({ responseHeaders });
+        });
+    }
     startBackend();
     setupApplicationMenu();
     createSystemTray();
@@ -511,13 +632,64 @@ app.whenReady().then(() => {
     });
 });
 
-app.on('before-quit', () => {
+async function cleanupAndQuit() {
+    if (isQuitting) return;
     isQuitting = true;
+    console.log('[Electron] Initiating clean application shutdown...');
+
+    // 1. Tell backend to gracefully release WhatsApp and clean locks
+    try {
+        const req = http.request({
+            hostname: '127.0.0.1',
+            port: 3000,
+            path: '/api/shutdown',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-App-Token': APP_SECRET_TOKEN
+            },
+            timeout: 1000
+        });
+        req.on('error', () => {});
+        req.end();
+        await new Promise(r => setTimeout(r, 600));
+    } catch (_) {}
+
+    // 2. Kill serverChild if still active
+    if (serverChild && serverChild.pid) {
+        try {
+            const { execSync } = require('child_process');
+            execSync(`taskkill /PID ${serverChild.pid} /T /F`, { stdio: 'ignore', timeout: 1000 });
+        } catch (_) {}
+        serverChild = null;
+    }
+
+    // 3. Fast cleanup of WhatsApp Chrome PID
+    try {
+        const appData = process.env.APPDATA || (process.platform === 'darwin' ? path.join(require('os').homedir(), 'Library', 'Application Support') : path.join(require('os').homedir(), '.local', 'share'));
+        const pidFile = path.join(appData, 'AnudeepKhadiBandar', 'wwebjs_chrome.pid');
+        if (fs.existsSync(pidFile)) {
+            const pidStr = fs.readFileSync(pidFile, 'utf8').trim();
+            if (pidStr && !isNaN(Number(pidStr))) {
+                const { execSync } = require('child_process');
+                execSync(`taskkill /PID ${pidStr} /T /F`, { stdio: 'ignore', timeout: 1000 });
+            }
+            try { fs.unlinkSync(pidFile); } catch (_) {}
+        }
+    } catch (_) {}
+
+    app.quit();
+}
+
+app.on('before-quit', (e) => {
+    if (!isQuitting) {
+        e.preventDefault();
+        cleanupAndQuit();
+    }
 });
 
 app.on('window-all-closed', () => {
-    // Keep background server alive for WhatsApp connection!
     if (process.platform !== 'darwin') {
-        app.quit();
+        cleanupAndQuit();
     }
 });

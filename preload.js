@@ -7,6 +7,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openDevTools: () => ipcRenderer.send('open-devtools'),
     ensureBackendRunning: () => ipcRenderer.invoke('ensure-backend-running'),
     restartBackend: () => ipcRenderer.invoke('restart-backend'),
-    getBackendStatus: () => ipcRenderer.invoke('get-backend-status')
+    getBackendStatus: () => ipcRenderer.invoke('get-backend-status'),
+    savePdfToDownloads: (data) => ipcRenderer.invoke('save-pdf-to-downloads', data),
+    openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
+    showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
+    getDownloadsPath: () => ipcRenderer.invoke('get-downloads-path'),
+    getAppToken: () => ipcRenderer.invoke('get-app-token'),
+    onDownloadCompleted: (callback) => {
+        ipcRenderer.on('download-completed', (event, data) => callback(data));
+    }
 });
 
