@@ -5925,7 +5925,7 @@
                 var isInter = (inv.isInterState !== undefined && inv.isInterState !== null) ? inv.isInterState : !isWithinAP;
 
                 var cgstVal = 0, sgstVal = 0, igstVal = 0, totGst = 0;
-                lines.push("Taxable Value:".padEnd(58) + U.fm(inv.taxableAmount).padEnd(12));
+                lines.push("Total Amount before Tax:".padEnd(58) + U.fm(inv.taxableAmount).padEnd(12));
                 if (isInter) {
                     igstVal = (inv.igstAmount !== undefined && inv.igstAmount !== null) ? inv.igstAmount : parseFloat(((inv.taxableAmount || 0) * (IR || 5) / 100).toFixed(2));
                     totGst = igstVal;
@@ -5943,7 +5943,7 @@
                 lines.push(("TOTAL GST (5%):").padEnd(58) + U.fm(totGst).padEnd(12));
                 var pRo = inv.roundOff !== undefined ? inv.roundOff : (inv.totalAmount - (inv.rawGrandTotal || inv.totalAmount));
                 var pRoSign = pRo >= 0 ? "+" : "-";
-                lines.push(("Round Off: (" + pRoSign + ")").padEnd(58) + U.fm(Math.abs(pRo)).padEnd(12));
+                lines.push(("Round OFF: (" + pRoSign + ")").padEnd(58) + U.fm(Math.abs(pRo)).padEnd(12));
 
                 lines.push("========================================");
                 lines.push("TOTAL AMOUNT AFTER TAX:".padEnd(55) + U.fm(inv.totalAmount).padEnd(12));
@@ -6016,18 +6016,21 @@
                 var roVal = (inv.roundOff !== undefined && inv.roundOff !== null) ? inv.roundOff : (Math.round(rawGT) - rawGT);
                 var roStr = (roVal >= 0 ? '+ \u20B9' : '- \u20B9') + Math.abs(roVal).toFixed(2);
                 var taxRows = "";
-                taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>Taxable Amount</span><span style="color:#000;">' + U.fm(inv.taxableAmount) + '</span></div>';
-                if (isInter) {
-                    taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD IGST (' + (IR || 5) + '%)</span><span style="color:#000;">' + U.fm(igstAmt) + '</span></div>';
-                    taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; color:#555;"><span>ADD CGST (' + (CR || 2.5) + '%)</span><span style="color:#555;">\u20B90.00</span></div>';
-                    taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; color:#555;"><span>ADD SGST (' + (SR || 2.5) + '%)</span><span style="color:#555;">\u20B90.00</span></div>';
-                } else {
-                    taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD CGST (' + (CR || 2.5) + '%)</span><span style="color:#000;">' + U.fm(cgstAmt) + '</span></div>';
-                    taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>ADD SGST (' + (SR || 2.5) + '%)</span><span style="color:#000;">' + U.fm(sgstAmt) + '</span></div>';
-                    taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; color:#555;"><span>ADD IGST (' + (IR || 5) + '%)</span><span style="color:#555;">\u20B90.00</span></div>';
-                }
-                taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; font-weight:bold;"><span>Total GST (5%)</span><span style="color:#000;">' + U.fm(totalGst) + '</span></div>';
-                taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>Round Off</span><span style="color:#000;">' + roStr + '</span></div>';
+                taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; font-weight:bold;"><span>Total Amount before Tax</span><span style="color:#000;">' + U.fm(inv.taxableAmount) + '</span></div>';
+                
+                var cgstValStr = isInter ? '\u20B90.00' : U.fm(cgstAmt);
+                var cgstColor = isInter ? '#666' : '#000';
+                taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; color:' + cgstColor + ';"><span>Add : CGST @ ' + (CR || 2.5) + '%</span><span style="color:' + cgstColor + ';">' + cgstValStr + '</span></div>';
+
+                var sgstValStr = isInter ? '\u20B90.00' : U.fm(sgstAmt);
+                var sgstColor = isInter ? '#666' : '#000';
+                taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; color:' + sgstColor + ';"><span>Add : SGST @ ' + (SR || 2.5) + '%</span><span style="color:' + sgstColor + ';">' + sgstValStr + '</span></div>';
+
+                var igstValStr = isInter ? U.fm(igstAmt) : '\u20B90.00';
+                var igstColor = isInter ? '#000' : '#666';
+                taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; color:' + igstColor + ';"><span>Add : IGST @ ' + Number(IR || 5).toFixed(1) + '%</span><span style="color:' + igstColor + ';">' + igstValStr + '</span></div>';
+
+                taxRows += '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>Round OFF</span><span style="color:#000;">' + roStr + '</span></div>';
 
                 function getSt(c) {
                     return U.getStateNameByCode(c) || "";
@@ -6087,38 +6090,38 @@
                     '<tr><td style="padding:3px 4px;">State</td><td style="text-align:center;">:</td><td style="color:#000; font-weight:normal;">' + rSt + '</td></tr>' +
                     '</table>' +
                     '</td>' +
-                    '<td style="width:50%; padding:4px; vertical-align:top;">' +
-                    '<table style="width:100%; border-collapse:collapse; margin-bottom:2px;">' +
+                    '<td style="width:50%; padding:4px 6px 4px 4px; vertical-align:top; box-sizing:border-box;">' +
+                    '<table style="width:100%; border-collapse:collapse; margin-bottom:2px; table-layout:fixed;">' +
                     '<tr>' +
-                    '<td style="width:120px; padding:2px 3px; white-space:nowrap;">Transportation Mode</td>' +
+                    '<td style="width:130px; padding:2px 3px; white-space:nowrap;">Transportation Mode</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; white-space:nowrap;">' + (inv.transportMode || '') + '</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.transportMode || '') + '</td>' +
                     '</tr>' +
                     '</table>' +
-                    '<table style="width:100%; border-collapse:collapse;">' +
+                    '<table style="width:100%; border-collapse:collapse; table-layout:fixed;">' +
                     '<tr>' +
                     '<td style="width:88px; padding:2px 3px; white-space:nowrap;">L.R. / Docket No.</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; white-space:nowrap;">' + (inv.lrNo || '') + '</td>' +
-                    '<td style="width:78px; text-align:right; padding-right:2px; white-space:nowrap;">Date</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.lrNo || '') + '</td>' +
+                    '<td style="width:68px; text-align:right; padding-right:2px; white-space:nowrap;">Date</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:80px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; white-space:nowrap;">' + (inv.transportDate ? U.fd(inv.transportDate) : '') + '</td>' +
+                    '<td style="width:68px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.transportDate ? U.fd(inv.transportDate) : '') + '</td>' +
                     '</tr>' +
                     '<tr>' +
                     '<td style="width:88px; padding:2px 3px; white-space:nowrap;">Date of Supply</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; white-space:nowrap;">' + (inv.supplyDate ? U.fd(inv.supplyDate) : '') + '</td>' +
-                    '<td style="width:78px; text-align:right; padding-right:2px; white-space:nowrap;">No. of Bundles</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.supplyDate ? U.fd(inv.supplyDate) : '') + '</td>' +
+                    '<td style="width:68px; text-align:right; padding-right:2px; white-space:nowrap;">No. of Bundles</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:80px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; white-space:nowrap;">' + (inv.bundles || '0') + '</td>' +
+                    '<td style="width:68px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.bundles || '0') + '</td>' +
                     '</tr>' +
                     '<tr>' +
                     '<td style="width:88px; padding:2px 3px; white-space:nowrap;">Place of Supply</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; white-space:nowrap;">' + (inv.placeOfSupply || '') + '</td>' +
-                    '<td style="width:78px; text-align:right; padding-right:2px; white-space:nowrap;">State Code</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; font-size:7.5pt; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + U.esc(inv.placeOfSupply || '') + '">' + (inv.placeOfSupply || '') + '</td>' +
+                    '<td style="width:68px; text-align:right; padding-right:2px; white-space:nowrap;">State Code</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:80px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; white-space:nowrap;">' + (inv.stateCode || '37') + '</td>' +
+                    '<td style="width:68px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.stateCode || '37') + '</td>' +
                     '</tr>' +
                     '</table>' +
                     '</td>' +
@@ -6178,7 +6181,7 @@
                     '<div style="float:right; width:50%; border-left:1px solid #1a237e; font-size:10pt;">' +
                     taxRows +
                     '<div style="display:flex; justify-content:space-between; border-top:2px solid #1a237e; padding:5px 8px; font-weight:bold; font-size:12.5pt; background:#e8e8e8; -webkit-print-color-adjust:exact; print-color-adjust:exact;">' +
-                    '<span>Total Amount after Tax</span><span style="color:#000;">' + U.fm(inv.totalAmount) + '</span>' +
+                    '<span>Total Amount After Tax</span><span style="color:#000;">' + U.fm(inv.totalAmount) + '</span>' +
                     '</div>' +
                     '</div>' +
                     '<div style="clear:both;"></div>' +
@@ -6359,9 +6362,13 @@
                 var html = SM.generatePrintHTML(inv);
 
                 // Dedicated off-screen container mounted above viewport for perfect html2canvas coordinates
+                var prevScrollY = window.scrollY;
+                var prevScrollX = window.scrollX;
+                window.scrollTo(0, 0);
+
                 var wrap = document.createElement('div');
                 wrap.id = 'pdf-render-wrap';
-                wrap.style.cssText = 'position:fixed;left:0;top:0;width:800px;background:#ffffff;z-index:999999;opacity:1;visibility:visible;pointer-events:none;margin:0;padding:0;';
+                wrap.style.cssText = 'position:absolute;left:0;top:0;width:800px;background:#ffffff;z-index:999999;opacity:1;visibility:visible;pointer-events:none;margin:0;padding:0;';
                 wrap.innerHTML = html;
                 document.body.appendChild(wrap);
 
@@ -6372,6 +6379,7 @@
                     if (wrap && wrap.parentNode) {
                         wrap.parentNode.removeChild(wrap);
                     }
+                    window.scrollTo(prevScrollX, prevScrollY);
                 };
 
                 // Wait for all images (logo, gods) to settle before capturing
@@ -7299,7 +7307,7 @@
                 var formattedRoundOff = roSign + Math.abs(roundOff).toFixed(2);
 
                 var h = '';
-                h += '<div class="sum-row"><span style="font-weight:600">Taxable Value</span><span>' + U.fm(taxable) + '</span></div>';
+                h += '<div class="sum-row"><span style="font-weight:600">Total Amount before Tax</span><span>' + U.fm(taxable) + '</span></div>';
 
                 h += '<div class="tax-box">';
                 if (isInter) {
@@ -7319,9 +7327,9 @@
                 }
                 h += '</div>';
 
-                h += '<div class="sum-row" style="font-size:.82rem; color:var(--tl);"><span>Round Off</span><span>' + formattedRoundOff + '</span></div>';
+                h += '<div class="sum-row" style="font-size:.82rem; color:var(--tl);"><span>Round OFF</span><span>' + formattedRoundOff + '</span></div>';
                 h += '<div style="display:flex; justify-content:space-between; border-top:2px solid var(--p); border-bottom:2px solid var(--p); padding:.5rem .1rem; margin-top:.35rem; background:rgba(139,69,19,.06); border-radius:.3rem;">';
-                h += '<span style="font-weight:800; font-size:1.05rem; color:var(--p)">Total Amount after Tax</span>';
+                h += '<span style="font-weight:800; font-size:1.05rem; color:var(--p)">Total Amount After Tax</span>';
                 h += '<span style="font-weight:800; font-size:1.1rem; color:var(--td)">' + U.fm(roundedTotal) + '</span>';
                 h += '</div>';
                 h += '<div style="font-size:.72rem; color:var(--tl); margin-top:.45rem; line-height:1.4; font-style:italic;">' + U.numWords(roundedTotal) + '</div>';
@@ -8791,7 +8799,7 @@
                 }
 
                 h += '<div style="margin-top:1rem;padding:.75rem;background:var(--pl);border-radius:.5rem">';
-                h += '<div class="sum-row"><span>Taxable Amount</span><span>' + U.fm(totalAmount - totalTax) + '</span></div>';
+                h += '<div class="sum-row"><span>Total Amount before Tax</span><span>' + U.fm(totalAmount - totalTax) + '</span></div>';
                 h += '<div class="sum-row"><span>CGST</span><span>' + U.fm(totalCGST) + '</span></div>';
                 h += '<div class="sum-row"><span>SGST</span><span>' + U.fm(totalSGST) + '</span></div>';
                 h += '<div class="sum-row"><span>IGST</span><span>' + U.fm(totalIGST) + '</span></div>';
@@ -9103,7 +9111,7 @@
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
             currentVersion: '1.4.6',
-            build: 132,
+            build: 134,
             hasUpdate: false,
             latestInfo: null,
 
@@ -9911,6 +9919,38 @@
                 return;
             }
 
+            if (state === "server_offline") {
+                var existingRoot = document.getElementById("wa-login-tabs-root");
+                if (existingRoot) existingRoot.remove();
+                container.innerHTML =
+                    '<div style="text-align:center; padding:20px 10px;">' +
+                    '<div style="width:48px; height:48px; background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; margin:0 auto 12px;">' +
+                    '<i class="ph ph-warning-circle"></i>' +
+                    '</div>' +
+                    '<div style="font-weight:700; font-size:1.05rem; color:#991b1b; margin-bottom:6px;">WhatsApp Engine Offline</div>' +
+                    '<div style="font-size:0.83rem; color:var(--tl); margin-bottom:16px; line-height:1.5;">' +
+                    'The local WhatsApp background engine is not active on this laptop.<br>' +
+                    'You can still share invoices directly via WhatsApp Web, or launch the background engine.' +
+                    '</div>' +
+                    '<div style="display:flex; flex-direction:column; gap:10px; max-width:320px; margin:0 auto 16px;">' +
+                    '<a href="https://web.whatsapp.com" target="_blank" class="btn btn-primary" style="background:#25D366; border-color:#25D366; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:8px; font-weight:700; padding:10px; font-size:0.9rem;">' +
+                    '<i class="ph ph-whatsapp-logo" style="font-size:1.2rem;"></i> Open WhatsApp Web' +
+                    '</a>' +
+                    (window.electronAPI && window.electronAPI.ensureBackendRunning ? (
+                        '<button class="btn btn-secondary" onclick="autoConnectWhatsappEngine(true)" style="display:inline-flex; align-items:center; justify-content:center; gap:6px; font-weight:600; padding:9px; font-size:0.85rem;">' +
+                        '<i class="ph ph-arrows-clockwise"></i> Start WhatsApp Engine' +
+                        '</button>'
+                    ) : '') +
+                    '</div>' +
+                    '<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; font-size:0.78rem; color:var(--tl); text-align:left; line-height:1.5;">' +
+                    '<strong style="color:var(--fg);"><i class="ph ph-lightbulb"></i> How to share invoices:</strong><br>' +
+                    '• On any invoice, click the green <strong>WhatsApp</strong> button to automatically open the customer chat with bill pre-filled.<br>' +
+                    '• For 100% automated background sending, ensure Node.js is installed or run <code>npm start</code>.' +
+                    '</div>' +
+                    '</div>';
+                return;
+            }
+
             if (state === "loading") {
                 var existingRoot = document.getElementById("wa-login-tabs-root");
                 if (existingRoot) existingRoot.remove();
@@ -10272,7 +10312,7 @@
                     autoConnectWhatsappEngine(false);
                 }
 
-                if (_waOfflineCount >= 10 && !window.electronAPI) {
+                if (_waOfflineCount >= 5) {
                     _serverOffline = true;
                     renderWhatsappModal("server_offline", null);
                 } else {
