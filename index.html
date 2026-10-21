@@ -6100,28 +6100,28 @@
                     '</table>' +
                     '<table style="width:100%; border-collapse:collapse; table-layout:fixed;">' +
                     '<tr>' +
-                    '<td style="width:88px; padding:2px 3px; white-space:nowrap;">L.R. / Docket No.</td>' +
+                    '<td style="width:84px; padding:2px 3px; white-space:nowrap;">L.R. / Docket No.</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
                     '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.lrNo || '') + '</td>' +
-                    '<td style="width:68px; text-align:right; padding-right:2px; white-space:nowrap;">Date</td>' +
+                    '<td style="width:76px; text-align:right; padding-right:3px; white-space:nowrap;">Date</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:68px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.transportDate ? U.fd(inv.transportDate) : '') + '</td>' +
+                    '<td style="width:58px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.transportDate ? U.fd(inv.transportDate) : '') + '</td>' +
                     '</tr>' +
                     '<tr>' +
-                    '<td style="width:88px; padding:2px 3px; white-space:nowrap;">Date of Supply</td>' +
+                    '<td style="width:84px; padding:2px 3px; white-space:nowrap;">Date of Supply</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
                     '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.supplyDate ? U.fd(inv.supplyDate) : '') + '</td>' +
-                    '<td style="width:68px; text-align:right; padding-right:2px; white-space:nowrap;">No. of Bundles</td>' +
+                    '<td style="width:76px; text-align:right; padding-right:3px; white-space:nowrap;">No. of Bundles</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:68px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.bundles || '0') + '</td>' +
+                    '<td style="width:58px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.bundles || '0') + '</td>' +
                     '</tr>' +
                     '<tr>' +
-                    '<td style="width:88px; padding:2px 3px; white-space:nowrap;">Place of Supply</td>' +
+                    '<td style="width:84px; padding:2px 3px; white-space:nowrap;">Place of Supply</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
                     '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; font-size:7.5pt; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + U.esc(inv.placeOfSupply || '') + '">' + (inv.placeOfSupply || '') + '</td>' +
-                    '<td style="width:68px; text-align:right; padding-right:2px; white-space:nowrap;">State Code</td>' +
+                    '<td style="width:76px; text-align:right; padding-right:3px; white-space:nowrap;">State Code</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:68px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.stateCode || '37') + '</td>' +
+                    '<td style="width:58px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.stateCode || '37') + '</td>' +
                     '</tr>' +
                     '</table>' +
                     '</td>' +
@@ -9111,7 +9111,7 @@
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
             currentVersion: '1.4.6',
-            build: 134,
+            build: 135,
             hasUpdate: false,
             latestInfo: null,
 
@@ -10708,7 +10708,7 @@
         var isElectronEnv = location.search.indexOf('mode=dedicated_app') > -1 || (navigator.userAgent && navigator.userAgent.toLowerCase().indexOf('electron') > -1);
         if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !isElectronEnv) {
             window.addEventListener('load', function () {
-                navigator.serviceWorker.register('./sw.js?v=2.0.1').then(function (reg) {
+                navigator.serviceWorker.register('./sw.js?v=2.0.4').then(function (reg) {
                     reg.update();
                     reg.addEventListener('updatefound', function () {
                         var newWorker = reg.installing;

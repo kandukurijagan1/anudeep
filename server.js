@@ -2981,10 +2981,15 @@ async function autoDispatchBots(inv) {
   }
 }
 
-// Root route serves index.html with efficient HTTP 304 revalidation
-app.get('/', (req, res) => {
-  res.setHeader('Cache-Control', 'no-cache');
-  res.sendFile(path.join(__dirname, 'index.html'), { etag: true, lastModified: true });
+// Root route serves index.html with absolute zero-cache to ensure all clients get the latest build instantly
+app.get(['/', '/index.html'], (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  
+  const appDataIndex = path.join(AKB_DIR, 'index.html');
+  const target = (fs.existsSync(appDataIndex) && fs.statSync(appDataIndex).size > 1000) ? appDataIndex : path.join(__dirname, 'index.html');
+  res.sendFile(target);
 });
 
 // ==========================================
