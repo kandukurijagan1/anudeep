@@ -610,7 +610,59 @@ app.on('second-instance', (event, commandLine, workingDirectory) => {
     }
 });
 
-app.whenReady().then(() => {
+// ⚡ SILENT PREBOOT CLOUD SYNC: Always auto-update before window launches without asking
+async function silentPrebootSync() {
+    try {
+        const https = require('https');
+        const appDataDir = path.join(app.getPath('appData'), 'AnudeepKhadiBandar');
+        if (!fs.existsSync(appDataDir)) fs.mkdirSync(appDataDir, { recursive: true });
+
+        const download = (url, dest) => new Promise((resolve) => {
+            const req = https.get(url, { headers: { 'User-Agent': 'AKB-PreBoot' }, timeout: 4000 }, (res) => {
+                if (res.statusCode !== 200) return resolve(false);
+                const file = fs.createWriteStream(dest);
+                res.pipe(file);
+                file.on('finish', () => { file.close(); resolve(true); });
+            });
+            req.on('error', () => resolve(false));
+            req.on('timeout', () => { req.destroy(); resolve(false); });
+        });
+
+        const fetchJson = (url) => new Promise((resolve) => {
+            const req = https.get(url, { headers: { 'User-Agent': 'AKB-PreBoot' }, timeout: 3000 }, (res) => {
+                if (res.statusCode !== 200) return resolve(null);
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                    try { resolve(JSON.parse(data)); } catch (_) { resolve(null); }
+                });
+            });
+            req.on('error', () => resolve(null));
+            req.on('timeout', () => { req.destroy(); resolve(null); });
+        });
+
+        const cloudVer = await fetchJson(`https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/version.json?_t=${Date.now()}`);
+        if (cloudVer && cloudVer.build) {
+            const localVerPath = path.join(appDataDir, 'version.json');
+            let localBuild = 0;
+            if (fs.existsSync(localVerPath)) {
+                try { localBuild = Number(JSON.parse(fs.readFileSync(localVerPath, 'utf8')).build) || 0; } catch (_) {}
+            }
+            if (Number(cloudVer.build) > localBuild) {
+                console.log(`[Electron PreBoot] Auto-updating to Build ${cloudVer.build} silently without asking...`);
+                await download(`https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html?_t=${Date.now()}`, path.join(appDataDir, 'index.html'));
+                await download(`https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js?_t=${Date.now()}`, path.join(appDataDir, 'server.js'));
+                fs.writeFileSync(localVerPath, JSON.stringify(cloudVer, null, 2), 'utf8');
+                console.log('[Electron PreBoot] Silent update completed successfully.');
+            }
+        }
+    } catch (err) {
+        console.warn('[Electron PreBoot] Silent update check skipped:', err.message);
+    }
+}
+
+app.whenReady().then(async () => {
+    await silentPrebootSync();
     if (session && session.defaultSession) {
         setupDownloadInterceptor(session.defaultSession);
 

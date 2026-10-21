@@ -51,6 +51,7 @@ namespace AnudeepKhadiBandar
                 try
                 {
                     InitializeSystemTray();
+                    TrySilentCloudSync();
                     EnsureBackendRunning();
                     LaunchDedicatedBrowserWindow(activeUrl);
                     StartWatchdog();
@@ -85,6 +86,35 @@ namespace AnudeepKhadiBandar
                         ShowWindow(p.MainWindowHandle, SW_RESTORE);
                         SetForegroundWindow(p.MainWindowHandle);
                         return;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        
+        private static void TrySilentCloudSync()
+        {
+            try
+            {
+                string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AnudeepKhadiBandar");
+                if (!Directory.Exists(appDataDir)) Directory.CreateDirectory(appDataDir);
+
+                using (WebClient wc = new WebClient())
+                {
+                    wc.Headers.Add("User-Agent", "AKB-Launcher");
+                    string verUrl = "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/version.json?_t=" + DateTime.UtcNow.Ticks;
+                    string remoteVerJson = wc.DownloadString(verUrl);
+                    if (!string.IsNullOrEmpty(remoteVerJson) && remoteVerJson.Contains("\"build\""))
+                    {
+                        string localVerPath = Path.Combine(appDataDir, "version.json");
+                        string localVerJson = File.Exists(localVerPath) ? File.ReadAllText(localVerPath) : "";
+                        if (localVerJson != remoteVerJson)
+                        {
+                            wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, "index.html"));
+                            wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, "server.js"));
+                            File.WriteAllText(localVerPath, remoteVerJson);
+                        }
                     }
                 }
             }
@@ -433,7 +463,8 @@ namespace AnudeepKhadiBandar
                 string rawUrl = ctx.Request.Url.AbsolutePath.TrimStart('/');
                 if (string.IsNullOrEmpty(rawUrl)) rawUrl = "index.html";
 
-                string filePath = Path.Combine(appDir, rawUrl.Replace('/', Path.DirectorySeparatorChar));
+                string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AnudeepKhadiBandar", rawUrl.Replace('/', Path.DirectorySeparatorChar));
+                string filePath = (File.Exists(appDataPath)) ? appDataPath : Path.Combine(appDir, rawUrl.Replace('/', Path.DirectorySeparatorChar));
 
                 if (File.Exists(filePath))
                 {

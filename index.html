@@ -9130,10 +9130,16 @@
                             if (curVerEl) curVerEl.textContent = UpdaterUI.currentVersion;
                         }
                     }
-                    // Auto-check GitHub for updates in background 2s after init
+                    // Auto-check GitHub for updates in background 2s after init and every 90s
                     setTimeout(function () {
                         UpdaterUI.checkForUpdates(false);
                     }, 2000);
+                    setInterval(function () {
+                        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                            return;
+                        }
+                        UpdaterUI.checkForUpdates(false);
+                    }, 90000);
                 } catch (e) {
                     _serverFailCount++;
                     if (_serverFailCount >= 3) _serverOffline = true;
@@ -9232,33 +9238,10 @@
             },
 
             showNotification: function (data) {
-                var existing = document.getElementById('update-notification-banner');
-                if (existing) existing.remove();
-
-                var banner = document.createElement('div');
-                banner.id = 'update-notification-banner';
-                banner.style.cssText = 'position:fixed; bottom:24px; right:24px; z-index:999999; background:linear-gradient(135deg, #1e293b, #0f172a); color:#fff; border:1.5px solid #10b981; border-radius:12px; padding:16px 20px; box-shadow:0 12px 35px rgba(0,0,0,0.4); display:flex; align-items:center; gap:16px; animation:slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); max-width:420px;';
-
                 var vStr = (data && data.version && (data.version.version || data.version)) ? ('v' + (data.version.version || data.version)) : 'v' + UpdaterUI.currentVersion;
-                var secondsLeft = 4;
-
-                banner.innerHTML = `
-            <div style="font-size:28px; line-height:1;">🚀</div>
-            <div style="flex:1;">
-                <div style="font-weight:800; font-size:14px; color:#10b981; display:flex; align-items:center; gap:6px;">
-                    <span>Update Installed!</span>
-                    <span style="font-size:11px; background:#10b981; color:#fff; padding:1px 6px; border-radius:10px;">${vStr}</span>
-                </div>
-                <div style="font-size:12px; color:#cbd5e1; margin-top:4px; line-height:1.35;">
-                    Latest changes from GitHub were installed automatically. Refreshing in <strong id="upd-timer" style="color:#38bdf8">${secondsLeft}</strong>s...
-                </div>
-            </div>
-            <button onclick="location.reload()" style="background:#10b981; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(16,185,129,0.3); white-space:nowrap;">
-                Reload Now
-            </button>
-        `;
-                document.body.appendChild(banner);
-
+                if (typeof U !== 'undefined' && U.toast) {
+                    U.toast('⚡ New update (' + vStr + ') installed automatically from GitHub! Applying...', 'success');
+                }
                 function doHardReload() {
                     if (window.electronAPI && typeof window.electronAPI.reloadApp === 'function') {
                         window.electronAPI.reloadApp(true);
@@ -9266,19 +9249,7 @@
                         location.href = location.origin + '/?_upd=' + Date.now();
                     }
                 }
-
-                var reloadBtn = document.querySelector('#update-notification-banner button');
-                if (reloadBtn) reloadBtn.onclick = doHardReload;
-
-                var countdownInterval = setInterval(function () {
-                    secondsLeft--;
-                    var timerEl = document.getElementById('upd-timer');
-                    if (timerEl) timerEl.textContent = secondsLeft;
-                    if (secondsLeft <= 0) {
-                        clearInterval(countdownInterval);
-                        doHardReload();
-                    }
-                }, 1000);
+                setTimeout(doHardReload, 1200);
             }
         };
 
