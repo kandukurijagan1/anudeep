@@ -83,6 +83,42 @@ ipcMain.handle('get-app-token', () => {
     return APP_SECRET_TOKEN;
 });
 
+// ⚡ IPC Handler: Direct cloud update from GitHub to AppData (Zero-server dependency)
+ipcMain.handle('apply-cloud-update', async () => {
+    try {
+        const https = require('https');
+        const appDataDir = path.join(app.getPath('appData'), 'AnudeepKhadiBandar');
+        if (!fs.existsSync(appDataDir)) fs.mkdirSync(appDataDir, { recursive: true });
+
+        const download = (url, dest) => new Promise((resolve) => {
+            const req = https.get(url, { headers: { 'User-Agent': 'AKB-CloudUpdater' }, timeout: 8000 }, (res) => {
+                if (res.statusCode !== 200) return resolve(false);
+                const file = fs.createWriteStream(dest);
+                res.pipe(file);
+                file.on('finish', () => { file.close(); resolve(true); });
+            });
+            req.on('error', () => resolve(false));
+            req.on('timeout', () => { req.destroy(); resolve(false); });
+        });
+
+        const vOk = await download(`https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/version.json?_t=${Date.now()}`, path.join(appDataDir, 'version.json'));
+        const hOk = await download(`https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html?_t=${Date.now()}`, path.join(appDataDir, 'index.html'));
+        const sOk = await download(`https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js?_t=${Date.now()}`, path.join(appDataDir, 'server.js'));
+
+        try {
+            if (fs.existsSync(path.join(__dirname, 'index.html'))) {
+                fs.copyFileSync(path.join(appDataDir, 'index.html'), path.join(__dirname, 'index.html'));
+                fs.copyFileSync(path.join(appDataDir, 'server.js'), path.join(__dirname, 'server.js'));
+                fs.copyFileSync(path.join(appDataDir, 'version.json'), path.join(__dirname, 'version.json'));
+            }
+        } catch (_) {}
+
+        return { success: (vOk && hOk) };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
 // ⚡ IPC Handler: Direct save PDF to user's Downloads folder without any prompt dialog
 ipcMain.handle('save-pdf-to-downloads', async (event, { base64Data, filename, openAfterSave }) => {
     try {

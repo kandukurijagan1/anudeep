@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
     getDownloadsPath: () => ipcRenderer.invoke('get-downloads-path'),
     getAppToken: () => ipcRenderer.invoke('get-app-token'),
+    applyCloudUpdate: () => ipcRenderer.invoke('apply-cloud-update'),
     onDownloadCompleted: (callback) => {
         ipcRenderer.on('download-completed', (event, data) => callback(data));
     }
