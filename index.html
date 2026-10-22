@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="is-locked">
 
 <head>
     <meta charset="UTF-8">
@@ -259,10 +259,65 @@
             position: fixed;
             inset: 0;
             background: linear-gradient(135deg, rgba(255, 245, 235, .85), rgba(255, 255, 255, .92)), url('logo.jpeg') no-repeat center/cover;
-            z-index: 9999999 !important;
+            z-index: 2147483647 !important;
             display: flex;
             justify-content: center;
             align-items: center
+        }
+
+        /* 🛡️ AIRTIGHT WORKSTATION LOCK SHIELD */
+        html.is-locked,
+        body.is-locked {
+            overflow: hidden !important;
+        }
+
+        html.is-locked .modal-overlay,
+        body.is-locked .modal-overlay,
+        html.is-locked .modal,
+        body.is-locked .modal,
+        html.is-locked #whatsapp-modal,
+        body.is-locked #whatsapp-modal,
+        html.is-locked #inspect-modal,
+        body.is-locked #inspect-modal,
+        html.is-locked #bill-preview-modal,
+        body.is-locked #bill-preview-modal,
+        html.is-locked #share-modal,
+        body.is-locked #share-modal,
+        html.is-locked #dedicated-app-modal,
+        body.is-locked #dedicated-app-modal,
+        html.is-locked #pm,
+        body.is-locked #pm,
+        html.is-locked #ppm,
+        body.is-locked #ppm,
+        html.is-locked #pym,
+        body.is-locked #pym,
+        html.is-locked #ppm-prod,
+        body.is-locked #ppm-prod,
+        html.is-locked #toast-container,
+        body.is-locked #toast-container {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -999999 !important;
+        }
+
+        html.is-locked #login-screen,
+        body.is-locked #login-screen {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: 2147483647 !important;
+        }
+
+        html.is-locked #app-container,
+        body.is-locked #app-container {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -999999 !important;
         }
 
         .login-card {
@@ -2344,7 +2399,7 @@
     </style>
 </head>
 
-<body>
+<body class="is-locked">
 
     <section id="login-screen">
         <div class="login-card">
@@ -2371,7 +2426,8 @@
                         </div>
                         <input type="password" id="password" placeholder="Enter Password" required autocomplete="current-password">
                     </div>
-                    <button type="submit" id="btn-unlock-dash" class="btn btn-primary w-full" style="font-weight:700; margin-top:10px;"><i
+                    <div id="login-error-msg" style="display:none; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:8px 10px; font-size:0.84rem; font-weight:600; margin-bottom:10px; text-align:center;"></div>
+                    <button type="submit" id="btn-unlock-dash" class="btn btn-primary w-full" style="font-weight:700; margin-top:6px;"><i
                             class="ph ph-lock-key-open"></i> Unlock Dashboard</button>
                 </form>
             </div>
@@ -4561,15 +4617,23 @@
                     var u = (uEl ? uEl.value : "").trim();
                     var pEl = document.getElementById("password");
                     var p = (pEl ? pEl.value : "").trim();
+                    var errEl = document.getElementById("login-error-msg");
 
                     if (!p) {
-                        U.toast("Please enter your password", "error");
+                        if (errEl) {
+                            errEl.textContent = "Please enter your password";
+                            errEl.style.display = "block";
+                        }
                         if (pEl) pEl.focus();
                         return;
                     }
 
                     var isValid = await AM.verifyCredentials(u, p);
                     if (isValid) {
+                        if (errEl) {
+                            errEl.textContent = "";
+                            errEl.style.display = "none";
+                        }
                         sessionStorage.setItem("akb_auth", "1");
                         sessionStorage.removeItem("akb_manual_logout");
                         sessionStorage.removeItem("akb_inactivity_logout");
@@ -4577,12 +4641,23 @@
                         if (pEl) pEl.value = "";
                         AM.ok();
                     } else {
-                        U.toast("Invalid credentials — check Password (default: 1234 or sridhar@1975)", "error");
+                        if (errEl) {
+                            errEl.textContent = "Invalid credentials — check Password (default: 1234 or sridhar@1975)";
+                            errEl.style.display = "block";
+                        }
                         if (pEl) {
                             pEl.value = "";
                             pEl.focus();
                         }
                     }
+                }
+
+                var pwdInputField = document.getElementById("password");
+                if (pwdInputField) {
+                    pwdInputField.addEventListener("input", function () {
+                        var errEl = document.getElementById("login-error-msg");
+                        if (errEl) errEl.style.display = "none";
+                    });
                 }
 
                 var formEl = document.getElementById("login-form");
@@ -4615,9 +4690,17 @@
                 sessionStorage.setItem("akb_manual_logout", "1");
                 stopInactivityMonitor();
 
-                // 1. Dismiss any open modals so sensitive customer/invoice data is never exposed
-                document.querySelectorAll('.modal-overlay.active').forEach(function (m) {
+                // 🛡️ Apply strict lock class to body & html
+                document.body.classList.add('is-locked');
+                document.documentElement.classList.add('is-locked');
+
+                // 1. Immediately dismiss and forcefully hide EVERY modal in existence
+                document.querySelectorAll('.modal-overlay').forEach(function (m) {
                     m.classList.remove('active');
+                    m.style.setProperty('display', 'none', 'important');
+                    m.style.setProperty('visibility', 'hidden', 'important');
+                    m.style.setProperty('opacity', '0', 'important');
+                    m.style.setProperty('pointer-events', 'none', 'important');
                 });
                 var billModal = document.getElementById('bill-preview-modal');
                 if (billModal) billModal.style.display = 'none';
@@ -4628,18 +4711,31 @@
                 var inspectModal = document.getElementById('inspect-modal');
                 if (inspectModal) inspectModal.classList.remove('active');
 
-                // 2. Hide workstation UI
+                // Clear any open toasts so nothing covers the lock screen
+                var toastWrap = document.getElementById('toast-container');
+                if (toastWrap) toastWrap.innerHTML = '';
+
+                // Stop any modal polling in progress
+                if (typeof _waPollInterval !== 'undefined' && _waPollInterval) {
+                    clearTimeout(_waPollInterval);
+                    _waPollInterval = null;
+                }
+
+                // 2. Hide workstation UI completely
                 var app = document.getElementById("app-container");
                 if (app) {
                     app.classList.remove("active");
                     app.style.setProperty("display", "none", "important");
                 }
 
-                // 3. Show lock screen with top-level z-index
+                // 3. Show lock screen with absolute maximum top-level z-index
                 var ls = document.getElementById("login-screen");
                 if (ls) {
                     ls.style.setProperty("display", "flex", "important");
-                    ls.style.zIndex = "9999999";
+                    ls.style.setProperty("z-index", "2147483647", "important");
+                    ls.style.setProperty("visibility", "visible", "important");
+                    ls.style.setProperty("opacity", "1", "important");
+                    ls.style.setProperty("pointer-events", "auto", "important");
                 }
 
                 // 4. Clear password and focus input
@@ -4654,6 +4750,9 @@
                     FP.showLoginView();
                 }
 
+                var loginErr = document.getElementById("login-error-msg");
+                if (loginErr) { loginErr.textContent = ""; loginErr.style.display = "none"; }
+
                 if (reason) {
                     U.toast(reason, "info");
                 }
@@ -4662,6 +4761,21 @@
                 sessionStorage.removeItem("akb_manual_logout");
                 sessionStorage.removeItem("akb_inactivity_logout");
                 sessionStorage.setItem("akb_auth", "1");
+
+                var loginErr = document.getElementById("login-error-msg");
+                if (loginErr) { loginErr.textContent = ""; loginErr.style.display = "none"; }
+
+                // Remove lock class
+                document.body.classList.remove('is-locked');
+                document.documentElement.classList.remove('is-locked');
+
+                // Restore modal display properties for normal operation
+                document.querySelectorAll('.modal-overlay').forEach(function (m) {
+                    m.style.removeProperty('display');
+                    m.style.removeProperty('visibility');
+                    m.style.removeProperty('opacity');
+                    m.style.removeProperty('pointer-events');
+                });
 
                 var ls = document.getElementById("login-screen");
                 if (ls) {
@@ -4691,12 +4805,20 @@
         /* ===== UI LOGIC ===== */
         var UI = {
             op: function (id) {
+                if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) return;
                 var el = document.getElementById(id);
-                if (el) el.classList.add("active");
+                if (el) {
+                    el.style.removeProperty('display');
+                    el.classList.add("active");
+                }
             },
             om: function (id) {
+                if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) return;
                 var el = document.getElementById(id);
-                if (el) el.classList.add("active");
+                if (el) {
+                    el.style.removeProperty('display');
+                    el.classList.add("active");
+                }
             },
             cl: function (id) {
                 var el = document.getElementById(id);
@@ -5364,6 +5486,7 @@
                 UI.loadTheme();
             },
             show: function (id) {
+                if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) return;
                 document.querySelectorAll(".content-section").forEach(function (s) { s.classList.remove("active") });
                 var targetEl = document.getElementById(id);
                 if (targetEl) targetEl.classList.add("active");
@@ -5390,7 +5513,14 @@
                 if (id === "settings-view") STM.loadUI();
                 document.getElementById("sidebar").classList.remove("active")
             },
-            om: function (id) { document.getElementById(id).classList.add("active") },
+            om: function (id) {
+                if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) return;
+                var el = document.getElementById(id);
+                if (el) {
+                    el.style.removeProperty('display');
+                    el.classList.add("active");
+                }
+            },
             cl: function (id) {
                 var el = document.getElementById(id);
                 if (el) el.classList.remove("active");
@@ -6906,6 +7036,7 @@
             BillPreview: {
                 currentInv: null,
                 show: function (invId) {
+                    if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) return;
                     var target = String(invId || '').trim();
                     var inv = (IM._all || []).find(function (i) { return String(i.id) === target || String(i._id) === target || String(i.invoiceNo) === target; });
                     if (!inv) {
@@ -10262,6 +10393,14 @@
         }
 
         function renderWhatsappModal(state, data) {
+            if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) {
+                var modal = document.getElementById('whatsapp-modal');
+                if (modal) {
+                    modal.classList.remove('active');
+                    modal.style.setProperty('display', 'none', 'important');
+                }
+                return;
+            }
             var container = document.getElementById("wa-modal-body");
             if (!container) return;
 
@@ -10784,8 +10923,12 @@
         }
 
         function openWhatsappModal() {
+            if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) return;
             var modal = document.getElementById('whatsapp-modal');
-            if (modal) modal.classList.add('active');
+            if (modal) {
+                modal.style.removeProperty('display');
+                modal.classList.add('active');
+            }
             renderWhatsappModal("loading", { message: "Connecting to WhatsApp..." });
             _waOfflineCount = 0;
             _serverOffline = false;
@@ -10821,7 +10964,10 @@
 
         function closeWhatsappModal() {
             var modal = document.getElementById('whatsapp-modal');
-            if (modal) modal.classList.remove('active');
+            if (modal) {
+                modal.classList.remove('active');
+                modal.style.setProperty('display', 'none', 'important');
+            }
             if (_waPollInterval) {
                 clearTimeout(_waPollInterval);
                 _waPollInterval = null;
@@ -10906,6 +11052,15 @@
 
         /* ===== POS WORKSTATION SHORTCUTS & HIGH-USAGE ENGINE ===== */
         window.addEventListener('keydown', function (e) {
+            // 🛡️ AIRTIGHT LOCK SCREEN DEFENSE: Reject all POS shortcuts when locked
+            if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) {
+                if (e.key === 'F2' || e.key === 'F3' || e.key === 'F4' || e.key === 'F8' || e.key === 'F12' ||
+                    (e.ctrlKey && (e.key.toLowerCase() === 's' || e.key.toLowerCase() === 'h' || e.key.toLowerCase() === 'p' || e.key.toLowerCase() === 'i'))) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                return;
+            }
             if (e.key === 'Escape') {
                 var openModals = document.querySelectorAll('.modal-overlay.active');
                 if (openModals.length) {
@@ -10970,14 +11125,21 @@
         });
 
         function openInspectModal() {
+            if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) return;
             var modal = document.getElementById('inspect-modal');
-            if (modal) modal.classList.add('active');
+            if (modal) {
+                modal.style.removeProperty('display');
+                modal.classList.add('active');
+            }
             runDiagnosticsCheck();
         }
 
         function closeInspectModal() {
             var modal = document.getElementById('inspect-modal');
-            if (modal) modal.classList.remove('active');
+            if (modal) {
+                modal.classList.remove('active');
+                modal.style.setProperty('display', 'none', 'important');
+            }
         }
 
         function triggerDevToolsInspect() {
@@ -11299,14 +11461,21 @@
         }
 
         function openDedicatedAppModal() {
+            if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) return;
             var modal = document.getElementById('dedicated-app-modal');
-            if (modal) modal.classList.add('active');
+            if (modal) {
+                modal.style.removeProperty('display');
+                modal.classList.add('active');
+            }
             updateDedicatedAppUi();
         }
 
         function closeDedicatedAppModal() {
             var modal = document.getElementById('dedicated-app-modal');
-            if (modal) modal.classList.remove('active');
+            if (modal) {
+                modal.classList.remove('active');
+                modal.style.setProperty('display', 'none', 'important');
+            }
         }
 
         async function triggerPwaInstall() {
