@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
   "version": "1.4.6",
-  "build": 143,
+  "build": 144,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: self-healing multi-device ledger sync ensuring all 20 invoices appear on client/customer systems"
+  "description": "fix: perfect vertical colon alignment and clean underline formatting for transport metadata and manual pen entry"
 }

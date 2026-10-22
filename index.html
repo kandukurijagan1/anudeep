@@ -3007,7 +3007,7 @@
                                         <div class="inv-form-field"><label>Date of Supply</label><input type="date"
                                                 id="b-sdate"></div>
                                         <div class="inv-form-field"><label>No. of Bundles</label><input type="number"
-                                                id="b-bundles" min="0" value="0"></div>
+                                                id="b-bundles" min="0" placeholder="0"></div>
                                         <div class="inv-form-field"><label>Place of Supply</label><input type="text"
                                                 id="b-pos" placeholder="e.g. Andhra Pradesh"></div>
                                         <div class="inv-form-field"><label>State Code</label><input type="text"
@@ -6144,45 +6144,52 @@
                     '</table>' +
                     '<table style="width:100%; border-collapse:collapse; border-top:2px solid #1a237e; border-bottom:2px solid #1a237e; font-size:8.5pt; font-weight:bold; table-layout:fixed;">' +
                     '<tr>' +
-                    '<td style="width:50%; border-right:2px solid #1a237e; padding:4px; vertical-align:top;">' +
-                    '<table style="width:100%; border-collapse:collapse;">' +
-                    '<tr><td style="padding:3px 4px;">Invoice No.</td><td style="text-align:center;">:</td><td style="color:#b30000; font-size:14pt; font-weight:900;">' + U.pi(inv.invoiceNo) + '</td></tr>' +
-                    '<tr><td style="padding:3px 4px;">Invoice Date</td><td style="text-align:center;">:</td><td style="color:#000; font-weight:normal;">' + U.fd(inv.date) + '</td></tr>' +
-                    '<tr><td style="padding:3px 4px;">State</td><td style="text-align:center;">:</td><td style="color:#000; font-weight:normal;">TENALI</td></tr>' +
+                    '<td style="width:50%; border-right:2px solid #1a237e; padding:4px 6px; vertical-align:top;">' +
+                    '<table style="width:100%; border-collapse:collapse; table-layout:fixed; font-size:8.5pt;">' +
+                    '<colgroup><col style="width:85px;"><col style="width:10px;"><col></colgroup>' +
+                    '<tr><td style="padding:2px 2px; white-space:nowrap; font-weight:bold;">Invoice No.</td><td style="text-align:center; font-weight:bold;">:</td><td style="color:#b30000; font-size:14pt; font-weight:900; padding-left:4px;">' + U.pi(inv.invoiceNo) + '</td></tr>' +
+                    '<tr><td style="padding:2px 2px; white-space:nowrap; font-weight:bold;">Invoice Date</td><td style="text-align:center; font-weight:bold;">:</td><td style="color:#000; font-weight:normal; padding-left:4px;">' + U.fd(inv.date) + '</td></tr>' +
+                    '<tr><td style="padding:2px 2px; white-space:nowrap; font-weight:bold;">State</td><td style="text-align:center; font-weight:bold;">:</td><td style="color:#000; font-weight:normal; padding-left:4px;">TENALI</td></tr>' +
                     '</table>' +
                     '</td>' +
-                    '<td style="width:50%; padding:4px 6px 4px 4px; vertical-align:top; box-sizing:border-box;">' +
-                    '<table style="width:100%; border-collapse:collapse; margin-bottom:2px; table-layout:fixed;">' +
+                    '<td style="width:50%; padding:4px 6px; vertical-align:top; box-sizing:border-box;">' +
+                    '<table style="width:100%; border-collapse:collapse; table-layout:fixed; font-size:8pt;">' +
+                    '<colgroup>' +
+                    '<col style="width:104px;">' +
+                    '<col style="width:8px;">' +
+                    '<col style="width:90px;">' +
+                    '<col style="width:78px;">' +
+                    '<col style="width:8px;">' +
+                    '<col style="width:72px;">' +
+                    '</colgroup>' +
                     '<tr>' +
-                    '<td style="width:130px; padding:2px 3px; white-space:nowrap;">Transportation Mode</td>' +
-                    '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.transportMode || '') + '</td>' +
-                    '</tr>' +
-                    '</table>' +
-                    '<table style="width:100%; border-collapse:collapse; table-layout:fixed;">' +
-                    '<tr>' +
-                    '<td style="width:80px; padding:2px 2px; white-space:nowrap; font-size:8pt;">L.R. / Docket No.</td>' +
-                    '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:8pt;">' + (inv.lrNo || '') + '</td>' +
-                    '<td style="width:70px; text-align:right; padding-right:3px; white-space:nowrap; font-size:8pt;">Date</td>' +
-                    '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:82px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; font-size:8pt; white-space:nowrap;">' + (inv.transportDate ? U.fd(inv.transportDate) : '') + '</td>' +
+                    '<td style="padding:2px 1px; white-space:nowrap; font-weight:bold;">Transportation Mode</td>' +
+                    '<td style="text-align:center; font-weight:bold;">:</td>' +
+                    '<td colspan="4" style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e; padding:0 3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; height:18px; vertical-align:bottom;">' + (inv.transportMode ? U.esc(inv.transportMode) : '&nbsp;') + '</td>' +
                     '</tr>' +
                     '<tr>' +
-                    '<td style="width:80px; padding:2px 2px; white-space:nowrap; font-size:8pt;">Date of Supply</td>' +
-                    '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:8pt;">' + (inv.supplyDate ? U.fd(inv.supplyDate) : '') + '</td>' +
-                    '<td style="width:70px; text-align:right; padding-right:3px; white-space:nowrap; font-size:8pt;">No. of Bundles</td>' +
-                    '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:82px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; font-size:8pt; white-space:nowrap;">' + (inv.bundles || '0') + '</td>' +
+                    '<td style="padding:2px 1px; white-space:nowrap; font-weight:bold;">L.R. / Docket No.</td>' +
+                    '<td style="text-align:center; font-weight:bold;">:</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e; padding:0 3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; height:18px; vertical-align:bottom;">' + (inv.lrNo ? U.esc(inv.lrNo) : '&nbsp;') + '</td>' +
+                    '<td style="text-align:right; padding-right:3px; white-space:nowrap; font-weight:bold;">Date</td>' +
+                    '<td style="text-align:center; font-weight:bold;">:</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e; padding:0 3px; font-size:8pt; white-space:nowrap; height:18px; vertical-align:bottom;">' + (inv.transportDate ? U.fd(inv.transportDate) : '&nbsp;') + '</td>' +
                     '</tr>' +
                     '<tr>' +
-                    '<td style="width:80px; padding:2px 2px; white-space:nowrap; font-size:8pt;">Place of Supply</td>' +
-                    '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; padding-right:6px; font-size:' + posFontSize + '; white-space:nowrap;" title="' + U.esc(posStr) + '">' + posStr + '</td>' +
-                    '<td style="width:70px; text-align:right; padding-right:3px; white-space:nowrap; font-size:8pt;">State Code</td>' +
-                    '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:82px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; font-size:8.5pt; white-space:nowrap;">' + (inv.stateCode || '37') + '</td>' +
+                    '<td style="padding:2px 1px; white-space:nowrap; font-weight:bold;">Date of Supply</td>' +
+                    '<td style="text-align:center; font-weight:bold;">:</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e; padding:0 3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; height:18px; vertical-align:bottom;">' + (inv.supplyDate ? U.fd(inv.supplyDate) : '&nbsp;') + '</td>' +
+                    '<td style="text-align:right; padding-right:3px; white-space:nowrap; font-weight:bold;">No. of Bundles</td>' +
+                    '<td style="text-align:center; font-weight:bold;">:</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e; padding:0 3px; font-size:8pt; white-space:nowrap; height:18px; vertical-align:bottom;">' + ((inv.bundles && String(inv.bundles).trim() !== '' && String(inv.bundles).trim() !== '0') ? U.esc(String(inv.bundles)) : '&nbsp;') + '</td>' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td style="padding:2px 1px; white-space:nowrap; font-weight:bold;">Place of Supply</td>' +
+                    '<td style="text-align:center; font-weight:bold;">:</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e; padding:0 3px; font-size:' + posFontSize + '; white-space:nowrap; height:18px; vertical-align:bottom;" title="' + U.esc(posStr) + '">' + (posStr ? U.esc(posStr) : '&nbsp;') + '</td>' +
+                    '<td style="text-align:right; padding-right:3px; white-space:nowrap; font-weight:bold;">State Code</td>' +
+                    '<td style="text-align:center; font-weight:bold;">:</td>' +
+                    '<td style="color:#000; font-weight:900; border-bottom:1px solid #1a237e; padding:0 3px; font-size:8.5pt; white-space:nowrap; height:18px; vertical-align:bottom;">' + (inv.stateCode ? U.esc(String(inv.stateCode)) : '&nbsp;') + '</td>' +
                     '</tr>' +
                     '</table>' +
                     '</td>' +
@@ -7371,7 +7378,7 @@
                 document.getElementById("b-lr").value = inv.lrNo || "";
                 document.getElementById("b-tdate").value = inv.transportDate || "";
                 document.getElementById("b-sdate").value = inv.supplyDate || "";
-                document.getElementById("b-bundles").value = inv.bundles || "0";
+                document.getElementById("b-bundles").value = (inv.bundles && String(inv.bundles).trim() !== "0") ? inv.bundles : "";
                 document.getElementById("b-pos").value = inv.placeOfSupply || "";
                 document.getElementById("b-sc").value = inv.stateCode || "";
 
@@ -7451,7 +7458,7 @@
                     lrNo: (document.getElementById("b-lr").value || "").trim().toUpperCase(),
                     transportDate: document.getElementById("b-tdate").value,
                     supplyDate: document.getElementById("b-sdate").value,
-                    bundles: document.getElementById("b-bundles").value,
+                    bundles: (document.getElementById("b-bundles").value || "").trim(),
                     placeOfSupply: (document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : (c.pos || "")).toUpperCase(),
                     stateCode: (document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : (c.sc || "")),
                     receiver: {
@@ -7591,7 +7598,7 @@
                 document.getElementById("b-lr").value = "";
                 document.getElementById("b-tdate").value = "";
                 document.getElementById("b-sdate").value = "";
-                document.getElementById("b-bundles").value = "0";
+                document.getElementById("b-bundles").value = "";
                 document.getElementById("b-rn").value = "";
                 if (document.getElementById("b-rph")) document.getElementById("b-rph").value = "";
                 document.getElementById("b-ra").value = "";
@@ -9102,7 +9109,7 @@
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
             currentVersion: '1.4.6',
-            build: 143,
+            build: 144,
             hasUpdate: false,
             latestInfo: null,
 
