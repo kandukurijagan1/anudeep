@@ -1832,63 +1832,100 @@ setTimeout(() => triggerAutoUpdateCycle('Early 3s'), 3000);
 setTimeout(() => triggerAutoUpdateCycle('Boot 15s'), 15000);
 setInterval(() => triggerAutoUpdateCycle('Periodic 2m'), 2 * 60 * 1000);
 
-// ⚡ Continuous Background Master Ledger Auto-Sync (keeps server database updated with cloud/GitHub)
+// ⚡ Continuous Background Master Ledger Auto-Sync (keeps server database in lockstep with cloud/GitHub)
+let _serverSyncTick = 0;
 setInterval(async () => {
+  _serverSyncTick++;
   try {
-    const delRes = await fetch(`${RAW_BASE_URL}/data/deleted_invoices.json?_t=${Date.now()}`);
-    if (delRes.ok) {
-      const remoteDel = await delRes.json();
-      if (Array.isArray(remoteDel)) {
-        const curDel = readJsonFile('deleted_invoices', []);
-        let delChanged = false;
-        for (const d of remoteDel) {
-          if (!curDel.includes(String(d))) { curDel.push(String(d)); delChanged = true; }
+    let remoteInvoices = [];
+
+    // 1. Sync tombstones from GitHub
+    try {
+      const delRes = await fetch(`${RAW_BASE_URL}/data/deleted_invoices.json?_t=${Date.now()}`);
+      if (delRes.ok) {
+        const remoteDel = await delRes.json();
+        if (Array.isArray(remoteDel)) {
+          const curDel = readJsonFile('deleted_invoices', []);
+          let delChanged = false;
+          for (const d of remoteDel) {
+            if (!curDel.includes(String(d))) { curDel.push(String(d)); delChanged = true; }
+          }
+          if (delChanged) writeJsonFile('deleted_invoices', curDel);
         }
-        if (delChanged) writeJsonFile('deleted_invoices', curDel);
       }
+    } catch (_) {}
+
+    // 2. Sync from GitHub master ledger
+    try {
+      const invRes = await fetch(`${RAW_BASE_URL}/data/invoices.json?_t=${Date.now()}`);
+      if (invRes.ok) {
+        const ghInvs = await invRes.json();
+        if (Array.isArray(ghInvs)) remoteInvoices.push(...ghInvs);
+      }
+    } catch (_) {}
+
+    // 3. Every 2nd cycle (12 seconds), also query Cloud GAS directly to catch mobile device updates instantly
+    if (_serverSyncTick % 2 === 0) {
+      try {
+        const gasRes = await fetch(CLOUD_GAS_URL + '?action=bootstrap', { timeout: 4500 });
+        if (gasRes.ok) {
+          const cloudData = await gasRes.json();
+          if (cloudData && Array.isArray(cloudData.invoices)) {
+            remoteInvoices.push(...cloudData.invoices);
+          }
+        }
+      } catch (_) {}
     }
 
-    const invRes = await fetch(`${RAW_BASE_URL}/data/invoices.json?_t=${Date.now()}`);
-    if (invRes.ok) {
-      const remoteInvs = await invRes.json();
-      if (Array.isArray(remoteInvs) && remoteInvs.length > 0) {
-        let curInvs = readJsonFile('invoices', []);
-        const deletedInvs = new Set(readJsonFile('deleted_invoices', []).map(String));
-        let updated = false;
+    if (remoteInvoices.length > 0) {
+      let curInvs = readJsonFile('invoices', []);
+      const deletedInvs = new Set(readJsonFile('deleted_invoices', []).map(String));
+      let updated = false;
+      let newFromCloud = false;
 
-        const beforeLen = curInvs.length;
-        curInvs = curInvs.filter(i => {
-          const cid = String(i.id || i._id || '');
-          const cnum = String(i.invoiceNo || '');
-          return (!cid || !deletedInvs.has(cid)) && (!cnum || !deletedInvs.has(cnum));
-        });
-        if (curInvs.length !== beforeLen) updated = true;
+      const beforeLen = curInvs.length;
+      curInvs = curInvs.filter(i => {
+        const cid = String(i.id || i._id || '');
+        const cnum = String(i.invoiceNo || '');
+        return (!cid || !deletedInvs.has(cid)) && (!cnum || !deletedInvs.has(cnum));
+      });
+      if (curInvs.length !== beforeLen) updated = true;
 
-        const existingIds = new Set(curInvs.map(i => String(i.id || i._id)));
-        const existingNos = new Set(curInvs.map(i => Number(i.invoiceNo)).filter(n => !isNaN(n) && n > 0));
-        for (const rInv of remoteInvs) {
-          const num = Number(rInv.invoiceNo);
-          const rid = String(rInv.id || rInv._id || '');
-          if (rid && deletedInvs.has(rid)) continue;
-          if (!isNaN(num) && num > 0 && deletedInvs.has(String(num))) continue;
-          if (rid && existingIds.has(rid)) continue;
-          if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
-          if (!isNaN(num) && num > 50) continue;
-          curInvs.push(rInv);
-          if (rid) existingIds.add(rid);
-          if (!isNaN(num) && num > 0) existingNos.add(num);
-          updated = true;
-        }
-        if (updated) {
-          curInvs.sort((a, b) => (Number(b.invoiceNo) || 0) - (Number(a.invoiceNo) || 0));
-          writeJsonFile('invoices', curInvs);
-          _invoicesVersion = Date.now();
-          broadcastRealtime('invoice_created', { invoices: curInvs });
+      const existingIds = new Set(curInvs.map(i => String(i.id || i._id)));
+      const existingNos = new Set(curInvs.map(i => Number(i.invoiceNo)).filter(n => !isNaN(n) && n > 0));
+      for (const rInv of remoteInvoices) {
+        const num = Number(rInv.invoiceNo);
+        const rid = String(rInv.id || rInv._id || '');
+        if (rid && deletedInvs.has(rid)) continue;
+        if (!isNaN(num) && num > 0 && deletedInvs.has(String(num))) continue;
+        if (rid && existingIds.has(rid)) continue;
+        if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
+        if (!isNaN(num) && num > 50) continue;
+        curInvs.push(rInv);
+        if (rid) existingIds.add(rid);
+        if (!isNaN(num) && num > 0) existingNos.add(num);
+        updated = true;
+        newFromCloud = true;
+      }
+      if (updated) {
+        curInvs.sort((a, b) => (Number(b.invoiceNo) || 0) - (Number(a.invoiceNo) || 0));
+        writeJsonFile('invoices', curInvs);
+        _invoicesVersion = Date.now();
+        broadcastRealtime('invoice_created', { invoices: curInvs });
+
+        // If new invoices came from cloud, asynchronously sync to GitHub repository
+        if (newFromCloud) {
+          try {
+            const { exec } = require('child_process');
+            exec('git add data/invoices.json data/deleted_invoices.json && git commit -m "sync: automatic master ledger update from cloud" && git push origin main', (gErr) => {
+              if (!gErr) console.log('[Cloud-Ledger] Pushed latest cloud invoices to GitHub repository.');
+            });
+          } catch (_) {}
         }
       }
     }
   } catch (_) {}
-}, 8000);
+}, 6000);
 
 // API: Get update status
 app.get('/api/update/status', (req, res) => {
