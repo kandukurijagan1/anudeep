@@ -1,5 +1,111 @@
 [
   {
+    "id": "1792606946175",
+    "invoiceNo": 18,
+    "date": "2026-10-21",
+    "reverseCharge": "No",
+    "transportMode": "UGY",
+    "lrNo": "YUH",
+    "transportDate": "2026-10-21",
+    "supplyDate": "2026-10-21",
+    "bundles": "5",
+    "placeOfSupply": "ANDAMAN & NICOBAR ISLANDS",
+    "stateCode": "35",
+    "receiver": {
+      "name": "UYGHJBN",
+      "phone": "8367047947",
+      "address": "YUHJM",
+      "gstin": "",
+      "state": "ANDHRA PRADESH",
+      "stateCode": "37"
+    },
+    "consignee": {
+      "name": "UGYHJNM",
+      "phone": "8367047947",
+      "address": "YUHJBN",
+      "gstin": "",
+      "state": "ANDAMAN & NICOBAR ISLANDS",
+      "stateCode": "35"
+    },
+    "customerPhone": "8367047947",
+    "items": [
+      {
+        "baleNo": "1",
+        "description": "FINE KHADI TOWEL",
+        "hsn": "6302",
+        "calcType": "qty",
+        "qty": 5,
+        "meters": 0,
+        "cms": 0,
+        "totalMeters": 0,
+        "rate": 180,
+        "amount": 900
+      }
+    ],
+    "taxableAmount": 900,
+    "cgstAmount": 0,
+    "sgstAmount": 0,
+    "igstAmount": 45,
+    "rawGrandTotal": 945,
+    "roundOff": 0,
+    "totalAmount": 945,
+    "isInterState": true,
+    "_id": "1792606946175"
+  },
+  {
+    "id": "1792603493528",
+    "invoiceNo": 17,
+    "date": "2026-10-21",
+    "reverseCharge": "No",
+    "transportMode": "87YUHJBN",
+    "lrNo": "8768YUHJ",
+    "transportDate": "2026-10-21",
+    "supplyDate": "2026-10-21",
+    "bundles": "7",
+    "placeOfSupply": "ANDAMAN & NICOBAR ISLANDS",
+    "stateCode": "35",
+    "receiver": {
+      "name": "UYGHJBN",
+      "phone": "8367047947",
+      "address": "YUHJM",
+      "gstin": "",
+      "state": "ANDHRA PRADESH",
+      "stateCode": "37"
+    },
+    "consignee": {
+      "name": "UGYHJNM",
+      "phone": "8367047947",
+      "address": "YUHJBN",
+      "gstin": "",
+      "state": "ANDAMAN & NICOBAR ISLANDS",
+      "stateCode": "35"
+    },
+    "customerPhone": "8367047947",
+    "items": [
+      {
+        "baleNo": "1",
+        "description": "WHITE KHADI SHIRT",
+        "hsn": "5208",
+        "calcType": "qty",
+        "qty": 5,
+        "meters": 0,
+        "cms": 0,
+        "totalMeters": 0,
+        "rate": 650,
+        "amount": 3250
+      }
+    ],
+    "taxableAmount": 3250,
+    "cgstAmount": 0,
+    "sgstAmount": 0,
+    "igstAmount": 162.5,
+    "rawGrandTotal": 3412.5,
+    "roundOff": 0.5,
+    "totalAmount": 3413,
+    "isInterState": true,
+    "_id": "1792603493528"
+  },
+  {
     "id": 1792602192009,
     "invoiceNo": 16,
     "date": "2026-10-21",

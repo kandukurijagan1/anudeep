@@ -2776,9 +2776,11 @@ app.post('/api/testTelegram', async (req, res) => {
 // ⚡ Helper: Robust Inside Andhra Pradesh (Intra-State) Detector
 function isInsideAndhraPradesh(inv) {
   if (!inv) return true;
+  // 1. Explicit manual or stored supply type takes absolute precedence
   if (inv.isInterState !== undefined && inv.isInterState !== null) {
     return !inv.isInterState;
   }
+  // 2. Base strictly on Consignee | Shipped to
   if (inv.consignee) {
     const cGst = String(inv.consignee.gstin || '').trim().slice(0, 2);
     const cSc = String(inv.consignee.stateCode || cGst || '').replace(/\D/g, '');
@@ -2790,14 +2792,17 @@ function isInsideAndhraPradesh(inv) {
       if (cSt.length > 2 && !cSt.includes('andhra') && cSt !== 'ap') return false;
     }
   }
-  const rGst = inv.receiver ? String(inv.receiver.gstin || '').trim().slice(0, 2) : '';
-  const sc = String(inv.stateCode || (inv.receiver && inv.receiver.stateCode) || rGst || '').replace(/\D/g, '');
-  const pos = String(inv.placeOfSupply || (inv.receiver && inv.receiver.state) || '').trim().toLowerCase();
-  if (sc === '37') return true;
-  if (sc && sc.length >= 2 && sc !== '37') return false;
-  if (pos) {
-    if (pos.includes('andhra') || pos === 'ap' || pos === 'a.p.' || pos.includes('tenali') || pos.includes('guntur')) return true;
-    if (pos.length > 2 && !pos.includes('andhra') && pos !== 'ap') return false;
+  // 3. Fallback to Receiver ONLY if Consignee was not provided
+  if (inv.receiver) {
+    const rGst = String(inv.receiver.gstin || '').trim().slice(0, 2);
+    const rSc = String(inv.receiver.stateCode || rGst || '').replace(/\D/g, '');
+    const rSt = String(inv.receiver.state || '').trim().toLowerCase();
+    if (rSc === '37') return true;
+    if (rSc && rSc.length >= 2 && rSc !== '37') return false;
+    if (rSt) {
+      if (rSt.includes('andhra') || rSt === 'ap' || rSt === 'a.p.') return true;
+      if (rSt.length > 2 && !rSt.includes('andhra') && rSt !== 'ap') return false;
+    }
   }
   return true;
 }

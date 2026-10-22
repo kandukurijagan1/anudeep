@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
   "version": "1.4.6",
-  "build": 135,
-  "commit": "74a2e627223f9e42fce350febe0bd7ba3974089e",
-  "releaseDate": "2026-10-21",
+  "build": 137,
+  "commit": "HEAD",
+  "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: invoice tax format Total Amount before Tax, prevent transport details clipping, fix pdf scroll offset"
+  "description": "fix: resolve transport date clipping in PDF, fully decouple Place of Supply from Consignee, calculate tax strictly based on Consignee and manual button selection"
 }

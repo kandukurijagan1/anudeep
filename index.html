@@ -4246,9 +4246,11 @@
             },
             isInsideAndhraPradesh: function (target, fallbackName) {
                 if (target && typeof target === 'object') {
+                    // 1. Explicit manual or stored supply type takes absolute precedence
                     if (target.isInterState !== undefined && target.isInterState !== null) {
                         return !target.isInterState;
                     }
+                    // 2. Base strictly on Consignee | Shipped to
                     if (target.consignee) {
                         var cGst = U.getCodeFromGstin(target.consignee.gstin);
                         var cSc = String(target.consignee.stateCode || cGst || "").replace(/\D/g, "");
@@ -4257,22 +4259,22 @@
                         if (cSc && cSc.length >= 2 && cSc !== "37") return false;
                         if (cSt) {
                             if (cSt.indexOf("andhra") > -1 || cSt === "ap" || cSt === "a.p." || cSt === "a.p") return true;
-                            if (U.getCodeByStateName(cSt) && U.getCodeByStateName(cSt) !== "37") return false;
+                            var cCode = U.getCodeByStateName(cSt);
+                            if (cCode && cCode !== "37") return false;
                         }
                     }
-                    var rGst = target.receiver ? U.getCodeFromGstin(target.receiver.gstin) : "";
-                    var sc = String(target.stateCode || (target.receiver && target.receiver.stateCode) || rGst || "").replace(/\D/g, "");
-                    var pos = String(target.placeOfSupply || (target.receiver && target.receiver.state) || "").trim().toLowerCase();
-                    if (sc === "37") return true;
-                    if (sc && sc.length >= 2 && sc !== "37") return false;
-                    if (pos) {
-                        if (pos.indexOf("andhra") > -1 || pos === "ap" || pos === "a.p." || pos === "a.p" || pos.indexOf("tenali") > -1 || pos.indexOf("guntur") > -1 || pos.indexOf("vijayawada") > -1) return true;
-                        if (U.getCodeByStateName(pos) && U.getCodeByStateName(pos) !== "37") return false;
-                    }
-                    if (target.receiver && target.receiver.state) {
-                        var rSt = String(target.receiver.state).trim().toLowerCase();
-                        if (rSt.indexOf("andhra") > -1 || rSt === "ap" || rSt === "a.p." || rSt === "a.p") return true;
-                        if (U.getCodeByStateName(rSt) && U.getCodeByStateName(rSt) !== "37") return false;
+                    // 3. Fallback to Receiver only if Consignee state was not provided
+                    if (target.receiver) {
+                        var rGst = U.getCodeFromGstin(target.receiver.gstin);
+                        var rSc = String(target.receiver.stateCode || rGst || "").replace(/\D/g, "");
+                        var rSt = String(target.receiver.state || "").trim().toLowerCase();
+                        if (rSc === "37") return true;
+                        if (rSc && rSc.length >= 2 && rSc !== "37") return false;
+                        if (rSt) {
+                            if (rSt.indexOf("andhra") > -1 || rSt === "ap" || rSt === "a.p." || rSt === "a.p") return true;
+                            var rCode = U.getCodeByStateName(rSt);
+                            if (rCode && rCode !== "37") return false;
+                        }
                     }
                     return true;
                 }
@@ -4684,52 +4686,27 @@
                         if (ALL_STATE_MAP[pad]) {
                             ne.value = ALL_STATE_MAP[pad];
                         }
-                        // Sync state codes
+                        // Consignee state code strictly controls supply type auto-detection
                         if (codeId === "b-ssc") {
-                            // Consignee state code directly controls Place of Supply and State Code
-                            var bsc = document.getElementById("b-sc");
-                            if (bsc && sc) bsc.value = sc;
-                            var bpos = document.getElementById("b-pos");
-                            if (bpos && ALL_STATE_MAP[pad]) bpos.value = ALL_STATE_MAP[pad];
-                        } else if (codeId === "b-rsc") {
-                            // Receiver state code: only sync to consignee / supply if consignee is not yet filled
-                            var bssc = document.getElementById("b-ssc");
-                            var bsst = document.getElementById("b-sst");
-                            var bsc = document.getElementById("b-sc");
-                            var bpos = document.getElementById("b-pos");
-                            if (!bssc || !bssc.value.trim() || bssc.value.trim() === "37") {
-                                if (bssc) bssc.value = sc;
-                                if (bsst && ALL_STATE_MAP[pad]) bsst.value = ALL_STATE_MAP[pad];
-                                if (bsc && sc) bsc.value = sc;
-                                if (bpos && ALL_STATE_MAP[pad]) bpos.value = ALL_STATE_MAP[pad];
-                            }
+                            BM.manualSupplyType = null;
                         }
-                        BM.calcSummary();
+                        if (typeof BM !== 'undefined' && BM.calcSummary) {
+                            BM.calcSummary();
+                        }
                     };
 
                     var handleName = function () {
                         var sn = ne.value.trim().toLowerCase();
                         if (ALL_STATE_REV[sn]) {
                             ce.value = ALL_STATE_REV[sn];
-                            if (codeId === "b-ssc") {
-                                var bsc = document.getElementById("b-sc");
-                                if (bsc) bsc.value = ALL_STATE_REV[sn];
-                                var bpos = document.getElementById("b-pos");
-                                if (bpos) bpos.value = ne.value.trim();
-                            } else if (codeId === "b-rsc") {
-                                var bssc = document.getElementById("b-ssc");
-                                var bsst = document.getElementById("b-sst");
-                                var bsc = document.getElementById("b-sc");
-                                var bpos = document.getElementById("b-pos");
-                                if (!bssc || !bssc.value.trim() || bssc.value.trim() === "37") {
-                                    if (bssc) bssc.value = ALL_STATE_REV[sn];
-                                    if (bsst) bsst.value = ne.value.trim();
-                                    if (bsc) bsc.value = ALL_STATE_REV[sn];
-                                    if (bpos) bpos.value = ne.value.trim();
-                                }
-                            }
                         }
-                        BM.calcSummary();
+                        // Consignee state strictly controls supply type auto-detection
+                        if (nameId === "b-sst") {
+                            BM.manualSupplyType = null;
+                        }
+                        if (typeof BM !== 'undefined' && BM.calcSummary) {
+                            BM.calcSummary();
+                        }
                     };
 
                     ce.addEventListener("input", handleCode);
@@ -4739,34 +4716,8 @@
                 }
                 bindStateAuto("b-rsc", "b-rst");
                 bindStateAuto("b-ssc", "b-sst");
+                bindStateAuto("b-sc", "b-pos");
                 bindStateAuto("py-sc", "py-st");
-
-                var bscEl = document.getElementById("b-sc");
-                var bposEl = document.getElementById("b-pos");
-                if (bscEl && bposEl) {
-                    bscEl.addEventListener("input", function () {
-                        var sc = this.value.trim();
-                        var pad = String(sc).padStart(2, '0');
-                        if (ALL_STATE_MAP[pad]) bposEl.value = ALL_STATE_MAP[pad];
-                        BM.calcSummary();
-                    });
-                    bscEl.addEventListener("change", function () {
-                        var sc = this.value.trim();
-                        var pad = String(sc).padStart(2, '0');
-                        if (ALL_STATE_MAP[pad]) bposEl.value = ALL_STATE_MAP[pad];
-                        BM.calcSummary();
-                    });
-                    bposEl.addEventListener("input", function () {
-                        var sn = this.value.trim().toLowerCase();
-                        if (ALL_STATE_REV[sn]) bscEl.value = ALL_STATE_REV[sn];
-                        BM.calcSummary();
-                    });
-                    bposEl.addEventListener("change", function () {
-                        var sn = this.value.trim().toLowerCase();
-                        if (ALL_STATE_REV[sn]) bscEl.value = ALL_STATE_REV[sn];
-                        BM.calcSummary();
-                    });
-                }
 
                 // Smart Keyboard Flow: Qty/Meters -> Rate -> Add Item -> Product
                 var pqEl = document.getElementById("b-pq");
@@ -4956,19 +4907,19 @@
                             document.getElementById("b-rg").value = match.gstin || "";
                             document.getElementById("b-rst").value = match.state || "";
                             document.getElementById("b-rsc").value = match.stateCode || match.statecode || "";
-                            // Sync receiver state to consignee and main fields
                             var syncCode = match.stateCode || match.statecode || "";
-                            if (syncCode) {
-                                document.getElementById("b-sc").value = syncCode;
-                                document.getElementById("b-ssc").value = syncCode;
-                            }
-                            if (match.state) {
+                            var curPos = document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : "";
+                            if (!curPos && match.state) {
                                 document.getElementById("b-pos").value = match.state;
-                                document.getElementById("b-sst").value = match.state;
                             }
-                            BM.calcSummary();
+                            var curSc = document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "";
+                            if (!curSc && syncCode) {
+                                document.getElementById("b-sc").value = syncCode;
+                            }
                             if (!document.getElementById("b-sn").value.trim()) {
                                 PM.copyRT();
+                            } else {
+                                BM.calcSummary();
                             }
                             close();
                             setTimeout(function () {
@@ -4987,16 +4938,16 @@
                             document.getElementById("b-sg").value = match.gstin || "";
                             document.getElementById("b-sst").value = match.state || "";
                             document.getElementById("b-ssc").value = match.stateCode || match.statecode || "";
-                            // Sync consignee state to receiver and main fields
                             var syncCode = match.stateCode || match.statecode || "";
-                            if (syncCode) {
-                                document.getElementById("b-sc").value = syncCode;
-                                document.getElementById("b-rsc").value = syncCode;
-                            }
-                            if (match.state) {
+                            var curPos = document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : "";
+                            if (!curPos && match.state) {
                                 document.getElementById("b-pos").value = match.state;
-                                document.getElementById("b-rst").value = match.state;
                             }
+                            var curSc = document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "";
+                            if (!curSc && syncCode) {
+                                document.getElementById("b-sc").value = syncCode;
+                            }
+                            BM.manualSupplyType = null;
                             BM.calcSummary();
                             close();
                             setTimeout(function () {
@@ -6038,6 +5989,8 @@
 
                 var rSt = (inv.receiver && inv.receiver.state) ? inv.receiver.state : getSt(inv.receiver ? inv.receiver.stateCode : '');
                 var cSt = (inv.consignee && inv.consignee.state) ? inv.consignee.state : getSt(inv.consignee ? inv.consignee.stateCode : '');
+                var posStr = String(inv.placeOfSupply || '').trim();
+                var posFontSize = posStr.length > 22 ? '6pt' : (posStr.length > 15 ? '7pt' : '8.2pt');
 
                 var printSettings = JSON.parse(localStorage.getItem('akb_print_settings') || '{}');
                 var wmOpacity = (printSettings.watermarkOpacity !== undefined ? printSettings.watermarkOpacity : 10) / 100;
@@ -6100,28 +6053,28 @@
                     '</table>' +
                     '<table style="width:100%; border-collapse:collapse; table-layout:fixed;">' +
                     '<tr>' +
-                    '<td style="width:84px; padding:2px 3px; white-space:nowrap;">L.R. / Docket No.</td>' +
+                    '<td style="width:80px; padding:2px 2px; white-space:nowrap; font-size:8pt;">L.R. / Docket No.</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.lrNo || '') + '</td>' +
-                    '<td style="width:76px; text-align:right; padding-right:3px; white-space:nowrap;">Date</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:8pt;">' + (inv.lrNo || '') + '</td>' +
+                    '<td style="width:70px; text-align:right; padding-right:3px; white-space:nowrap; font-size:8pt;">Date</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:58px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.transportDate ? U.fd(inv.transportDate) : '') + '</td>' +
+                    '<td style="width:82px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; font-size:8pt; white-space:nowrap;">' + (inv.transportDate ? U.fd(inv.transportDate) : '') + '</td>' +
                     '</tr>' +
                     '<tr>' +
-                    '<td style="width:84px; padding:2px 3px; white-space:nowrap;">Date of Supply</td>' +
+                    '<td style="width:80px; padding:2px 2px; white-space:nowrap; font-size:8pt;">Date of Supply</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.supplyDate ? U.fd(inv.supplyDate) : '') + '</td>' +
-                    '<td style="width:76px; text-align:right; padding-right:3px; white-space:nowrap;">No. of Bundles</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:8pt;">' + (inv.supplyDate ? U.fd(inv.supplyDate) : '') + '</td>' +
+                    '<td style="width:70px; text-align:right; padding-right:3px; white-space:nowrap; font-size:8pt;">No. of Bundles</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:58px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.bundles || '0') + '</td>' +
+                    '<td style="width:82px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; font-size:8pt; white-space:nowrap;">' + (inv.bundles || '0') + '</td>' +
                     '</tr>' +
                     '<tr>' +
-                    '<td style="width:84px; padding:2px 3px; white-space:nowrap;">Place of Supply</td>' +
+                    '<td style="width:80px; padding:2px 2px; white-space:nowrap; font-size:8pt;">Place of Supply</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; font-size:7.5pt; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + U.esc(inv.placeOfSupply || '') + '">' + (inv.placeOfSupply || '') + '</td>' +
-                    '<td style="width:76px; text-align:right; padding-right:3px; white-space:nowrap;">State Code</td>' +
+                    '<td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; padding-right:6px; font-size:' + posFontSize + '; white-space:nowrap;" title="' + U.esc(posStr) + '">' + posStr + '</td>' +
+                    '<td style="width:70px; text-align:right; padding-right:3px; white-space:nowrap; font-size:8pt;">State Code</td>' +
                     '<td style="width:8px; text-align:center;">:</td>' +
-                    '<td style="width:58px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (inv.stateCode || '37') + '</td>' +
+                    '<td style="width:82px; color:#000; font-weight:normal; border-bottom:1px solid #a0aabf; padding-left:3px; font-size:8.5pt; white-space:nowrap;">' + (inv.stateCode || '37') + '</td>' +
                     '</tr>' +
                     '</table>' +
                     '</td>' +
@@ -6877,107 +6830,66 @@
                 }
             },
 
-            syncConsigneeAndPlaceOfSupply: function (source, val) {
-                var scEl = document.getElementById("b-sc");
-                var sscEl = document.getElementById("b-ssc");
-                var posEl = document.getElementById("b-pos");
-                var sstEl = document.getElementById("b-sst");
-
-                if (source === 'code') {
-                    var cleanCode = String(val || '').trim().replace(/\D/g, '').slice(0, 2);
-                    if (scEl && scEl.value !== cleanCode) scEl.value = cleanCode;
-                    if (sscEl && sscEl.value !== cleanCode) sscEl.value = cleanCode;
-
-                    if (cleanCode.length === 2) {
-                        var stName = U.getStateNameByCode(cleanCode);
-                        if (stName) {
-                            if (posEl) posEl.value = stName;
-                            if (sstEl) sstEl.value = stName;
-                        }
-                    } else if (cleanCode.length === 0) {
-                        if (posEl && (posEl.value === "Andhra Pradesh" || U.getCodeByStateName(posEl.value))) posEl.value = "";
-                        if (sstEl && (sstEl.value === "Andhra Pradesh" || U.getCodeByStateName(sstEl.value))) sstEl.value = "";
-                    }
-                } else if (source === 'state') {
-                    var stVal = String(val || '').trim();
-                    if (posEl && posEl.value !== stVal) posEl.value = stVal;
-                    if (sstEl && sstEl.value !== stVal) sstEl.value = stVal;
-
-                    var detectedCode = U.getCodeByStateName(stVal);
-                    if (detectedCode) {
-                        if (scEl && scEl.value !== detectedCode) scEl.value = detectedCode;
-                        if (sscEl && sscEl.value !== detectedCode) sscEl.value = detectedCode;
-                    } else if (!stVal) {
-                        if (scEl) scEl.value = "";
-                        if (sscEl) sscEl.value = "";
-                    }
-                }
-            },
-
             setSupplyType: function (type) {
                 BM.manualSupplyType = (type === 'inter') ? 'inter' : 'intra';
                 var isInter = (BM.manualSupplyType === 'inter');
-
-                if (isInter) {
-                    var curSc = document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "";
-                    var ssc = (document.getElementById("b-ssc") ? document.getElementById("b-ssc").value.trim() : "");
-                    var rsc = (document.getElementById("b-rsc") ? document.getElementById("b-rsc").value.trim() : "");
-                    var outSc = (ssc && ssc !== "37") ? ssc : ((rsc && rsc !== "37") ? rsc : "");
-                    if (outSc) {
-                        BM.syncConsigneeAndPlaceOfSupply('code', outSc);
-                    } else if (!curSc || curSc === "37") {
-                        // User chose Outside AP: if currently inside AP, prompt/clear or switch to other state
-                        BM.syncConsigneeAndPlaceOfSupply('code', '');
-                        var posEl = document.getElementById("b-pos");
-                        if (posEl) posEl.placeholder = "Enter destination state (e.g. Tamil Nadu, Telangana)";
-                        var scEl = document.getElementById("b-sc");
-                        if (scEl) {
-                            scEl.placeholder = "Code";
-                            scEl.focus();
-                        }
-                    }
-                } else {
-                    // User chose Inside AP: immediately set state to Andhra Pradesh and code 37
-                    BM.syncConsigneeAndPlaceOfSupply('code', '37');
-                }
                 BM.syncSupplyTypeButtons(isInter);
                 BM.calcSummary();
             },
 
             detectSupplyType: function () {
-                // If user explicitly clicked Inside State or Outside State button, honor manual choice
+                // 1. Manual button selection takes absolute precedence
                 if (BM.manualSupplyType === 'inter') return true;
-                if (BM.manualSupplyType === 'intra') {
-                    var curSc = document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "";
-                    var curSsc = document.getElementById("b-ssc") ? document.getElementById("b-ssc").value.trim() : "";
-                    if ((!curSc || curSc === "37") && (!curSsc || curSsc === "37")) {
+                if (BM.manualSupplyType === 'intra') return false;
+
+                // 2. Strict calculation based on Consignee | Shipped to
+                var ssc = document.getElementById("b-ssc") ? document.getElementById("b-ssc").value.trim().replace(/\D/g, '') : "";
+                var sst = document.getElementById("b-sst") ? document.getElementById("b-sst").value.trim().toLowerCase() : "";
+                var sg = document.getElementById("b-sg") ? document.getElementById("b-sg").value.trim().toUpperCase() : "";
+
+                var cCode = ssc;
+                if (!cCode && sg.length >= 2 && /^\d{2}$/.test(sg.slice(0, 2))) {
+                    cCode = sg.slice(0, 2);
+                }
+                if (cCode) {
+                    var padCode = String(cCode).padStart(2, '0');
+                    return (padCode !== "37");
+                }
+                if (sst) {
+                    if (sst.indexOf("andhra") > -1 || sst === "ap" || sst === "a.p." || sst === "a.p") {
                         return false;
+                    }
+                    var mappedCode = U.getCodeByStateName(sst);
+                    if (mappedCode) {
+                        return (mappedCode !== "37");
                     }
                 }
 
-                // Gather all state code sources
-                var ssc = document.getElementById("b-ssc") ? document.getElementById("b-ssc").value.trim() : "";
-                var sc = document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "";
-                var rsc = document.getElementById("b-rsc") ? document.getElementById("b-rsc").value.trim() : "";
+                // 3. Fallback to Receiver ONLY if Consignee is completely empty
+                var rsc = document.getElementById("b-rsc") ? document.getElementById("b-rsc").value.trim().replace(/\D/g, '') : "";
+                var rst = document.getElementById("b-rst") ? document.getElementById("b-rst").value.trim().toLowerCase() : "";
+                var rg = document.getElementById("b-rg") ? document.getElementById("b-rg").value.trim().toUpperCase() : "";
 
-                // Priority: consignee state code > main state code > receiver state code
-                var effectiveCode = ssc || sc || rsc;
-
-                // If no state code entered anywhere, default to Inside State (Intra)
-                if (!effectiveCode) {
-                    return false; // intra-state (inside AP)
+                var rCode = rsc;
+                if (!rCode && rg.length >= 2 && /^\d{2}$/.test(rg.slice(0, 2))) {
+                    rCode = rg.slice(0, 2);
+                }
+                if (rCode) {
+                    var padR = String(rCode).padStart(2, '0');
+                    return (padR !== "37");
+                }
+                if (rst) {
+                    if (rst.indexOf("andhra") > -1 || rst === "ap" || rst === "a.p." || rst === "a.p") {
+                        return false;
+                    }
+                    var mappedR = U.getCodeByStateName(rst);
+                    if (mappedR) {
+                        return (mappedR !== "37");
+                    }
                 }
 
-                // Pad to 2 digits for comparison
-                var padCode = String(effectiveCode).padStart(2, '0');
-
-                // 37 = Andhra Pradesh = Inside State (Intra), anything else = Outside State (Inter)
-                var isInter = (padCode !== "37");
-
-                // Auto-set the manual supply type so buttons stay in sync
-                BM.manualSupplyType = isInter ? 'inter' : 'intra';
-
-                return isInter;
+                // Default fallback: Inside State (false)
+                return false;
             },
 
             syncSupplyTypeButtons: function (isInter) {
@@ -7011,43 +6923,39 @@
                 var brsc = document.getElementById("b-rsc");
                 var brst = document.getElementById("b-rst");
 
-                // Bi-directional link between b-sc and b-ssc
+                // Place of Supply listeners: only recalculates summary, NEVER touches consignee or alters tax
                 if (bsc) {
                     ['input', 'change', 'keyup'].forEach(function (evt) {
                         bsc.addEventListener(evt, function () {
-                            BM.syncConsigneeAndPlaceOfSupply('code', bsc.value);
                             BM.calcSummary();
                         });
                     });
                 }
-                if (bssc) {
+                if (bpos) {
                     ['input', 'change', 'keyup'].forEach(function (evt) {
-                        bssc.addEventListener(evt, function () {
-                            BM.syncConsigneeAndPlaceOfSupply('code', bssc.value);
+                        bpos.addEventListener(evt, function () {
                             BM.calcSummary();
                         });
                     });
                 }
 
-                // Bi-directional link between b-pos and b-sst
-                if (bpos) {
-                    ['input', 'change'].forEach(function (evt) {
-                        bpos.addEventListener(evt, function () {
-                            BM.syncConsigneeAndPlaceOfSupply('state', bpos.value);
+                // Consignee listeners: Reset manual supply type so typing a consignee auto-detects
+                if (bssc) {
+                    ['input', 'change', 'keyup'].forEach(function (evt) {
+                        bssc.addEventListener(evt, function () {
+                            BM.manualSupplyType = null;
                             BM.calcSummary();
                         });
                     });
                 }
                 if (bsst) {
-                    ['input', 'change'].forEach(function (evt) {
+                    ['input', 'change', 'keyup'].forEach(function (evt) {
                         bsst.addEventListener(evt, function () {
-                            BM.syncConsigneeAndPlaceOfSupply('state', bsst.value);
+                            BM.manualSupplyType = null;
                             BM.calcSummary();
                         });
                     });
                 }
-
-                // Consignee GSTIN
                 if (bsg) {
                     ['input', 'change'].forEach(function (evt) {
                         bsg.addEventListener(evt, function () {
@@ -7055,7 +6963,10 @@
                             if (val.length >= 2) {
                                 var code = val.slice(0, 2);
                                 if (/^\d{2}$/.test(code)) {
-                                    BM.syncConsigneeAndPlaceOfSupply('code', code);
+                                    if (bssc) bssc.value = code;
+                                    var stName = U.getStateNameByCode(code);
+                                    if (stName && bsst) bsst.value = stName;
+                                    BM.manualSupplyType = null;
                                     BM.calcSummary();
                                 }
                             }
@@ -7063,7 +6974,7 @@
                     });
                 }
 
-                // Receiver GSTIN
+                // Receiver listeners: only affect tax if consignee is completely empty
                 if (brg) {
                     ['input', 'change'].forEach(function (evt) {
                         brg.addEventListener(evt, function () {
@@ -7071,49 +6982,25 @@
                             if (val.length >= 2) {
                                 var code = val.slice(0, 2);
                                 if (/^\d{2}$/.test(code)) {
-                                    var stName = U.getStateNameByCode(code);
                                     if (brsc) brsc.value = code;
-                                    if (brst && stName) brst.value = stName;
-                                    var curSsc = bssc ? bssc.value.trim() : "";
-                                    if (!curSsc) {
-                                        BM.syncConsigneeAndPlaceOfSupply('code', code);
-                                    }
+                                    var stName = U.getStateNameByCode(code);
+                                    if (stName && brst) brst.value = stName;
                                     BM.calcSummary();
                                 }
                             }
                         });
                     });
                 }
-
-                // Receiver State Code
                 if (brsc) {
                     ['input', 'change'].forEach(function (evt) {
                         brsc.addEventListener(evt, function () {
-                            var val = brsc.value.trim().replace(/\D/g, '');
-                            if (val.length === 2) {
-                                var stName = U.getStateNameByCode(val);
-                                if (brst && stName) brst.value = stName;
-                                var curSsc = bssc ? bssc.value.trim() : "";
-                                if (!curSsc) {
-                                    BM.syncConsigneeAndPlaceOfSupply('code', val);
-                                }
-                                BM.calcSummary();
-                            }
+                            BM.calcSummary();
                         });
                     });
                 }
-
-                // Receiver State Name
                 if (brst) {
                     ['input', 'change'].forEach(function (evt) {
                         brst.addEventListener(evt, function () {
-                            var val = brst.value.trim();
-                            var code = U.getCodeByStateName(val);
-                            if (code && brsc) brsc.value = code;
-                            var curSst = bsst ? bsst.value.trim() : "";
-                            if (!curSst && val) {
-                                BM.syncConsigneeAndPlaceOfSupply('state', val);
-                            }
                             BM.calcSummary();
                         });
                     });
@@ -7279,12 +7166,12 @@
                 var isInter = BM.detectSupplyType();
                 BM.syncSupplyTypeButtons(isInter);
 
-                var sc = (document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "") ||
-                    (document.getElementById("b-ssc") ? document.getElementById("b-ssc").value.trim() : "") ||
-                    (document.getElementById("b-rsc") ? document.getElementById("b-rsc").value.trim() : (isInter ? "" : "37"));
-                var pos = (document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : "") ||
-                    (document.getElementById("b-sst") ? document.getElementById("b-sst").value.trim() : "") ||
-                    (document.getElementById("b-rst") ? document.getElementById("b-rst").value.trim() : (isInter ? "" : "Andhra Pradesh"));
+                var sc = document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "";
+                var pos = document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : "";
+                var cSt = (document.getElementById("b-sst") ? document.getElementById("b-sst").value.trim() : "") ||
+                          (document.getElementById("b-rst") ? document.getElementById("b-rst").value.trim() : "");
+                var cSc = (document.getElementById("b-ssc") ? document.getElementById("b-ssc").value.trim() : "") ||
+                          (document.getElementById("b-rsc") ? document.getElementById("b-rsc").value.trim() : "");
 
                 var cgst = 0, sgst = 0, igst = 0, totalGst = 0;
                 if (isInter) {
@@ -7311,9 +7198,15 @@
 
                 h += '<div class="tax-box">';
                 if (isInter) {
-                    var displaySc = sc ? (' (State Code: ' + U.esc(sc) + ')') : '';
-                    var displayPos = pos ? (' - ' + U.esc(pos)) : '';
-                    h += '<div class="sum-row" style="color:#d97706; font-size:0.78rem; font-weight:700;"><i class="ph ph-globe" style="vertical-align:middle;"></i> Inter-State Supply' + displayPos + displaySc + '</div>';
+                    var displayDest = cSt ? (' - ' + U.esc(cSt)) : (pos ? (' - ' + U.esc(pos)) : '');
+                    var displayCode = cSc ? (' (Code: ' + U.esc(cSc) + ')') : (sc ? (' (Code: ' + U.esc(sc) + ')') : '');
+                    h += '<div class="sum-row" style="color:#d97706; font-size:0.78rem; font-weight:700;"><i class="ph ph-globe" style="vertical-align:middle;"></i> Outside State / Inter-State' + displayDest + displayCode + '</div>';
+                    h += '<div class="sum-row"><span>ADD IGST @ ' + (IR || 5.0) + '%</span><span style="font-weight:600;">' + U.fm(igst) + '</span></div>';
+                    h += '<div class="sum-row" style="color:#64748b;"><span>ADD CGST @ ' + (CR || 2.5) + '%</span><span style="font-weight:600;">\u20B90.00</span></div>';
+                    h += '<div class="sum-row" style="color:#64748b;"><span>ADD SGST @ ' + (SR || 2.5) + '%</span><span style="font-weight:600;">\u20B90.00</span></div>';
+                    h += '<div class="sum-row" style="border-top:1px dashed #cbd5e1; margin-top:4px; padding-top:4px; font-weight:700; color:var(--p)"><span>Total GST (5%)</span><span>' + U.fm(totalGst) + '</span></div>';
+                } else {
+                    h += '<div class="sum-row" style="color:#059669; font-size:0.78rem; font-weight:700;"><i class="ph ph-house" style="vertical-align:middle;"></i> Inside State / Intra-State (Andhra Pradesh - 37)</div>';
                     h += '<div class="sum-row"><span>ADD IGST @ ' + (IR || 5.0) + '%</span><span style="font-weight:600;">' + U.fm(igst) + '</span></div>';
                     h += '<div class="sum-row" style="color:#64748b;"><span>ADD CGST @ ' + (CR || 2.5) + '%</span><span style="font-weight:600;">\u20B90.00</span></div>';
                     h += '<div class="sum-row" style="color:#64748b;"><span>ADD SGST @ ' + (SR || 2.5) + '%</span><span style="font-weight:600;">\u20B90.00</span></div>';
@@ -7457,8 +7350,8 @@
                     transportDate: document.getElementById("b-tdate").value,
                     supplyDate: document.getElementById("b-sdate").value,
                     bundles: document.getElementById("b-bundles").value,
-                    placeOfSupply: (c.pos || "").toUpperCase(),
-                    stateCode: c.sc,
+                    placeOfSupply: (document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : (c.pos || "")).toUpperCase(),
+                    stateCode: (document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : (c.sc || "")),
                     receiver: {
                         name: rn.toUpperCase(),
                         phone: rPhone || custPhone,
@@ -8207,11 +8100,14 @@
                 document.getElementById("b-sg").value = document.getElementById("b-rg").value;
                 document.getElementById("b-sst").value = document.getElementById("b-rst").value;
                 document.getElementById("b-ssc").value = document.getElementById("b-rsc").value;
+                var curSc = document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "";
                 var rsc = document.getElementById("b-rsc").value.trim();
-                if (rsc) document.getElementById("b-sc").value = rsc;
+                if (!curSc && rsc) document.getElementById("b-sc").value = rsc;
+                var curPos = document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : "";
                 var rst = document.getElementById("b-rst").value.trim();
-                if (rst) document.getElementById("b-pos").value = rst;
+                if (!curPos && rst) document.getElementById("b-pos").value = rst;
                 U.toast("Receiver details copied to Consignee", "info");
+                BM.manualSupplyType = null;
                 if (typeof BM !== 'undefined') {
                     if (BM.calcSummary) BM.calcSummary();
                 }
@@ -8296,25 +8192,18 @@
                 var stName = p.state || "";
                 document.getElementById(prefix + "st").value = stName;
                 if (PM._type === "consignee") {
-                    if (sc) {
-                        document.getElementById("b-ssc").value = sc;
-                        document.getElementById("b-sc").value = sc;
-                    }
-                    if (stName) {
-                        document.getElementById("b-sst").value = stName;
-                        document.getElementById("b-pos").value = stName;
-                    }
+                    if (sc) document.getElementById("b-ssc").value = sc;
+                    if (stName) document.getElementById("b-sst").value = stName;
+                    var curPos = document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : "";
+                    if (!curPos && stName) document.getElementById("b-pos").value = stName;
+                    var curSc = document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "";
+                    if (!curSc && sc) document.getElementById("b-sc").value = sc;
+                    BM.manualSupplyType = null;
                 } else if (PM._type === "receiver") {
-                    var curSsc = document.getElementById("b-ssc") ? document.getElementById("b-ssc").value.trim() : "";
-                    if (sc && (!curSsc || curSsc === "37")) {
-                        document.getElementById("b-sc").value = sc;
-                        document.getElementById("b-ssc").value = sc;
-                    }
-                    var curSst = document.getElementById("b-sst") ? document.getElementById("b-sst").value.trim() : "";
-                    if (stName && (!curSst || curSst === "Andhra Pradesh")) {
-                        document.getElementById("b-pos").value = stName;
-                        document.getElementById("b-sst").value = stName;
-                    }
+                    var curPos = document.getElementById("b-pos") ? document.getElementById("b-pos").value.trim() : "";
+                    if (!curPos && stName) document.getElementById("b-pos").value = stName;
+                    var curSc = document.getElementById("b-sc") ? document.getElementById("b-sc").value.trim() : "";
+                    if (!curSc && sc) document.getElementById("b-sc").value = sc;
                 }
                 UI.cl("ppm");
                 if (typeof BM !== 'undefined') {
@@ -9111,7 +9000,7 @@
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
             currentVersion: '1.4.6',
-            build: 135,
+            build: 137,
             hasUpdate: false,
             latestInfo: null,
 
