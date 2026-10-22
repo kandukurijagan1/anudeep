@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
   "version": "1.4.6",
-  "build": 144,
+  "build": 145,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: perfect vertical colon alignment and clean underline formatting for transport metadata and manual pen entry"
+  "description": "feat: configurable manual state input field in billing form and printable invoice"
 }

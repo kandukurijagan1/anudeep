@@ -2968,6 +2968,9 @@
                                         </div>
                                         <div class="inv-form-field" style="min-width:155px"><label>Invoice
                                                 Date</label><input type="date" id="b-date"></div>
+                                        <div class="inv-form-field" style="min-width:140px"><label>State</label><input
+                                                type="text" id="b-state" value="TENALI" placeholder="e.g. TENALI"
+                                                title="State displayed on top-left of invoice"></div>
                                     </div>
                                 </div>
                             </div>
@@ -6099,6 +6102,8 @@
                 var cSt = (inv.consignee && inv.consignee.state) ? inv.consignee.state : getSt(inv.consignee ? inv.consignee.stateCode : '');
                 var posStr = String(inv.placeOfSupply || '').trim();
                 var posFontSize = posStr.length > 22 ? '6pt' : (posStr.length > 15 ? '7pt' : '8.2pt');
+                var invTopState = (inv.state !== undefined && inv.state !== null) ? String(inv.state).trim() : 'TENALI';
+                var topStateHtml = invTopState ? U.esc(invTopState) : '<span style="display:inline-block; width:130px; border-bottom:1px solid #1a237e; height:16px; vertical-align:bottom;">&nbsp;</span>';
 
                 var printSettings = JSON.parse(localStorage.getItem('akb_print_settings') || '{}');
                 var wmOpacity = (printSettings.watermarkOpacity !== undefined ? printSettings.watermarkOpacity : 10) / 100;
@@ -6149,7 +6154,7 @@
                     '<colgroup><col style="width:85px;"><col style="width:10px;"><col></colgroup>' +
                     '<tr><td style="padding:2px 2px; white-space:nowrap; font-weight:bold;">Invoice No.</td><td style="text-align:center; font-weight:bold;">:</td><td style="color:#b30000; font-size:14pt; font-weight:900; padding-left:4px;">' + U.pi(inv.invoiceNo) + '</td></tr>' +
                     '<tr><td style="padding:2px 2px; white-space:nowrap; font-weight:bold;">Invoice Date</td><td style="text-align:center; font-weight:bold;">:</td><td style="color:#000; font-weight:normal; padding-left:4px;">' + U.fd(inv.date) + '</td></tr>' +
-                    '<tr><td style="padding:2px 2px; white-space:nowrap; font-weight:bold;">State</td><td style="text-align:center; font-weight:bold;">:</td><td style="color:#000; font-weight:normal; padding-left:4px;">TENALI</td></tr>' +
+                    '<tr><td style="padding:2px 2px; white-space:nowrap; font-weight:bold;">State</td><td style="text-align:center; font-weight:bold;">:</td><td style="color:#000; font-weight:normal; padding-left:4px;">' + topStateHtml + '</td></tr>' +
                     '</table>' +
                     '</td>' +
                     '<td style="width:50%; padding:4px 6px; vertical-align:top; box-sizing:border-box;">' +
@@ -7149,6 +7154,7 @@
                 if (warn) warn.style.display = "none";
 
                 document.getElementById("b-date").value = U.td();
+                if (document.getElementById("b-state")) document.getElementById("b-state").value = "TENALI";
                 document.getElementById("b-pos").value = "";
                 document.getElementById("b-sc").value = "";
                 document.getElementById("b-rst").value = "";
@@ -7373,6 +7379,7 @@
 
                 document.getElementById("b-invno").value = U.pi(inv.invoiceNo);
                 document.getElementById("b-date").value = inv.date;
+                if (document.getElementById("b-state")) document.getElementById("b-state").value = (inv.state !== undefined && inv.state !== null) ? inv.state : "TENALI";
                 document.getElementById("b-rc").value = inv.reverseCharge || "No";
                 document.getElementById("b-trans").value = inv.transportMode || "";
                 document.getElementById("b-lr").value = inv.lrNo || "";
@@ -7453,6 +7460,7 @@
                     id: BM.editId ? BM.editId : Date.now(),
                     invoiceNo: invNo,
                     date: document.getElementById("b-date").value || U.td(),
+                    state: document.getElementById("b-state") ? document.getElementById("b-state").value.trim().toUpperCase() : "TENALI",
                     reverseCharge: document.getElementById("b-rc").value,
                     transportMode: (document.getElementById("b-trans").value || "").trim().toUpperCase(),
                     lrNo: (document.getElementById("b-lr").value || "").trim().toUpperCase(),
@@ -7594,6 +7602,7 @@
                 document.getElementById("btn-generate").disabled = false;
                 BM.renderItems();
                 document.getElementById("b-rc").value = "No";
+                if (document.getElementById("b-state")) document.getElementById("b-state").value = "TENALI";
                 document.getElementById("b-trans").value = "";
                 document.getElementById("b-lr").value = "";
                 document.getElementById("b-tdate").value = "";
@@ -9109,7 +9118,7 @@
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
             currentVersion: '1.4.6',
-            build: 144,
+            build: 145,
             hasUpdate: false,
             latestInfo: null,
 
