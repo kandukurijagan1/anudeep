@@ -548,6 +548,27 @@ async function safeDestroyClient() {
   killOrphanAuthBrowsers(true);
 }
 
+function cleanChromeLockFiles() {
+  try {
+    const sessionDir = path.join(AKB_DIR, '.wwebjs_auth', 'session');
+    const defaultDir = path.join(sessionDir, 'Default');
+    const lockNames = [
+      'lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket', 
+      'DevToolsActivePort', 'parent.lock'
+    ];
+    for (const dir of [sessionDir, defaultDir]) {
+      if (fs.existsSync(dir)) {
+        for (const name of lockNames) {
+          const lp = path.join(dir, name);
+          if (fs.existsSync(lp)) {
+            try { fs.unlinkSync(lp); } catch (_) {}
+          }
+        }
+      }
+    }
+  } catch (_) {}
+}
+
 function killOrphanAuthBrowsers(forceKillAll = false) {
   if (process.platform !== 'win32') return;
 
@@ -572,41 +593,26 @@ function killOrphanAuthBrowsers(forceKillAll = false) {
   wwebjsBrowserPid = null;
   try { if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile); } catch (_) {}
 
-  // 2. Kill all orphaned Chrome processes matching AKB profile or wwebjs_auth
-  try {
-    const { spawnSync } = require('child_process');
-    const psCmd = "Get-CimInstance Win32_Process -Filter \"Name = 'chrome.exe'\" | Select-Object ProcessId, CommandLine | ConvertTo-Json -Compress";
-    const res = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCmd], { encoding: 'utf8', timeout: 6000 });
-    if (res.stdout && res.stdout.trim()) {
-      let procs = JSON.parse(res.stdout);
-      if (!Array.isArray(procs)) procs = [procs];
-      for (const p of procs) {
-        if (p && p.CommandLine && (p.CommandLine.includes('AnudeepKhadiBandar') || p.CommandLine.includes('.wwebjs_auth') || p.CommandLine.includes('.wwebjs_cache'))) {
-          try { spawnSync('taskkill.exe', ['/PID', String(p.ProcessId), '/T', '/F'], { timeout: 1500 }); } catch (_) {}
-        }
-      }
-    }
-  } catch (_) {}
-
-  // 3. Clean up any leftover lock artifacts and crash markers (< 1ms)
-  try {
-    const sessionDir = path.join(AKB_DIR, '.wwebjs_auth', 'session');
-    const defaultDir = path.join(sessionDir, 'Default');
-    const lockNames = [
-      'lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket', 
-      'DevToolsActivePort', 'LOCK', 'parent.lock'
-    ];
-    for (const dir of [sessionDir, defaultDir]) {
-      if (fs.existsSync(dir)) {
-        for (const name of lockNames) {
-          const lp = path.join(dir, name);
-          if (fs.existsSync(lp)) {
-            try { fs.unlinkSync(lp); } catch (_) {}
+  // 2. Kill all orphaned Chrome processes matching AKB profile or wwebjs_auth if forced
+  if (forceKillAll) {
+    try {
+      const { spawnSync } = require('child_process');
+      const psCmd = "Get-CimInstance Win32_Process -Filter \"Name = 'chrome.exe'\" | Select-Object ProcessId, CommandLine | ConvertTo-Json -Compress";
+      const res = spawnSync('powershell.exe', ['-NoProfile', '-Command', psCmd], { encoding: 'utf8', timeout: 6000 });
+      if (res.stdout && res.stdout.trim()) {
+        let procs = JSON.parse(res.stdout);
+        if (!Array.isArray(procs)) procs = [procs];
+        for (const p of procs) {
+          if (p && p.CommandLine && (p.CommandLine.includes('AnudeepKhadiBandar') || p.CommandLine.includes('.wwebjs_auth') || p.CommandLine.includes('.wwebjs_cache'))) {
+            try { spawnSync('taskkill.exe', ['/PID', String(p.ProcessId), '/T', '/F'], { timeout: 1500 }); } catch (_) {}
           }
         }
       }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
+
+  // 3. Clean up any leftover lock artifacts and crash markers
+  cleanChromeLockFiles();
 }
 
 function cleanAuthDirectory() {
@@ -742,15 +748,22 @@ async function initWhatsappClient(forceClean = false) {
   qrCodeDataUrl = null;
   lastPairingCode = null;
 
-  // Set intelligent watchdog timer: allow up to 120s for saved session reconnection, 60s for fresh session
+  // Set intelligent watchdog timer: allow up to 180s for saved session reconnection, 90s for fresh session
   const hasSavedSess = hasSavedWhatsappSession();
-  const watchdogTimeoutMs = hasSavedSess ? 120000 : 60000;
+  const watchdogTimeoutMs = hasSavedSess ? 180000 : 90000;
   if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
   initWatchdogTimer = setTimeout(async () => {
     if (isWhatsappInitializing && !isWhatsappConnected && !qrCodeDataUrl) {
       console.warn(`⚠️ [WhatsApp] Initialization watchdog: client taking longer than ${watchdogTimeoutMs / 1000}s without connection or QR.`);
       if (client && client.pupPage && !client.pupPage.isClosed()) {
         try {
+          const isBusy = await client.pupPage.evaluate(() => {
+            return !!document.querySelector('progress') || !!document.querySelector('[data-testid="intro-title"]') || !!document.querySelector('div[data-ref]');
+          }).catch(() => false);
+          if (isBusy) {
+            console.log('[WhatsApp] WhatsApp Web is still actively syncing/loading. Extending watchdog...');
+            return;
+          }
           console.log('[WhatsApp] Attempting page reload...');
           await client.pupPage.reload({ waitUntil: 'networkidle2', timeout: 15000 });
           return;
@@ -774,10 +787,19 @@ async function initWhatsappClient(forceClean = false) {
     const detectedChrome = findChromeExecutable();
     console.log('[WhatsApp] Using Browser Executable:', detectedChrome || 'Bundled Puppeteer Default');
 
+    let chromeMajor = '133';
+    try {
+      if (detectedChrome && fs.existsSync(detectedChrome)) {
+        const v = execSync(`powershell -NoProfile -Command "(Get-Item '${detectedChrome}').VersionInfo.ProductVersion"`, { encoding: 'utf8', timeout: 3000 }).trim();
+        if (v && v.split('.')[0]) chromeMajor = v.split('.')[0];
+      }
+    } catch (_) {}
+
     if (forceClean) {
       cleanAuthDirectory();
     } else {
       killOrphanAuthBrowsers();
+      cleanChromeLockFiles();
     }
 
     let authStrategy;
@@ -804,9 +826,11 @@ async function initWhatsappClient(forceClean = false) {
 
     const clientOptions = {
       authStrategy: authStrategy,
-      authTimeoutMs: 120000,
-      qrMaxRetries: 15,
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+      authTimeoutMs: 180000,
+      qrMaxRetries: 0,
+      takeoverOnConflict: true,
+      takeoverTimeoutMs: 1000,
+      userAgent: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`,
       evalOnNewDoc: () => {
         try {
           Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
@@ -815,7 +839,7 @@ async function initWhatsappClient(forceClean = false) {
       puppeteer: {
         headless: true,
         executablePath: detectedChrome,
-        timeout: 60000,
+        timeout: 90000,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -829,6 +853,8 @@ async function initWhatsappClient(forceClean = false) {
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
+          '--disable-features=CalculateNativeWinOcclusion,IsolateOrigins,site-per-process',
+          '--enable-features=NetworkService,NetworkServiceInProcess',
           '--disable-breakpad',
           '--disable-component-update',
           '--disable-domain-reliability',
@@ -882,13 +908,8 @@ async function initWhatsappClient(forceClean = false) {
       }
       console.log('[WhatsApp] QR Code received.');
       isWhatsappConnected = false;
-      whatsappUserInfo = null;
       isWhatsappInitializing = false;
-      // Stale session cleaned if Meta rejected previous token
-      try {
-        const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
-        if (fs.existsSync(sessFile)) fs.unlinkSync(sessFile);
-      } catch (_) {}
+      // Do NOT delete whatsapp_session.json on QR. Saved credentials must remain preserved across refreshes.
       try {
         qrCodeDataUrl = await qrcode.toDataURL(qr, {
           errorCorrectionLevel: 'M',
@@ -900,7 +921,8 @@ async function initWhatsappClient(forceClean = false) {
           connected: false,
           status: 'qr_ready',
           qr: qrCodeDataUrl,
-          pairingCode: lastPairingCode
+          pairingCode: lastPairingCode,
+          user: getSavedWhatsappUserInfo()
         });
       } catch (err) {
         console.error('[WhatsApp] Failed to generate QR Data URL', err);
@@ -1079,17 +1101,25 @@ async function initWhatsappClient(forceClean = false) {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       console.log('⚠️ [WhatsApp] Client disconnected. Reason:', reason);
       isWhatsappConnected = false;
-      whatsappUserInfo = null;
       qrCodeDataUrl = null;
       lastPairingCode = null;
       isWhatsappInitializing = false;
       if (reason === 'LOGOUT') {
+        console.log('🚪 [WhatsApp] User unlinked device (LOGOUT). Clearing session file.');
+        whatsappUserInfo = null;
         try {
           const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
           if (fs.existsSync(sessFile)) fs.unlinkSync(sessFile);
         } catch (_) {}
+      } else {
+        console.log(`🔄 [WhatsApp] Session disconnected temporarily (${reason}). Credentials preserved.`);
       }
-      broadcastRealtime('whatsapp_status', { connected: false, status: 'disconnected', reason });
+      broadcastRealtime('whatsapp_status', { 
+        connected: false, 
+        status: 'disconnected', 
+        reason,
+        user: getSavedWhatsappUserInfo()
+      });
 
       // AUTO-RECONNECT GUARANTEE: Never stay disconnected!
       console.log('🔄 [WhatsApp] Self-healing activated: Reconnecting WhatsApp in 3 seconds...');
@@ -1126,43 +1156,39 @@ async function initWhatsappClient(forceClean = false) {
 }
 
 // 🛡️ PERPETUAL WHATSAPP KEEPALIVE & STATE RECOVERY ENGINE
-// Actively checks WhatsApp WebSocket & DOM every 20 seconds. If connection drops, it self-heals immediately!
+// Actively monitors WhatsApp process & DOM every 20 seconds. Never kills idle sessions!
 let keepAliveFailures = 0;
 setInterval(async () => {
   if (client && isWhatsappConnected) {
     try {
-      // 1. Check client state with safety timeout
-      const state = await Promise.race([
-        client.getState().catch(() => null),
-        new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 10000))
-      ]);
-
-      if (state === 'CONNECTED' || state === 'SYNCING') {
-        keepAliveFailures = 0;
-        // Keep page active and prevent Chrome memory discard
-        if (client.pupPage && !client.pupPage.isClosed()) {
-          client.pupPage.evaluate(() => {
-            try {
-              if (window.Store && window.Store.AppState) {
-                window.Store.AppState.trigger('idle_mode:change', false);
-              }
-            } catch (_) {}
-          }).catch(() => {});
-        }
-      } else if (state === 'OPENING' || state === 'PAIRING' || state === 'TIMEOUT' || state === null) {
-        // Transient state, background sync, or temporary busy loop — allow session to stabilize
-      } else {
+      // 1. Check if the Puppeteer browser and page are still alive
+      const isBrowserAlive = client.pupBrowser && (typeof client.pupBrowser.isConnected !== 'function' || client.pupBrowser.isConnected());
+      const isPageAlive = client.pupPage && (typeof client.pupPage.isClosed !== 'function' || !client.pupPage.isClosed());
+      
+      if (!isBrowserAlive || !isPageAlive) {
         keepAliveFailures++;
-        console.warn(`[WhatsApp KeepAlive] Non-connected state: ${state} (Failure ${keepAliveFailures}/4)`);
-        if (keepAliveFailures >= 4) {
-          console.log('🔄 [WhatsApp KeepAlive] Connection degraded. Initiating seamless recovery...');
+        console.warn(`[WhatsApp KeepAlive] Browser or Page dead (Failure ${keepAliveFailures}/3).`);
+        if (keepAliveFailures >= 3) {
+          console.log('🔄 [WhatsApp KeepAlive] Browser target lost. Initiating seamless recovery...');
           isWhatsappConnected = false;
           keepAliveFailures = 0;
-          broadcastRealtime('whatsapp_status', { connected: false, status: 'reconnecting' });
+          broadcastRealtime('whatsapp_status', { connected: false, status: 'reconnecting', user: getSavedWhatsappUserInfo() });
           await safeDestroyClient();
           initWhatsappClient(false);
         }
+        return;
       }
+
+      // 2. Browser is alive! Ping the page gently to prevent background throttling or idle disconnection
+      keepAliveFailures = 0;
+      await client.pupPage.evaluate(() => {
+        try {
+          if (window.Store && window.Store.AppState) {
+            window.Store.AppState.trigger('idle_mode:change', false);
+          }
+        } catch (_) {}
+      }).catch(() => {});
+
     } catch (err) {
       if (err.message && (err.message.includes('detached Frame') || err.message.includes('Session closed') || err.message.includes('Target closed') || err.message.includes('destroyed'))) {
         keepAliveFailures++;

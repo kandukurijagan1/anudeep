@@ -9270,8 +9270,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.4.7',
-            build: 147,
+            currentVersion: '1.4.8',
+            build: 148,
             hasUpdate: false,
             latestInfo: null,
 
@@ -10103,7 +10103,7 @@
             var container = document.getElementById("wa-modal-body");
             if (!container) return;
 
-            var isBotConnected = !!(data && (data.connected || data.status === 'authenticated' || data.status === 'ready' || (data.user && data.user.phone)));
+            var isBotConnected = !!(data && (data.connected === true || data.status === 'authenticated' || data.status === 'ready'));
 
             if (isBotConnected) {
                 var existingRoot = document.getElementById("wa-login-tabs-root");
