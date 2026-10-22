@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.5.4",
-  "build": 154,
+  "version": "1.5.5",
+  "build": 155,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: resolve invoice saving block by purging short numbers from tombstones and eliminate annoying WhatsApp manual browser popup"
+  "description": "fix: permanently eliminate WhatsApp manual browser popup and fix invoice saving by removing invoice numbers from tombstones and enabling git data tracking"
 }

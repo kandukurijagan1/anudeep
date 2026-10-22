@@ -11,7 +11,9 @@ node_modules/
 .wwebjs_cache/
 
 # Local Database and Customer Data (runtime stores in %APPDATA%/AnudeepKhadiBandar/data)
-data/
+# Allow master ledger tables to sync to GitHub
+!data/
+!data/*.json
 
 # Build and Packaging Artifacts
 dist/
