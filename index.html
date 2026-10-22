@@ -9000,7 +9000,7 @@
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
             currentVersion: '1.4.6',
-            build: 137,
+            build: 138,
             hasUpdate: false,
             latestInfo: null,
 
@@ -10597,7 +10597,7 @@
         var isElectronEnv = location.search.indexOf('mode=dedicated_app') > -1 || (navigator.userAgent && navigator.userAgent.toLowerCase().indexOf('electron') > -1);
         if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !isElectronEnv) {
             window.addEventListener('load', function () {
-                navigator.serviceWorker.register('./sw.js?v=2.0.4').then(function (reg) {
+                navigator.serviceWorker.register('./sw.js?v=2.0.5').then(function (reg) {
                     reg.update();
                     reg.addEventListener('updatefound', function () {
                         var newWorker = reg.installing;

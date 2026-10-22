@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
   "version": "1.4.6",
-  "build": 137,
+  "build": 138,
   "commit": "HEAD",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: resolve transport date clipping in PDF, fully decouple Place of Supply from Consignee, calculate tax strictly based on Consignee and manual button selection"
+  "description": "fix: fully decouple Place of Supply from Consignee, calculate tax strictly based on Consignee and manual selection, fix date clipping"
 }
