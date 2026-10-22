@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.4.6",
-  "build": 146,
+  "version": "1.4.7",
+  "build": 147,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: robust cross-device GitHub base data sync & permanent invoice deletion tombstone"
+  "description": "fix: resolve database connectivity issues, seamless dual-cloud/local failover, and GitHub master ledger priority"
 }

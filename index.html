@@ -3977,14 +3977,14 @@
         var CR = 2.5, SR = 2.5, IR = 5;
         var CLOUD_GAS_URL = "https://script.google.com/macros/s/AKfycbywiBkF8bEYcDcwVbUbngBUlDcQ-eg3yJwRW9ee-FPeloIj61N_eJOYBcGVU1L2do4Z/exec";
         var isLocalHost = location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === "" || location.protocol === "file:";
-        var API_URL = ((location.origin && location.origin.startsWith("http")) ? (location.origin + "/api") : "http://127.0.0.1:3000/api");
-        var API_MODE = localStorage.getItem("akb_db_mode") || "local";
-        var API_LATENCY_MS = 0;
         var _isStaticHosting = (location.hostname.includes("github.io") || location.hostname.includes("vercel.app") || location.hostname.includes("netlify.app") || location.hostname.includes("pages.dev"));
+        var API_URL = _isStaticHosting ? CLOUD_GAS_URL : (((location.origin && location.origin.startsWith("http")) ? (location.origin + "/api") : "http://127.0.0.1:3000/api"));
+        var API_MODE = _isStaticHosting ? "cloud" : (localStorage.getItem("akb_db_mode") || "local");
+        var API_LATENCY_MS = 0;
         function getWaApiUrl() {
             var custom = localStorage.getItem("akb_wa_server_url");
             if (custom && custom.trim()) return custom.trim().replace(/\/+$/, '');
-            if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app")) {
+            if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app") && !location.origin.includes("netlify.app") && !location.origin.includes("pages.dev")) {
                 return (location.origin + '/api').replace(/\/+$/, '');
             }
             return 'http://127.0.0.1:3000/api';
@@ -4016,8 +4016,8 @@
         }
 
         async function resolveApiUrl(forceRefresh) {
-            var dbMode = localStorage.getItem("akb_db_mode") || "auto";
-            if (dbMode === "cloud") {
+            var dbMode = localStorage.getItem("akb_db_mode") || (_isStaticHosting ? "cloud" : "auto");
+            if (dbMode === "cloud" || _isStaticHosting && !localStorage.getItem("akb_wa_server_url")) {
                 API_URL = CLOUD_GAS_URL;
                 API_MODE = "cloud";
                 sessionStorage.setItem("akb_cached_api_url", API_URL);
@@ -5585,13 +5585,13 @@
                 var dbStatusEl = document.getElementById("s-db-status");
                 var dbModeEl = document.getElementById("s-db-mode");
                 var dbApiEl = document.getElementById("s-db-apikey");
-                if (dbModeEl) dbModeEl.value = localStorage.getItem("akb_db_mode") || "auto";
+                if (dbModeEl) dbModeEl.value = localStorage.getItem("akb_db_mode") || (_isStaticHosting ? "cloud" : "auto");
                 if (dbApiEl) dbApiEl.value = localStorage.getItem("akb_api_key") || "";
                 if (dbStatusEl) {
                     var isLocal = API_URL && (API_URL.includes("localhost") || API_URL.startsWith("/api") || API_URL.includes("127.0.0.1"));
                     dbStatusEl.innerHTML = isLocal
                         ? '<span style="color:#059669;font-weight:600;"><i class="ph ph-lightning"></i> Local High-Speed Database</span> (' + (API_LATENCY_MS ? API_LATENCY_MS + 'ms latency' : 'active') + ')<br><small style="color:var(--tl)">Endpoint: ' + API_URL + '</small>'
-                        : '<span style="color:#2563eb;font-weight:600;"><i class="ph ph-cloud-check"></i> Google Apps Script (Cloud)</span><br><small style="color:var(--tl)">Endpoint: ' + (API_URL || 'Cloud GAS') + '</small>';
+                        : '<span style="color:#2563eb;font-weight:600;"><i class="ph ph-cloud-check"></i> Cloud Database & GitHub Master (Active)</span><br><small style="color:var(--tl)">Endpoint: ' + (API_URL || 'Cloud GAS') + '</small>';
                 }
 
                 // Print Settings UI
@@ -5615,27 +5615,49 @@
                 var apikey = document.getElementById("s-db-apikey") ? document.getElementById("s-db-apikey").value.trim() : "";
                 localStorage.setItem("akb_db_mode", mode);
                 localStorage.setItem("akb_api_key", apikey);
+                sessionStorage.removeItem("akb_cached_api_url");
                 U.toast("Database mode saved: " + mode, "success");
+                await resolveApiUrl(true);
                 await App.load();
                 STM.loadUI();
             },
             testDbLatency: async function () {
                 var t0 = Date.now();
                 try {
-                    var res = await fetch((API_URL || location.origin + '/api') + '/health');
+                    var testUrl = (API_URL && !API_URL.includes('script.google.com'))
+                        ? (API_URL + '/health')
+                        : (CLOUD_GAS_URL + '?action=health');
+                    var ctrl = new AbortController();
+                    var tm = setTimeout(function () { ctrl.abort(); }, 5000);
+                    var res = await originalFetch(testUrl, { signal: ctrl.signal });
+                    clearTimeout(tm);
                     var lat = Date.now() - t0;
                     API_LATENCY_MS = lat;
-                    U.toast("Database response time: " + lat + "ms", lat < 50 ? "success" : "info");
+                    U.toast("Database response time: " + lat + "ms (Connected)", lat < 100 ? "success" : "info");
                     STM.loadUI();
                 } catch (e) {
                     U.toast("Connection test failed: " + e.message, "error");
                 }
             },
             forceSyncLedger: async function () {
-                U.toast("Synchronizing all data from GitHub master ledger...", "info");
+                U.toast("Synchronizing all master data from GitHub ledger...", "info");
                 try {
                     var GITHUB_BASE = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main';
-                    // 1. Sync Settings & OTP Emails from GitHub
+
+                    // 1. Permanent Tombstone Sync
+                    try {
+                        var delRes = await fetch(GITHUB_BASE + '/data/deleted_invoices.json?_t=' + Date.now());
+                        if (delRes.ok) {
+                            var delList = await delRes.json();
+                            if (Array.isArray(delList)) {
+                                var curDeleted = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
+                                delList.forEach(function (d) { if (!curDeleted.includes(String(d))) curDeleted.push(String(d)); });
+                                localStorage.setItem('akb_deleted_invoices', JSON.stringify(curDeleted));
+                            }
+                        }
+                    } catch (_) { }
+
+                    // 2. Sync Settings & OTP Emails from GitHub
                     try {
                         var sRes = await fetch(GITHUB_BASE + '/data/settings.json?_t=' + Date.now());
                         if (sRes.ok) {
@@ -5647,14 +5669,15 @@
                         }
                     } catch (_) { }
 
-                    // 2. Sync Invoices (applying tombstone filter)
+                    // 3. Sync Invoices (applying tombstone filter & deduplication)
                     var res = await fetch(GITHUB_BASE + '/data/invoices.json?_t=' + Date.now());
                     if (res.ok) {
                         var invs = await res.json();
                         if (Array.isArray(invs)) {
                             IM.applyInvoices(invs);
                             if (typeof DM !== 'undefined' && DM.render) DM.render();
-                            U.toast("Successfully synchronized invoices & settings from GitHub!", "success");
+                            App.updateSyncStatus('synced');
+                            U.toast("Successfully synchronized " + invs.length + " invoices & settings from GitHub!", "success");
                             return;
                         }
                     }
@@ -8440,6 +8463,28 @@
                     }
                 });
 
+                // Deduplicate by invoice number: if multiple invoices share the same invoiceNo, preserve the one with full party details
+                var byInvoiceNo = new Map();
+                normalized.forEach(function (inv) {
+                    var numKey = parseInt(inv.invoiceNo, 10);
+                    if (!isNaN(numKey) && numKey > 0) {
+                        if (!byInvoiceNo.has(numKey)) {
+                            byInvoiceNo.set(numKey, inv);
+                        } else {
+                            var cur = byInvoiceNo.get(numKey);
+                            var curScore = (cur.receiver && cur.receiver.name ? 2 : 0) + (cur.items && cur.items.length ? 1 : 0);
+                            var newScore = (inv.receiver && inv.receiver.name ? 2 : 0) + (inv.items && inv.items.length ? 1 : 0);
+                            if (newScore > curScore) {
+                                byInvoiceNo.set(numKey, inv);
+                            }
+                        }
+                    } else {
+                        var strKey = String(inv.id || inv._id || Math.random());
+                        byInvoiceNo.set(strKey, inv);
+                    }
+                });
+                normalized = Array.from(byInvoiceNo.values());
+
                 IM._all = normalized;
                 D.s('invoices', IM._all);
                 IM.sortAndSyncNextNo();
@@ -8945,9 +8990,9 @@
             },
 
             connectSSE: function () {
-                if (_isStaticHosting) {
+                if (_isStaticHosting || (API_URL && API_URL.includes("script.google.com"))) {
                     RTM.connected = false;
-                    RTM.updateBadge('offline');
+                    RTM.updateBadge('cloud');
                     return;
                 }
                 if (RTM.source) {
@@ -9022,7 +9067,11 @@
                         RTM.connected = false;
                         _serverFailCount++;
                         if (_serverFailCount >= 3) _serverOffline = true;
-                        RTM.updateBadge(_serverOffline ? 'offline' : 'reconnecting');
+                        if (typeof IM !== 'undefined' && IM._all && IM._all.length > 0) {
+                            App.updateSyncStatus('synced');
+                        } else {
+                            RTM.updateBadge(_serverOffline ? 'offline' : 'reconnecting');
+                        }
                         if (RTM.source) {
                             try { RTM.source.close(); } catch (e) { }
                             RTM.source = null;
@@ -9039,7 +9088,11 @@
                     RTM.connected = false;
                     _serverFailCount++;
                     if (_serverFailCount >= 3) _serverOffline = true;
-                    RTM.updateBadge(_serverOffline ? 'offline' : 'reconnecting');
+                    if (typeof IM !== 'undefined' && IM._all && IM._all.length > 0) {
+                        App.updateSyncStatus('synced');
+                    } else {
+                        RTM.updateBadge(_serverOffline ? 'offline' : 'reconnecting');
+                    }
                 }
             },
 
@@ -9135,30 +9188,60 @@
                     badge.style.color = '#065f46';
                     badge.innerHTML = '<span class="live-pulse-dot"></span> <span style="font-weight:700;letter-spacing:0.5px">LIVE REAL-TIME</span>';
                     badge.title = 'Real-Time Stream Active (Connected via SSE)';
+                } else if (state === 'cloud' || state === 'synced') {
+                    badge.style.background = '#ecfdf5';
+                    badge.style.border = '1px solid #10b981';
+                    badge.style.color = '#065f46';
+                    badge.innerHTML = '<i class="ph ph-cloud-check" style="color:#10b981"></i> <span>Cloud Synced (Live)</span>';
+                    badge.title = 'Connected to Cloud Database & GitHub Master Ledger';
                 } else if (state === 'reconnecting') {
+                    if (typeof IM !== 'undefined' && IM._all && IM._all.length > 0) {
+                        App.updateSyncStatus('synced');
+                        return;
+                    }
                     badge.style.background = '#fffbeb';
                     badge.style.border = '1px solid #f59e0b';
                     badge.style.color = '#92400e';
                     badge.innerHTML = '<span class="live-pulse-dot-warn"></span> <span>Reconnecting...</span>';
-                    badge.title = 'Reconnecting to Real-Time Server...';
+                    badge.title = 'Reconnecting to Database Server...';
                 } else {
+                    if (typeof IM !== 'undefined' && IM._all && IM._all.length > 0) {
+                        App.updateSyncStatus('synced');
+                        return;
+                    }
                     badge.style.background = '#fef2f2';
                     badge.style.border = '1px solid #ef4444';
                     badge.style.color = '#991b1b';
                     badge.innerHTML = '<i class="ph ph-warning-circle" style="color:#ef4444"></i> <span>Offline</span>';
+                    badge.title = 'Database Offline - Local Cache Preserved';
                 }
             },
 
             startHeartbeatCheck: function () {
                 function doHeartbeat() {
                     setTimeout(async function () {
+                        if (_isStaticHosting || (API_URL && API_URL.includes('script.google.com'))) {
+                            try {
+                                var cloudHealth = CLOUD_GAS_URL + '?action=health';
+                                var ctrl = new AbortController();
+                                var t = setTimeout(function () { ctrl.abort(); }, 4000);
+                                var res = await directFetch(cloudHealth, { signal: ctrl.signal });
+                                clearTimeout(t);
+                                if (res.ok) {
+                                    _serverOffline = false;
+                                    _serverFailCount = 0;
+                                    RTM.updateBadge('cloud');
+                                }
+                            } catch (_) { }
+                            doHeartbeat();
+                            return;
+                        }
+
                         if (!RTM.connected) {
                             try {
                                 var healthUrl = (API_URL && !API_URL.includes('script.google.com'))
                                     ? (API_URL + '/health')
-                                    : ((location.origin && location.origin.startsWith('http') && !location.origin.includes('github.io') && !location.origin.includes('vercel.app'))
-                                        ? (location.origin + '/api/health')
-                                        : 'http://127.0.0.1:3000/api/health');
+                                    : 'http://127.0.0.1:3000/api/health';
                                 var ctrl = new AbortController();
                                 var t = setTimeout(function () { ctrl.abort(); }, 3000);
                                 var res = await fetch(healthUrl, { signal: ctrl.signal });
@@ -9187,8 +9270,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.4.6',
-            build: 146,
+            currentVersion: '1.4.7',
+            build: 147,
             hasUpdate: false,
             latestInfo: null,
 
@@ -9421,6 +9504,62 @@
                 await resolveApiUrl();
 
                 var bootstrapDone = false;
+                var GITHUB_BASE = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main';
+
+                // STEP 1: If on static hosting or client device, pull master ledger directly from GitHub first
+                if (_isStaticHosting || API_MODE === 'cloud') {
+                    try {
+                        // 1. Permanent Tombstone Deletion Sync
+                        var delRes = await fetch(GITHUB_BASE + '/data/deleted_invoices.json?_t=' + Date.now());
+                        if (delRes.ok) {
+                            var delList = await delRes.json();
+                            if (Array.isArray(delList)) {
+                                var curDeleted = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
+                                delList.forEach(function (d) { if (!curDeleted.includes(String(d))) curDeleted.push(String(d)); });
+                                localStorage.setItem('akb_deleted_invoices', JSON.stringify(curDeleted));
+                            }
+                        }
+                    } catch (_) { }
+
+                    try {
+                        // 2. Settings & Authorized Admin Emails
+                        var sRes = await fetch(GITHUB_BASE + '/data/settings.json?_t=' + Date.now());
+                        if (sRes.ok) {
+                            var sData = await sRes.json();
+                            if (sData) STM.applySettings(sData);
+                        }
+                    } catch (_) { }
+
+                    try {
+                        // 3. Master Invoices Ledger
+                        var iRes = await fetch(GITHUB_BASE + '/data/invoices.json?_t=' + Date.now());
+                        if (iRes.ok) {
+                            var masterInvs = await iRes.json();
+                            if (Array.isArray(masterInvs) && masterInvs.length > 0) {
+                                IM.applyInvoices(masterInvs);
+                                if (typeof DM !== 'undefined' && DM.render) DM.render();
+                                bootstrapDone = true;
+                            }
+                        }
+                    } catch (_) { }
+
+                    try {
+                        // 4. Products, Receivers & Consignees
+                        if (!PDM._all || PDM._all.length === 0) {
+                            var pRes = await fetch(GITHUB_BASE + '/data/products.json?_t=' + Date.now());
+                            if (pRes.ok) { var pData = await pRes.json(); if (Array.isArray(pData)) PDM.applyProducts(pData); }
+                        }
+                        if (!PM._parties || !PM._parties.receiver || PM._parties.receiver.length === 0) {
+                            var rRes = await fetch(GITHUB_BASE + '/data/receivers.json?_t=' + Date.now());
+                            if (rRes.ok) { var rData = await rRes.json(); if (Array.isArray(rData)) PM.applyParties('receiver', rData); }
+                        }
+                        if (!PM._parties || !PM._parties.consignee || PM._parties.consignee.length === 0) {
+                            var cRes = await fetch(GITHUB_BASE + '/data/consignees.json?_t=' + Date.now());
+                            if (cRes.ok) { var cData = await cRes.json(); if (Array.isArray(cData)) PM.applyParties('consignee', cData); }
+                        }
+                    } catch (_) { }
+                }
+
                 try {
                     // Fast batch request: retrieves settings, products, receivers, consignees, invoices in 1 single round-trip!
                     var bootUrl = (API_URL || location.origin + '/api') + '/bootstrap';
@@ -9429,10 +9568,14 @@
                         var data = await res.json();
                         if (data && (data.invoices || data.products || data.settings)) {
                             if (data.settings) STM.applySettings(data.settings);
-                            if (Array.isArray(data.products)) PDM.applyProducts(data.products);
-                            if (Array.isArray(data.receivers)) PM.applyParties('receiver', data.receivers);
-                            if (Array.isArray(data.consignees)) PM.applyParties('consignee', data.consignees);
-                            if (Array.isArray(data.invoices)) IM.applyInvoices(data.invoices);
+                            if (Array.isArray(data.products) && (!PDM._all || PDM._all.length === 0 || !_isStaticHosting)) PDM.applyProducts(data.products);
+                            if (Array.isArray(data.receivers) && (!PM._parties || !PM._parties.receiver || PM._parties.receiver.length === 0 || !_isStaticHosting)) PM.applyParties('receiver', data.receivers);
+                            if (Array.isArray(data.consignees) && (!PM._parties || !PM._parties.consignee || PM._parties.consignee.length === 0 || !_isStaticHosting)) PM.applyParties('consignee', data.consignees);
+                            if (Array.isArray(data.invoices)) {
+                                if (!_isStaticHosting || !IM._all || IM._all.length === 0) {
+                                    IM.applyInvoices(data.invoices);
+                                }
+                            }
 
                             BM.init();
                             DM.render();
@@ -9440,11 +9583,11 @@
                         }
                     }
                 } catch (e) {
-                    console.warn('Bootstrap endpoint unavailable, using parallel fetch:', e.message);
+                    console.warn('Bootstrap endpoint note:', e.message);
                 }
 
-                // Fallback if bootstrap is not supported: execute all in PARALLEL via Promise.all
-                if (!bootstrapDone) {
+                // Fallback if bootstrap is not supported and not static hosting
+                if (!bootstrapDone && !_isStaticHosting) {
                     try {
                         await Promise.all([
                             STM.fetchSettings(),
@@ -9459,76 +9602,14 @@
                     }
                 }
 
-                // --- MIGRATION: Push local data to empty MongoDB ---
-                var loadedInvoices = (typeof data !== 'undefined' && data && data.invoices) ? data.invoices : (IM.invoices || []);
-                if (API_MODE === "local" && bootstrapDone && Array.isArray(loadedInvoices) && loadedInvoices.length === 0) {
-                    var localInvoices = D.g("invoices") || [];
-                    if (localInvoices.length > 0) {
-                        console.log("Migrating " + localInvoices.length + " invoices to MongoDB...");
-                        for (var i = 0; i < localInvoices.length; i++) {
-                            try {
-                                await fetch(API_URL + '/invoices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(localInvoices[i]) });
-                            } catch (e) { }
-                        }
-                        App.load(); // Reload after migration
-                        return;
-                    }
+                // Ensure settings UI is properly updated
+                if (typeof STM !== 'undefined' && STM.loadUI) {
+                    STM.loadUI();
                 }
 
-                // GitHub Base Data Sync: When running on a client/customer device or static hosting, ensure full data sync from GitHub
-                try {
-                    var GITHUB_BASE = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main';
-
-                    // 1. Settings & Authorized Admin Emails
-                    if (!STM._settings || !Array.isArray(STM._settings.adminEmails) || STM._settings.adminEmails.length === 0) {
-                        var sRes = await fetch(GITHUB_BASE + '/data/settings.json?_t=' + Date.now());
-                        if (sRes.ok) {
-                            var sData = await sRes.json();
-                            if (sData) STM.applySettings(sData);
-                        }
-                    }
-
-                    // 2. Invoices (seed from GitHub only if local device has zero invoices)
-                    if (!IM._all || IM._all.length === 0) {
-                        var iRes = await fetch(GITHUB_BASE + '/data/invoices.json?_t=' + Date.now());
-                        if (iRes.ok) {
-                            var masterInvs = await iRes.json();
-                            if (Array.isArray(masterInvs) && masterInvs.length > 0) {
-                                IM.applyInvoices(masterInvs);
-                                if (typeof DM !== 'undefined' && DM.render) DM.render();
-                                console.log('[Client-Ledger] Seeded ' + masterInvs.length + ' master invoices from GitHub repository.');
-                            }
-                        }
-                    }
-
-                    // 3. Products (seed from GitHub only if empty)
-                    if (!PDM._all || PDM._all.length === 0) {
-                        var pRes = await fetch(GITHUB_BASE + '/data/products.json?_t=' + Date.now());
-                        if (pRes.ok) {
-                            var pData = await pRes.json();
-                            if (Array.isArray(pData) && pData.length > 0) PDM.applyProducts(pData);
-                        }
-                    }
-
-                    // 4. Receivers & Consignees (seed from GitHub only if empty)
-                    if (!PM._parties || !PM._parties.receiver || PM._parties.receiver.length === 0) {
-                        var rRes = await fetch(GITHUB_BASE + '/data/receivers.json?_t=' + Date.now());
-                        if (rRes.ok) {
-                            var rData = await rRes.json();
-                            if (Array.isArray(rData) && rData.length > 0) PM.applyParties('receiver', rData);
-                        }
-                    }
-                    if (!PM._parties || !PM._parties.consignee || PM._parties.consignee.length === 0) {
-                        var cRes = await fetch(GITHUB_BASE + '/data/consignees.json?_t=' + Date.now());
-                        if (cRes.ok) {
-                            var cData = await cRes.json();
-                            if (Array.isArray(cData) && cData.length > 0) PM.applyParties('consignee', cData);
-                        }
-                    }
-                } catch (_) { }
-
-                if ((typeof bootstrapDone !== 'undefined' && bootstrapDone) || (IM._all && IM._all.length > 0)) {
+                if (bootstrapDone || (IM._all && IM._all.length > 0)) {
                     App.updateSyncStatus('synced');
+                    _serverOffline = false;
                 } else {
                     App.updateSyncStatus('offline');
                 }
@@ -9541,6 +9622,7 @@
 
             startContinuousSync: function () {
                 if (App._syncInterval) return;
+                var syncDelay = (_isStaticHosting || (API_URL && API_URL.includes('script.google.com'))) ? 20000 : 8000;
                 App._syncInterval = setInterval(async function () {
                     if (App._isSyncingNow) return;
                     App._isSyncingNow = true;
@@ -9550,7 +9632,23 @@
                             await OM.process();
                         }
 
-                        // 2. Ultra-lightweight check: inspect version hash first (takes < 2ms, 0 overhead)
+                        // 2. On static hosting / cloud, sync from GitHub master ledger
+                        if (_isStaticHosting || (API_URL && API_URL.includes('script.google.com'))) {
+                            try {
+                                var ghUrl = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json?_t=' + Date.now();
+                                var ghRes = await fetch(ghUrl, { cache: 'no-store' });
+                                if (ghRes.ok) {
+                                    var ghInvs = await ghRes.json();
+                                    if (Array.isArray(ghInvs) && ghInvs.length > 0) {
+                                        IM.applyInvoices(ghInvs);
+                                        if (typeof DM !== 'undefined' && DM.render) DM.render();
+                                    }
+                                }
+                            } catch (_) { }
+                            return;
+                        }
+
+                        // 3. Ultra-lightweight check: inspect version hash first (takes < 2ms, 0 overhead)
                         var baseApi = (API_URL || location.origin + '/api');
                         var verUrl = baseApi + '/invoices/version';
                         var isChanged = true;
@@ -9569,7 +9667,7 @@
                             }
                         } catch (_) { }
 
-                        // 3. Only retrieve full invoice list when a change actually occurred
+                        // 4. Only retrieve full invoice list when a change actually occurred
                         if (isChanged) {
                             var syncUrl = baseApi + '/invoices';
                             var res = await fetch(syncUrl, { cache: 'no-store' });
@@ -9586,25 +9684,35 @@
                     } finally {
                         App._isSyncingNow = false;
                     }
-                }, 8000);
+                }, syncDelay);
             },
 
             updateSyncStatus: function (status) {
                 var badge = document.getElementById('db-sync-badge');
                 if (!badge) return;
                 if (status === 'syncing') {
-                    badge.innerHTML = '<i class="ph ph-arrows-clockwise" style="animation:spin .8s linear infinite;color:#f59e0b"></i> <span>Syncing (1s)...</span>';
+                    badge.style.background = '#fffbeb';
+                    badge.style.border = '1px solid #f59e0b';
+                    badge.style.color = '#92400e';
+                    badge.innerHTML = '<i class="ph ph-arrows-clockwise" style="animation:spin .8s linear infinite;color:#f59e0b"></i> <span>Syncing...</span>';
                 } else if (status === 'synced') {
+                    badge.style.background = '#ecfdf5';
+                    badge.style.border = '1px solid #10b981';
+                    badge.style.color = '#065f46';
                     var isLocal = API_URL && (API_URL.includes('localhost') || API_URL.startsWith('/api') || API_URL.includes('127.0.0.1'));
                     if (isLocal) {
                         badge.innerHTML = '<i class="ph ph-lightning" style="color:#10b981"></i> <span>Synced (1s Live)</span>';
                         badge.title = 'Connected to local high-speed database with 1s continuous sync: ' + API_URL;
                     } else {
-                        badge.innerHTML = '<i class="ph ph-cloud-check" style="color:#3b82f6"></i> <span>Cloud GAS (1s Live)</span>';
-                        badge.title = 'Connected to Google Apps Script with 1s continuous sync';
+                        badge.innerHTML = '<i class="ph ph-cloud-check" style="color:#10b981"></i> <span>Cloud Synced (Live)</span>';
+                        badge.title = 'Connected to Cloud Database with Continuous GitHub Master Sync';
                     }
                 } else {
+                    badge.style.background = '#fef2f2';
+                    badge.style.border = '1px solid #ef4444';
+                    badge.style.color = '#991b1b';
                     badge.innerHTML = '<i class="ph ph-warning-circle" style="color:#ef4444"></i> <span>Offline</span>';
+                    badge.title = 'Database Offline - Local Cache Preserved';
                 }
             }
         };
@@ -10399,6 +10507,20 @@
         }
 
         async function fetchWhatsappStatus(showToast) {
+            if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
+                _waStatusState = { connected: false, hostedOnServer: true };
+                updateWhatsappSidebarDot(false, false);
+                var waBadge = document.getElementById("s-wa-badge");
+                var waBox = document.getElementById("s-wa-status-box");
+                if (waBadge && waBox) {
+                    waBadge.style.background = "#eff6ff";
+                    waBadge.style.color = "#1e40af";
+                    waBadge.textContent = "WORKSTATION BOT";
+                    waBox.innerHTML = '<span style="color:#2563eb; font-weight:700;"><i class="ph ph-device-mobile"></i> WhatsApp Engine Stationed on Host PC</span><br><span style="color:var(--tl)">Customer receipts are dispatched via Host Workstation PC. You can configure a custom host IP in Settings if needed.</span>';
+                }
+                return;
+            }
+
             try {
                 var directFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
                 var endpoint = (typeof getWaApiUrl === 'function') ? (getWaApiUrl() + '/whatsapp/status') : 'http://127.0.0.1:3000/api/whatsapp/status';
@@ -10411,7 +10533,6 @@
                 var data = await res.json();
                 _waStatusState = data;
                 _waOfflineCount = 0;
-                _serverOffline = false;
                 _serverFailCount = 0;
                 if (data.connected || data.status === 'authenticated' || data.status === 'ready') {
                     updateWhatsappSidebarDot(true, false);
@@ -10475,7 +10596,6 @@
                 }
 
                 if (_waOfflineCount >= 5) {
-                    _serverOffline = true;
                     renderWhatsappModal("server_offline", null);
                 } else {
                     renderWhatsappModal("loading", { message: "Connecting to WhatsApp Bot & Backend Engine..." });
@@ -10561,6 +10681,9 @@
 
         // Continuous background self-healing monitor for WhatsApp
         setInterval(function () {
+            if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
+                return; // Do not poll loopback on public HTTPS
+            }
             if (!_waStatusState || !_waStatusState.connected) {
                 fetchWhatsappStatus(false);
             }
@@ -10568,6 +10691,9 @@
 
         // Realtime Event Stream listener (instant status update when phone links)
         (function initRealtimeWhatsAppStream() {
+            if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
+                return; // Do not open EventSource to loopback on public HTTPS
+            }
             try {
                 if (typeof EventSource !== 'undefined') {
                     var sseUrl = (typeof getWaApiUrl === 'function') ? (getWaApiUrl() + '/events') : 'http://127.0.0.1:3000/api/events';
