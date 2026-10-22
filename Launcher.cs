@@ -198,13 +198,14 @@ namespace AnudeepKhadiBandar
 
         private static string FindServerJs()
         {
+            string wsServer = @"C:\Users\ADMIN\Desktop\anudeep-kadir-bandi\server.js";
             string appDataServer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AnudeepKhadiBandar", "server.js");
             string[] candidates = new string[]
             {
+                wsServer,
                 Path.Combine(appDir, "server.js"),
                 appDataServer,
                 Path.Combine(appDir, "anudeep-kadir-bandi", "server.js"),
-                @"C:\Users\ADMIN\Desktop\anudeep-kadir-bandi\server.js",
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "anudeep-kadir-bandi", "server.js")
             };
             foreach (string p in candidates)
@@ -255,6 +256,12 @@ namespace AnudeepKhadiBandar
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 psi.WindowStyle = ProcessWindowStyle.Hidden;
+
+                string nodeModulesDir = @"C:\Users\ADMIN\Desktop\anudeep-kadir-bandi\node_modules";
+                if (Directory.Exists(nodeModulesDir))
+                {
+                    psi.EnvironmentVariables["NODE_PATH"] = nodeModulesDir;
+                }
 
                 serverProcess = Process.Start(psi);
             }

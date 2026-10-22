@@ -1,8 +1,21 @@
-require('dotenv').config();
+const path = require('path');
+const fs = require('fs');
+
+// Ensure dependencies can be loaded seamlessly whether started from AppData, Desktop, or Workspace
+const extraModulePaths = [
+  path.join(__dirname, 'node_modules'),
+  'C:\\Users\\ADMIN\\Desktop\\anudeep-kadir-bandi\\node_modules',
+  path.join(process.env.USERPROFILE || 'C:\\Users\\ADMIN', 'Desktop', 'anudeep-kadir-bandi', 'node_modules'),
+  path.join(process.env.APPDATA || 'C:\\Users\\ADMIN\\AppData\\Roaming', 'AnudeepKhadiBandar', 'node_modules')
+];
+for (const p of extraModulePaths) {
+  if (fs.existsSync(p) && !module.paths.includes(p)) {
+    module.paths.unshift(p);
+  }
+}
+try { require('dotenv').config(); } catch (_) {}
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
 const https = require('https');
 const multer = require('multer');
 const qrcode = require('qrcode');
@@ -895,7 +908,6 @@ async function initWhatsappClient(forceClean = false) {
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
-          '--disable-extensions',
           '--disable-dev-shm-usage',
           '--disable-gpu',
           '--no-first-run',
@@ -905,34 +917,12 @@ async function initWhatsappClient(forceClean = false) {
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
-          '--disable-features=CalculateNativeWinOcclusion,IsolateOrigins,site-per-process',
-          '--enable-features=NetworkService,NetworkServiceInProcess',
-          '--disable-breakpad',
-          '--disable-component-update',
-          '--disable-domain-reliability',
-          '--disable-sync',
-          '--disable-translate',
-          '--disable-ipc-flooding-protection',
-          '--metrics-recording-only',
-          '--no-pings',
-          '--password-store=basic',
-          '--use-mock-keychain',
           '--window-size=1024,768',
-          '--mute-audio',
-          '--disk-cache-size=104857600'
+          '--mute-audio'
         ],
         ignoreDefaultArgs: ['--enable-automation']
       }
     };
-
-    if (cachedInfo) {
-      clientOptions.webVersion = cachedInfo.version;
-      clientOptions.webVersionCache = {
-        type: 'local',
-        path: cachedInfo.path,
-        strict: false
-      };
-    }
 
     client = new Client(clientOptions);
 
