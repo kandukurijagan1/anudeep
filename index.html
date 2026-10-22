@@ -9190,6 +9190,8 @@
                     if (typeof renderWhatsappModal === 'function') {
                         if (isConn) {
                             renderWhatsappModal("connected", data);
+                        } else if (data.status === 'connecting_saved' || (data.status === 'initializing' && data.hasSavedSession)) {
+                            renderWhatsappModal("loading", { message: data.message || "Reconnecting to linked WhatsApp account...", user: data.user });
                         } else if (data.qr || data.pairingCode) {
                             renderWhatsappModal("login", data);
                         } else if (data.status === 'initializing' || data.status === 'loading') {
@@ -9199,7 +9201,7 @@
                         }
                     }
                     if (typeof updateWhatsappSidebarDot === 'function') {
-                        updateWhatsappSidebarDot(isConn, !isConn && (data.status === 'initializing' || !!data.qr));
+                        updateWhatsappSidebarDot(isConn, !isConn && (data.status === 'initializing' || (!!data.qr && data.status !== 'connecting_saved')));
                     }
                 } else if (type === 'app_updated') {
                     RTM.playChime();
@@ -9697,11 +9699,12 @@
                                 if (delRes.ok) {
                                     var delList = await delRes.json();
                                     if (Array.isArray(delList)) {
-                                        var curDeleted = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
+                                        var curDeleted = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]').filter(function (d) { return String(d).length > 5; });
                                         delList.forEach(function (d) {
-                                            if (!curDeleted.includes(String(d))) { curDeleted.push(String(d)); delChanged = true; }
+                                            var s = String(d);
+                                            if (s.length > 5 && !curDeleted.includes(s)) { curDeleted.push(s); delChanged = true; }
                                         });
-                                        if (delChanged) localStorage.setItem('akb_deleted_invoices', JSON.stringify(curDeleted));
+                                        localStorage.setItem('akb_deleted_invoices', JSON.stringify(curDeleted));
                                     }
                                 }
                             } catch (_) { }
@@ -10844,6 +10847,9 @@
                                 updateWhatsappSidebarDot(true, false);
                                 renderWhatsappModal("connected", info);
                                 if (info.message) U.toast("⚡ " + info.message, "success");
+                            } else if (info.status === 'connecting_saved') {
+                                updateWhatsappSidebarDot(true, false);
+                                renderWhatsappModal("loading", { message: info.message || "Reconnecting to linked WhatsApp account...", user: info.user });
                             } else if (info.qr || info.pairingCode) {
                                 updateWhatsappSidebarDot(false, true);
                                 renderWhatsappModal("login", info);

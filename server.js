@@ -424,11 +424,19 @@ function broadcastRealtime(eventType, payload) {
 let qrCodeDataUrl = null;
 let lastPairingCode = null;
 let isWhatsappConnected = false;
+let isRestoringSavedSession = false;
+let savedSessionGraceTimer = null;
+let pendingQrDataUrl = null;
 let client = null;
 function saveSavedWhatsappUserInfo(info) {
   try {
     if (info && info.phone) {
       fs.writeFileSync(path.join(AKB_DIR, 'whatsapp_session.json'), JSON.stringify(info), 'utf8');
+      try {
+        const backupDir = path.join(__dirname, 'data');
+        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+        fs.writeFileSync(path.join(backupDir, 'whatsapp_session.json'), JSON.stringify(info), 'utf8');
+      } catch (_) {}
     }
   } catch (_) {}
 }
@@ -438,6 +446,12 @@ function getSavedWhatsappUserInfo() {
     const p = path.join(AKB_DIR, 'whatsapp_session.json');
     if (fs.existsSync(p)) {
       return JSON.parse(fs.readFileSync(p, 'utf8'));
+    }
+    const backup = path.join(__dirname, 'data', 'whatsapp_session.json');
+    if (fs.existsSync(backup)) {
+      const data = JSON.parse(fs.readFileSync(backup, 'utf8'));
+      try { fs.writeFileSync(p, JSON.stringify(data), 'utf8'); } catch (_) {}
+      return data;
     }
   } catch (_) {}
   return null;
@@ -510,7 +524,12 @@ function hasSavedWhatsappSession() {
     const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
     if (fs.existsSync(sessFile)) {
       const data = JSON.parse(fs.readFileSync(sessFile, 'utf8'));
-      if (data && data.phone) return true;
+      if (data && data.phone && data.phone !== 'Connected') return true;
+    }
+    const levelDbDir = path.join(AKB_DIR, '.wwebjs_auth', 'session', 'Default', 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
+    if (fs.existsSync(levelDbDir)) {
+      const files = fs.readdirSync(levelDbDir).filter(f => f.endsWith('.ldb'));
+      if (files.length > 0) return true;
     }
   } catch (_) {}
   return false;
@@ -736,6 +755,7 @@ async function initWhatsappClient(forceClean = false) {
   isWhatsappInitializing = true;
   qrCodeDataUrl = null;
   lastPairingCode = null;
+  pendingQrDataUrl = null;
 
   // Set intelligent watchdog timer: allow up to 180s for saved session reconnection, 90s for fresh session
   const hasSavedSess = hasSavedWhatsappSession();
@@ -761,6 +781,7 @@ async function initWhatsappClient(forceClean = false) {
       // If reload fails or client is unresponsive, safely clean up and retry once cleanly
       console.warn('⚠️ [WhatsApp] Client unresponsive. Resetting initialization state and restarting client...');
       isWhatsappInitializing = false;
+      isRestoringSavedSession = false;
       await safeDestroyClient();
       setTimeout(() => {
         if (!isWhatsappConnected && !isWhatsappInitializing) {
@@ -769,6 +790,38 @@ async function initWhatsappClient(forceClean = false) {
       }, 2000);
     }
   }, watchdogTimeoutMs);
+
+  if (hasSavedSess && !forceClean) {
+    isRestoringSavedSession = true;
+    const savedUser = getSavedWhatsappUserInfo();
+    console.log(`[WhatsApp] Detected saved session for +${savedUser ? savedUser.phone : 'linked device'}. Entering protected restoration mode...`);
+    broadcastRealtime('whatsapp_status', {
+      connected: false,
+      status: 'connecting_saved',
+      user: savedUser,
+      message: `Restoring WhatsApp session for +${savedUser ? savedUser.phone : 'linked device'}...`
+    });
+
+    if (savedSessionGraceTimer) clearTimeout(savedSessionGraceTimer);
+    savedSessionGraceTimer = setTimeout(() => {
+      if (isRestoringSavedSession && !isWhatsappConnected) {
+        console.warn('⚠️ [WhatsApp] Saved session restoration grace period (60s) timed out. Switching to QR login mode...');
+        isRestoringSavedSession = false;
+        if (pendingQrDataUrl) {
+          qrCodeDataUrl = pendingQrDataUrl;
+          broadcastRealtime('whatsapp_status', {
+            connected: false,
+            status: 'qr_ready',
+            qr: qrCodeDataUrl,
+            pairingCode: lastPairingCode,
+            user: null
+          });
+        }
+      }
+    }, 60000);
+  } else {
+    isRestoringSavedSession = false;
+  }
 
   try {
     const { Client, LocalAuth, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
@@ -787,7 +840,7 @@ async function initWhatsappClient(forceClean = false) {
     if (forceClean) {
       cleanAuthDirectory();
     } else {
-      killOrphanAuthBrowsers();
+      killOrphanAuthBrowsers(true);
       cleanChromeLockFiles();
     }
 
@@ -807,6 +860,12 @@ async function initWhatsappClient(forceClean = false) {
       authStrategy = new LocalAuth({
         dataPath: path.join(AKB_DIR, '.wwebjs_auth')
       });
+      // 🛡️ CRITICAL SESSION IMMORTALITY SHIELD:
+      // Prevent whatsapp-web.js from wiping session directory on internal navigation errors or disconnect events!
+      // Session files must ONLY ever be cleared when the user explicitly clicks 'Change Number' in the software UI.
+      authStrategy.logout = async function() {
+        console.log('🛡️ [WhatsApp Auth] LocalAuth.logout intercepted and suppressed to preserve session persistence.');
+      };
     }
 
     const cachedInfo = getCachedWebVersionInfo();
@@ -894,22 +953,43 @@ async function initWhatsappClient(forceClean = false) {
     setTimeout(() => clearInterval(trackPidInterval), 25000);
 
     client.on('qr', async (qr) => {
-      if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       // If the session was already detected as linked or connected, do NOT overwrite with QR!
       if (isWhatsappConnected) {
         return;
       }
       console.log('[WhatsApp] QR Code received.');
-      isWhatsappConnected = false;
-      isWhatsappInitializing = false;
+
       // Do NOT delete whatsapp_session.json on QR. Saved credentials must remain preserved across refreshes.
       try {
-        qrCodeDataUrl = await qrcode.toDataURL(qr, {
+        const qrUrl = await qrcode.toDataURL(qr, {
           errorCorrectionLevel: 'M',
           margin: 2,
           width: 320,
           color: { dark: '#000000', light: '#ffffff' }
         });
+
+        // 🛡️ CRITICAL SESSION PERSISTENCE GUARD:
+        // WhatsApp Web ALWAYS displays a transient QR canvas on initial page load
+        // while it decrypts and synchronizes IndexedDB from disk.
+        // If a saved session is currently restoring, DO NOT broadcast QR code to the user!
+        if (isRestoringSavedSession) {
+          pendingQrDataUrl = qrUrl;
+          console.log('[WhatsApp] Early transient QR code suppressed. Saved session is actively restoring from disk...');
+          broadcastRealtime('whatsapp_status', {
+            connected: false,
+            status: 'connecting_saved',
+            user: getSavedWhatsappUserInfo(),
+            message: 'Restoring saved WhatsApp session... Please wait.'
+          });
+          return;
+        }
+
+        // Only broadcast QR code if there is genuinely no saved session or after 60s timeout
+        if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+        isWhatsappConnected = false;
+        isWhatsappInitializing = false;
+        qrCodeDataUrl = qrUrl;
+
         broadcastRealtime('whatsapp_status', {
           connected: false,
           status: 'qr_ready',
@@ -924,6 +1004,9 @@ async function initWhatsappClient(forceClean = false) {
 
     client.on('ready', () => {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+      if (savedSessionGraceTimer) clearTimeout(savedSessionGraceTimer);
+      isRestoringSavedSession = false;
+      pendingQrDataUrl = null;
       console.log('⚡ [WhatsApp] Client is ready and connected!');
       isWhatsappConnected = true;
       qrCodeDataUrl = null;
@@ -992,6 +1075,9 @@ async function initWhatsappClient(forceClean = false) {
           if (isLinked) {
             console.log('⚡ [WhatsApp] Immediate link detected on browser page!');
             if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+            if (savedSessionGraceTimer) clearTimeout(savedSessionGraceTimer);
+            isRestoringSavedSession = false;
+            pendingQrDataUrl = null;
             isWhatsappConnected = true;
             isWhatsappInitializing = false;
             qrCodeDataUrl = null;
@@ -1024,6 +1110,9 @@ async function initWhatsappClient(forceClean = false) {
 
     client.on('loading_screen', (percent, message) => {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+      if (savedSessionGraceTimer) clearTimeout(savedSessionGraceTimer);
+      isRestoringSavedSession = false;
+      pendingQrDataUrl = null;
       console.log(`[WhatsApp] Loading screen: ${percent}% - ${message}`);
       qrCodeDataUrl = null;
       lastPairingCode = null;
@@ -1039,6 +1128,9 @@ async function initWhatsappClient(forceClean = false) {
 
     client.on('authenticated', () => {
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
+      if (savedSessionGraceTimer) clearTimeout(savedSessionGraceTimer);
+      isRestoringSavedSession = false;
+      pendingQrDataUrl = null;
       console.log('⚡ [WhatsApp] Authenticated successfully! Device is linked.');
       isWhatsappConnected = true;
       qrCodeDataUrl = null;
@@ -1103,16 +1195,9 @@ async function initWhatsappClient(forceClean = false) {
       qrCodeDataUrl = null;
       lastPairingCode = null;
       isWhatsappInitializing = false;
-      if (reason === 'LOGOUT') {
-        console.log('🚪 [WhatsApp] User unlinked device (LOGOUT). Clearing session file.');
-        whatsappUserInfo = null;
-        try {
-          const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
-          if (fs.existsSync(sessFile)) fs.unlinkSync(sessFile);
-        } catch (_) {}
-      } else {
-        console.log(`🔄 [WhatsApp] Session disconnected temporarily (${reason}). Credentials preserved.`);
-      }
+      if (savedSessionGraceTimer) clearTimeout(savedSessionGraceTimer);
+      isRestoringSavedSession = false;
+      console.log(`🔄 [WhatsApp] Session disconnected temporarily (${reason}). User credentials strictly preserved.`);
       broadcastRealtime('whatsapp_status', { 
         connected: false, 
         status: 'disconnected', 
@@ -1243,12 +1328,31 @@ app.get('/api/events', (req, res) => {
   res.write(`event: connected\ndata: ${JSON.stringify({ status: 'connected', clientsCount: sseClients.size, isWhatsappConnected, timestamp: Date.now() })}\n\n`);
 
   // Immediately push real-time WhatsApp status so the frontend never has to wait
+  const hasSession = hasSavedWhatsappSession();
+  const savedUser = getSavedWhatsappUserInfo();
+  const activeUser = isWhatsappConnected ? (whatsappUserInfo || savedUser) : (hasSession ? savedUser : null);
+
+  let statusString = 'disconnected';
+  if (isWhatsappConnected) {
+    statusString = 'connected';
+  } else if (isRestoringSavedSession) {
+    statusString = 'connecting_saved';
+  } else if (lastPairingCode) {
+    statusString = 'pairing_code_ready';
+  } else if (qrCodeDataUrl) {
+    statusString = 'qr_ready';
+  } else if (isWhatsappInitializing) {
+    statusString = hasSession ? 'connecting_saved' : 'initializing';
+  }
+
   const currentStatus = {
     connected: isWhatsappConnected,
-    qr: isWhatsappConnected ? null : qrCodeDataUrl,
+    qr: (isWhatsappConnected || isRestoringSavedSession) ? null : qrCodeDataUrl,
     pairingCode: lastPairingCode,
-    user: isWhatsappConnected ? (whatsappUserInfo || getSavedWhatsappUserInfo()) : null,
-    status: isWhatsappConnected ? 'connected' : (lastPairingCode ? 'pairing_code_ready' : (qrCodeDataUrl ? 'qr_ready' : (isWhatsappInitializing ? 'initializing' : 'disconnected')))
+    user: activeUser,
+    status: statusString,
+    hasSavedSession: hasSession,
+    message: isRestoringSavedSession ? 'Restoring saved WhatsApp session...' : (isWhatsappConnected ? 'WhatsApp Bot Connected & Active' : '')
   };
   res.write(`event: whatsapp_status\ndata: ${JSON.stringify(currentStatus)}\n\n`);
 
@@ -1717,12 +1821,13 @@ async function downloadAndApplyUpdate(remoteVer) {
       if (delRes.ok) {
         const remoteDel = await delRes.json();
         if (Array.isArray(remoteDel)) {
-          const curDel = readJsonFile('deleted_invoices', []);
+          let curDel = readJsonFile('deleted_invoices', []).filter(d => String(d).length > 5);
           let delChanged = false;
           for (const d of remoteDel) {
-            if (!curDel.includes(String(d))) { curDel.push(String(d)); delChanged = true; }
+            const s = String(d);
+            if (s.length > 5 && !curDel.includes(s)) { curDel.push(s); delChanged = true; }
           }
-          if (delChanged) {
+          if (delChanged || curDel.length !== readJsonFile('deleted_invoices', []).length) {
             writeJsonFile('deleted_invoices', curDel);
             updatedFiles.push('data/deleted_invoices.json');
           }
@@ -2521,13 +2626,27 @@ app.get('/api/whatsapp/status', async (req, res) => {
     initWhatsappClient(false);
   }
 
+  let statusString = 'disconnected';
+  if (isWhatsappConnected) {
+    statusString = 'connected';
+  } else if (isRestoringSavedSession) {
+    statusString = 'connecting_saved';
+  } else if (lastPairingCode) {
+    statusString = 'pairing_code_ready';
+  } else if (qrCodeDataUrl) {
+    statusString = 'qr_ready';
+  } else if (isWhatsappInitializing) {
+    statusString = hasSession ? 'connecting_saved' : 'initializing';
+  }
+
   res.json({
     connected: isWhatsappConnected,
-    qr: isWhatsappConnected ? null : qrCodeDataUrl,
+    qr: (isWhatsappConnected || isRestoringSavedSession) ? null : qrCodeDataUrl,
     pairingCode: lastPairingCode,
     user: activeUser,
     hasSavedSession: hasSession,
-    status: isWhatsappConnected ? 'connected' : (lastPairingCode ? 'pairing_code_ready' : (qrCodeDataUrl ? 'qr_ready' : (isWhatsappInitializing ? (hasSession ? 'connecting_saved' : 'initializing') : 'disconnected')))
+    status: statusString,
+    message: isRestoringSavedSession ? 'Restoring saved WhatsApp session from local storage...' : (isWhatsappConnected ? 'WhatsApp Bot Connected & Active' : '')
   });
 });
 

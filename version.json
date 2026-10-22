@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.5.5",
-  "build": 155,
+  "version": "1.5.6",
+  "build": 156,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: permanently eliminate WhatsApp manual browser popup and fix invoice saving by removing invoice numbers from tombstones and enabling git data tracking"
+  "description": "fix: permanent whatsapp session persistence - suppress transient startup QR codes when saved session exists, ensure always connected, and protect invoices from tombstone number clashes"
 }
