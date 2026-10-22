@@ -1758,8 +1758,7 @@ async function downloadAndApplyUpdate(remoteVer) {
         const beforeLen = curInvs.length;
         curInvs = curInvs.filter(i => {
           const cid = String(i.id || i._id || '');
-          const cnum = String(i.invoiceNo || '');
-          return (!cid || !deletedInvs.has(cid)) && (!cnum || !deletedInvs.has(cnum));
+          return (!cid || !deletedInvs.has(cid));
         });
         if (curInvs.length !== beforeLen) updated = true;
 
@@ -1769,10 +1768,8 @@ async function downloadAndApplyUpdate(remoteVer) {
           const num = Number(rInv.invoiceNo);
           const rid = String(rInv.id || rInv._id || '');
           if (rid && deletedInvs.has(rid)) continue;
-          if (!isNaN(num) && num > 0 && deletedInvs.has(String(num))) continue;
           if (rid && existingIds.has(rid)) continue;
           if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
-          if (!isNaN(num) && num > 50) continue;
           curInvs.push(rInv);
           if (rid) existingIds.add(rid);
           if (!isNaN(num) && num > 0) existingNos.add(num);
@@ -1886,8 +1883,7 @@ setInterval(async () => {
       const beforeLen = curInvs.length;
       curInvs = curInvs.filter(i => {
         const cid = String(i.id || i._id || '');
-        const cnum = String(i.invoiceNo || '');
-        return (!cid || !deletedInvs.has(cid)) && (!cnum || !deletedInvs.has(cnum));
+        return (!cid || !deletedInvs.has(cid));
       });
       if (curInvs.length !== beforeLen) updated = true;
 
@@ -1897,10 +1893,8 @@ setInterval(async () => {
         const num = Number(rInv.invoiceNo);
         const rid = String(rInv.id || rInv._id || '');
         if (rid && deletedInvs.has(rid)) continue;
-        if (!isNaN(num) && num > 0 && deletedInvs.has(String(num))) continue;
         if (rid && existingIds.has(rid)) continue;
         if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
-        if (!isNaN(num) && num > 50) continue;
         curInvs.push(rInv);
         if (rid) existingIds.add(rid);
         if (!isNaN(num) && num > 0) existingNos.add(num);
@@ -1974,11 +1968,10 @@ app.get('/api/bootstrap', requireAuth, async (req, res) => {
 
     // Filter out any tombstoned deleted invoices immediately
     const deletedInvs = new Set(readJsonFile('deleted_invoices', []).map(String));
-    if (invoices.some(i => (i.id && deletedInvs.has(String(i.id))) || (i._id && deletedInvs.has(String(i._id))) || (i.invoiceNo && deletedInvs.has(String(i.invoiceNo))))) {
+    if (invoices.some(i => (i.id && deletedInvs.has(String(i.id))) || (i._id && deletedInvs.has(String(i._id))))) {
       invoices = invoices.filter(i => {
         const iid = String(i.id || i._id || '');
-        const inum = String(i.invoiceNo || '');
-        return (!iid || !deletedInvs.has(iid)) && (!inum || !deletedInvs.has(inum));
+        return (!iid || !deletedInvs.has(iid));
       });
       writeJsonFile('invoices', invoices);
       _invoicesVersion = Date.now();
@@ -2032,10 +2025,8 @@ app.get('/api/bootstrap', requireAuth, async (req, res) => {
             const num = Number(cinv.invoiceNo);
             const cid = String(cinv.id || cinv._id || '');
             if (cid && deletedInvs.has(cid)) continue;
-            if (!isNaN(num) && num > 0 && deletedInvs.has(String(num))) continue;
             if (cid && existingIds.has(cid)) continue;
             if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
-            if (!isNaN(num) && num > 50) continue; // ignore old stray test numbers
             invoices.push(cinv);
             if (cid) existingIds.add(cid);
             if (!isNaN(num) && num > 0) existingNos.add(num);
@@ -2116,6 +2107,13 @@ app.post('/api/invoices', (req, res) => {
     writeJsonFile('invoices', invoices);
     _invoicesVersion = Date.now();
 
+    // Ensure newly saved invoice is not blacklisted in deleted_invoices
+    let deletedList = readJsonFile('deleted_invoices', []);
+    const sid = String(inv.id || inv._id || '');
+    const snum = String(inv.invoiceNo || '');
+    deletedList = deletedList.filter(d => d !== sid && d !== snum && d !== snum.padStart(4, '0'));
+    writeJsonFile('deleted_invoices', deletedList);
+
     // Increment next invoice number in settings
     const settings = readJsonFile('settings', getDefaultSettings());
     const invNo = Number(inv.invoiceNo);
@@ -2178,10 +2176,10 @@ app.delete('/api/invoices/:id', (req, res) => {
     writeJsonFile('invoices', invoices);
     _invoicesVersion = Date.now();
 
-    // Persist deletion to tombstone list so sync never resurrects it
+    // Persist deletion to tombstone list by unique ID so sync never resurrects it
     const deletedList = readJsonFile('deleted_invoices', []);
-    if (id && !deletedList.includes(String(id))) deletedList.push(String(id));
-    if (invNo && !deletedList.includes(invNo)) deletedList.push(invNo);
+    if (id && String(id).length > 5 && !deletedList.includes(String(id))) deletedList.push(String(id));
+    if (target && target.id && String(target.id).length > 5 && !deletedList.includes(String(target.id))) deletedList.push(String(target.id));
     writeJsonFile('deleted_invoices', deletedList);
 
     forwardToGas('deleteInvoice', {}, id);

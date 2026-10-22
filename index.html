@@ -5663,7 +5663,11 @@
                             var delList = await delRes.json();
                             if (Array.isArray(delList)) {
                                 var curDeleted = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
-                                delList.forEach(function (d) { if (!curDeleted.includes(String(d))) curDeleted.push(String(d)); });
+                                delList.forEach(function (d) {
+                                    if (String(d).length > 5 && !curDeleted.includes(String(d))) curDeleted.push(String(d));
+                                });
+                                // Purge any pure invoice numbers from older versions
+                                curDeleted = curDeleted.filter(function (d) { return String(d).length > 5; });
                                 localStorage.setItem('akb_deleted_invoices', JSON.stringify(curDeleted));
                             }
                         }
@@ -6495,18 +6499,17 @@
                             U.toast("⏳ WhatsApp connecting in background... Invoice #" + invNo + " queued for auto-delivery", "info");
                             OM.push({ type: 'whatsapp_text', url: waApiBase + '/whatsapp/sendMessage', to: cleanPhone, message: textMsg });
                         } else {
-                            U.toast("⚠️ WhatsApp Bot not linked. Opening customer chat directly...", "info");
-                            SM.openCustomerWhatsAppWeb(inv);
+                            U.toast("⏳ WhatsApp message queued for background delivery", "info");
+                            OM.push({ type: 'whatsapp_text', url: waApiBase + '/whatsapp/sendMessage', to: cleanPhone, message: textMsg });
                         }
                     }
                 }).catch(function (err) {
-                    console.warn("WhatsApp background send err:", err);
+                    console.warn("WhatsApp background send note:", err);
                     if (window.electronAPI && window.electronAPI.ensureBackendRunning) {
                         window.electronAPI.ensureBackendRunning().catch(function () { });
                     }
                     OM.push({ type: 'whatsapp_text', url: waApiBase + '/whatsapp/sendMessage', to: cleanPhone, message: textMsg });
-                    // Seamless customer fallback
-                    SM.openCustomerWhatsAppWeb(inv);
+                    U.toast("⏳ WhatsApp message queued for background delivery", "info");
                 });
 
                 // 3. Dispatch PDF document automatically in background
@@ -7602,6 +7605,13 @@
                 var method = BM.editId ? 'PUT' : 'POST';
                 var url = (API_URL || location.origin + '/api') + '/invoices' + (BM.editId ? '/' + BM.editId : '');
 
+                // Ensure newly created invoice is never blacklisted by old tombstones
+                var curDeleted = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
+                var idToClear = String(inv.id);
+                var numToClear = String(inv.invoiceNo);
+                curDeleted = curDeleted.filter(function (d) { return d !== idToClear && d !== numToClear && d !== U.pi(inv.invoiceNo); });
+                localStorage.setItem('akb_deleted_invoices', JSON.stringify(curDeleted));
+
                 // ⚡ STEP 1: ZERO-LATENCY OPTIMISTIC UI COMMIT (< 2ms)
                 var invs = D.g("invoices") || [];
                 if (BM.editId) {
@@ -8474,8 +8484,7 @@
 
                 normalized = normalized.filter(function (inv) {
                     var iid = String(inv.id || inv._id || '');
-                    var inum = String(inv.invoiceNo || '');
-                    return (!iid || !deletedSet.has(iid)) && (!inum || !deletedSet.has(inum));
+                    return (!iid || !deletedSet.has(iid));
                 });
 
                 var offlineInvs = offlineQueue.filter(function (t) { return t.type === 'invoice_save'; }).map(function (t) { return t.inv; });
@@ -8671,12 +8680,11 @@
                     return;
                 }
 
-                // 1. Record in permanent tombstone so sync never restores this invoice
+                // 1. Record in permanent tombstone by unique ID so sync never restores this deleted instance
                 var target = (IM._all || []).find(function (i) { return String(i.id) === idStr || String(i._id) === idStr || String(i.invoiceNo) === idStr; });
-                var targetNo = target ? String(target.invoiceNo) : '';
                 var deletedList = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
-                if (!deletedList.includes(idStr)) deletedList.push(idStr);
-                if (targetNo && !deletedList.includes(targetNo)) deletedList.push(targetNo);
+                if (idStr && idStr.length > 5 && !deletedList.includes(idStr)) deletedList.push(idStr);
+                if (target && target.id && String(target.id).length > 5 && !deletedList.includes(String(target.id))) deletedList.push(String(target.id));
                 localStorage.setItem('akb_deleted_invoices', JSON.stringify(deletedList));
 
                 // 2. Optimistically delete from state & localStorage immediately (< 1ms)
@@ -9537,7 +9545,11 @@
                             var delList = await delRes.json();
                             if (Array.isArray(delList)) {
                                 var curDeleted = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
-                                delList.forEach(function (d) { if (!curDeleted.includes(String(d))) curDeleted.push(String(d)); });
+                                delList.forEach(function (d) {
+                                    if (String(d).length > 5 && !curDeleted.includes(String(d))) curDeleted.push(String(d));
+                                });
+                                // Purge any pure invoice numbers from older versions
+                                curDeleted = curDeleted.filter(function (d) { return String(d).length > 5; });
                                 localStorage.setItem('akb_deleted_invoices', JSON.stringify(curDeleted));
                             }
                         }

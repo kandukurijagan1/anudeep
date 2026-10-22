@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.5.3",
-  "build": 153,
+  "version": "1.5.4",
+  "build": 154,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat: unbreakable watchdog-protected continuous 2-second auto-sync with multi-tier cloud polling and wake-on-focus across all devices"
+  "description": "fix: resolve invoice saving block by purging short numbers from tombstones and eliminate annoying WhatsApp manual browser popup"
 }
