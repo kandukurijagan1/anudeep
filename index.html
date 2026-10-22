@@ -3903,23 +3903,11 @@
                     </div>
                     <div class="share-spinner"></div>
                 </button>
-                <button class="share-btn share-btn-whatsapp" id="btn-share-wa" onclick="SM.manualSendWhatsapp()"
+                <button class="share-btn share-btn-whatsapp" id="btn-share-wa" onclick="SM.autoSendWhatsapp(SM.currentInv)"
                     style="background:#25D366;color:#fff;">
                     <div class="share-icon"><i class="ph ph-whatsapp-logo"></i></div>
-                    <div class="share-text">Send via WhatsApp Bot<span>Send PDF directly to customer</span></div>
+                    <div class="share-text">Send via WhatsApp Bot<span>Direct background delivery (Text & PDF)</span></div>
                     <div class="share-spinner"></div>
-                </button>
-                <button class="share-btn" onclick="SM.autoSendWhatsapp(SM.currentInv)"
-                    style="background:#128C7E;color:#fff;">
-                    <div class="share-icon"><i class="ph ph-paper-plane-tilt"></i></div>
-                    <div class="share-text">Send WhatsApp Automatically<span>Sends text & PDF directly without opening
-                            tabs</span></div>
-                </button>
-
-                <button class="share-btn" onclick="SM.openCustomerWhatsAppWeb(SM.currentInv)"
-                    style="background:#075e54;color:#fff;">
-                    <div class="share-icon"><i class="ph ph-whatsapp-logo"></i></div>
-                    <div class="share-text">Open WhatsApp Web with Customer<span>Direct chat with customer, text pre-filled</span></div>
                 </button>
                 <button class="share-btn share-btn-pdf" onclick="SM.downloadPDF()">
                     <div class="share-icon"><i class="ph ph-file-pdf"></i></div>
@@ -4029,7 +4017,12 @@
 
         async function resolveApiUrl(forceRefresh) {
             var dbMode = localStorage.getItem("akb_db_mode") || (_isStaticHosting ? "cloud" : "auto");
-            if (dbMode === "cloud" || _isStaticHosting && !localStorage.getItem("akb_wa_server_url")) {
+            var isDesktopOrLocal = location.hostname === '127.0.0.1' || location.hostname === 'localhost' ||
+                location.port === '3000' || location.protocol === 'file:' || location.search.includes('mode=dedicated_app') ||
+                (typeof window !== 'undefined' && window.electronAPI !== undefined) ||
+                location.hostname.startsWith('192.168.') || location.hostname.startsWith('10.') || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(location.hostname);
+
+            if (dbMode === "cloud" || (_isStaticHosting && !localStorage.getItem("akb_wa_server_url") && !isDesktopOrLocal)) {
                 API_URL = CLOUD_GAS_URL;
                 API_MODE = "cloud";
                 sessionStorage.setItem("akb_cached_api_url", API_URL);
@@ -4037,14 +4030,33 @@
             }
 
             var localBase = getCandidateLocalApi();
-            var checkLocal = dbMode === "local" ||
-                location.hostname === '127.0.0.1' || location.hostname === 'localhost' ||
-                location.hostname.startsWith('192.168.') || location.hostname.startsWith('10.') || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(location.hostname) ||
-                location.protocol === 'file:' || location.search.includes('mode=dedicated_app') ||
-                (typeof window !== 'undefined' && window.electronAPI !== undefined) ||
-                !!localStorage.getItem("akb_wa_server_url");
 
-            // Instant fast-path: If already resolved and not forced, return cached URL immediately (0ms)
+            // 🛡️ WORKSTATION & DESKTOP RULE: Always use local backend engine on port 3000!
+            // Never lock desktop workstation to Cloud GAS because that breaks background WhatsApp bot!
+            if (isDesktopOrLocal) {
+                var cached = sessionStorage.getItem("akb_cached_api_url");
+                if (cached && cached.includes("script.google.com")) {
+                    sessionStorage.removeItem("akb_cached_api_url");
+                }
+                API_URL = localBase;
+                API_MODE = "local";
+                sessionStorage.setItem("akb_cached_api_url", API_URL);
+
+                // Ping local health in background
+                try {
+                    var testCtrl = new AbortController();
+                    var testTimer = setTimeout(function () { testCtrl.abort(); }, 1500);
+                    var healthRes = await originalFetch(localBase + "/health", { signal: testCtrl.signal });
+                    clearTimeout(testTimer);
+                    if (healthRes.ok) {
+                        API_URL = localBase;
+                        API_MODE = "local";
+                    }
+                } catch (_) { }
+                return API_URL;
+            }
+
+            // Fast-path for non-desktop / remote web clients
             if (!forceRefresh) {
                 var cached = sessionStorage.getItem("akb_cached_api_url");
                 if (cached) {
@@ -4054,20 +4066,18 @@
                 }
             }
 
-            if (checkLocal) {
-                try {
-                    var testCtrl = new AbortController();
-                    var testTimer = setTimeout(function () { testCtrl.abort(); }, 1200);
-                    var healthRes = await originalFetch(localBase + "/health", { signal: testCtrl.signal });
-                    clearTimeout(testTimer);
-                    if (healthRes.ok) {
-                        API_URL = localBase;
-                        API_MODE = "local";
-                        sessionStorage.setItem("akb_cached_api_url", API_URL);
-                        return API_URL;
-                    }
-                } catch (_) { }
-            }
+            try {
+                var testCtrl = new AbortController();
+                var testTimer = setTimeout(function () { testCtrl.abort(); }, 1200);
+                var healthRes = await originalFetch(localBase + "/health", { signal: testCtrl.signal });
+                clearTimeout(testTimer);
+                if (healthRes.ok) {
+                    API_URL = localBase;
+                    API_MODE = "local";
+                    sessionStorage.setItem("akb_cached_api_url", API_URL);
+                    return API_URL;
+                }
+            } catch (_) { }
 
             // Fallback to high-availability Google Apps Script Cloud Database
             API_URL = CLOUD_GAS_URL;
@@ -6717,16 +6727,8 @@
                     U.toast("No invoice selected", "error");
                     return;
                 }
-                var phone = (inv.consignee && inv.consignee.phone) || (inv.receiver && inv.receiver.phone) || inv.customerPhone || "";
-                var cleanPhone = phone ? phone.replace(/\D/g, '') : "";
-                if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-                var textMsg = SM.formatWhatsAppText(inv);
-                var encoded = encodeURIComponent(textMsg);
-                var waUrl = cleanPhone 
-                    ? ("https://api.whatsapp.com/send?phone=" + cleanPhone + "&text=" + encoded)
-                    : ("https://api.whatsapp.com/send?text=" + encoded);
-                window.open(waUrl, "_blank");
-                U.toast("Opening WhatsApp Web chat with customer...", "info");
+                // Automated background dispatch - NEVER open manual browser tabs
+                return SM.autoSendWhatsapp(inv);
             },
 
             autoSendTelegram: function (inv) {
@@ -8489,8 +8491,25 @@
 
                 var offlineInvs = offlineQueue.filter(function (t) { return t.type === 'invoice_save'; }).map(function (t) { return t.inv; });
                 offlineInvs.forEach(function (oinv) {
-                    if (!normalized.find(function (n) { return n.id === oinv.id; })) {
+                    if (oinv && !normalized.find(function (n) { return String(n.id) === String(oinv.id) || (oinv.invoiceNo && parseInt(n.invoiceNo, 10) === parseInt(oinv.invoiceNo, 10)); })) {
                         normalized.push(oinv);
+                    }
+                });
+
+                // 🛡️ CRITICAL IMMORTALITY PRESERVATION:
+                // Never allow a remote sync tick to delete an invoice that was recently created or present locally!
+                var curLocal = (IM._all && IM._all.length) ? IM._all : (D.g("invoices") || []);
+                curLocal.forEach(function (locInv) {
+                    if (!locInv) return;
+                    var lid = String(locInv.id || locInv._id || '');
+                    var lnum = parseInt(locInv.invoiceNo, 10);
+                    if (!deletedSet.has(lid) && !deletedSet.has(String(lnum))) {
+                        var exists = normalized.some(function (n) {
+                            return (lid && String(n.id || n._id) === lid) || (lnum > 0 && parseInt(n.invoiceNo, 10) === lnum);
+                        });
+                        if (!exists) {
+                            normalized.unshift(locInv);
+                        }
                     }
                 });
 
@@ -9190,7 +9209,7 @@
                     if (typeof renderWhatsappModal === 'function') {
                         if (isConn) {
                             renderWhatsappModal("connected", data);
-                        } else if (data.status === 'connecting_saved' || (data.status === 'initializing' && data.hasSavedSession)) {
+                        } else if (data.status === 'connecting_saved' || (data.status === 'initializing' && data.hasSavedSession) || (data.hasSavedSession && !data.qr)) {
                             renderWhatsappModal("loading", { message: data.message || "Reconnecting to linked WhatsApp account...", user: data.user });
                         } else if (data.qr || data.pairingCode) {
                             renderWhatsappModal("login", data);
@@ -10176,6 +10195,16 @@
                     '</div>';
             } else {
                 qrCont.innerHTML =
+                    (data && data.hasSavedSession ?
+                    '<div class="spinner" style="width:32px; height:32px; border:3px solid #e2e8f0; border-top:3px solid #25D366; border-radius:50%; margin:0 auto 12px; animation:spin 0.8s linear infinite;"></div>' +
+                    '<div style="font-weight:700; font-size:0.95rem; color:#059669;"><i class="ph ph-shield-check"></i> Reconnecting to Linked WhatsApp...</div>' +
+                    '<div style="font-size:0.8rem; color:var(--tl); margin-top:4px;">Restoring session for +' + U.esc((data.user && data.user.phone) || '918367047947') + '. No QR scan or pairing needed.</div>' +
+                    '<div style="margin-top:12px;">' +
+                    '<button type="button" class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.78rem; padding:6px 12px; color:#b91c1c; border-color:#fca5a5; background:#fef2f2; font-weight:700;">' +
+                    '<i class="ph ph-arrows-counter-clockwise"></i> Reset / Switch to Different Number' +
+                    '</button>' +
+                    '</div>'
+                    :
                     '<div class="spinner" style="width:32px; height:32px; border:3px solid #e2e8f0; border-top:3px solid #25D366; border-radius:50%; margin:0 auto 12px; animation:spin 0.8s linear infinite;"></div>' +
                     '<div style="font-weight:700; font-size:0.9rem; color:var(--fg);">Generating QR Code...</div>' +
                     '<div style="font-size:0.78rem; color:var(--tl); margin-top:4px;">Starting WhatsApp client in background. Please wait.</div>' +
@@ -10183,7 +10212,7 @@
                     '<button type="button" class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.78rem; padding:6px 12px; color:#b91c1c; border-color:#fca5a5; background:#fef2f2; font-weight:700;">' +
                     '<i class="ph ph-arrows-counter-clockwise"></i> Reset / Switch to Different Number' +
                     '</button>' +
-                    '</div>';
+                    '</div>');
             }
         }
 
@@ -10403,6 +10432,16 @@
                     '</button>' +
                     '</div>'
                     :
+                    (data && data.hasSavedSession ?
+                    '<div class="spinner" style="width:32px; height:32px; border:3px solid #e2e8f0; border-top:3px solid #25D366; border-radius:50%; margin:0 auto 12px; animation:spin 0.8s linear infinite;"></div>' +
+                    '<div style="font-weight:700; font-size:0.95rem; color:#059669;"><i class="ph ph-shield-check"></i> Reconnecting to Linked WhatsApp...</div>' +
+                    '<div style="font-size:0.8rem; color:var(--tl); margin-top:4px;">Restoring session for +' + U.esc((data.user && data.user.phone) || '918367047947') + '. No QR scan or pairing needed.</div>' +
+                    '<div style="margin-top:12px;">' +
+                    '<button type="button" class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.78rem; padding:6px 12px; color:#b91c1c; border-color:#fca5a5; background:#fef2f2; font-weight:700;">' +
+                    '<i class="ph ph-arrows-counter-clockwise"></i> Reset / Switch to Different Number' +
+                    '</button>' +
+                    '</div>'
+                    :
                     '<div class="spinner" style="width:32px; height:32px; border:3px solid #e2e8f0; border-top:3px solid #25D366; border-radius:50%; margin:0 auto 12px; animation:spin 0.8s linear infinite;"></div>' +
                     '<div style="font-weight:700; font-size:0.9rem; color:var(--fg);">Generating QR Code...</div>' +
                     '<div style="font-size:0.78rem; color:var(--tl); margin-top:4px;">Starting WhatsApp client in background. Please wait.</div>' +
@@ -10410,7 +10449,7 @@
                     '<button type="button" class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.78rem; padding:6px 12px; color:#b91c1c; border-color:#fca5a5; background:#fef2f2; font-weight:700;">' +
                     '<i class="ph ph-arrows-counter-clockwise"></i> Reset / Switch to Different Number' +
                     '</button>' +
-                    '</div>'
+                    '</div>')
                 ) +
                 '</div>' +
                 '<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:8px 10px; font-size:0.78rem; text-align:left; color:#166534; line-height:1.4;">' +
@@ -10678,15 +10717,15 @@
                     updateWhatsappSidebarDot(true, false);
                     renderWhatsappModal("connected", data);
                     if (showToast) U.toast("WhatsApp Bot is connected & active", "success");
-                } else if (data.status === 'connecting_saved' || (data.status === 'initializing' && data.hasSavedSession)) {
+                } else if (data.status === 'connecting_saved' || (data.status === 'initializing' && data.hasSavedSession) || (data.hasSavedSession && !data.qr)) {
                     updateWhatsappSidebarDot(true, false);
-                    renderWhatsappModal("loading", { message: "Connecting to linked WhatsApp account..." });
+                    renderWhatsappModal("loading", { message: "Reconnecting to linked WhatsApp account...", user: data.user });
                 } else if (data.status === 'initializing') {
                     updateWhatsappSidebarDot(false, true);
                     renderWhatsappModal("loading", { message: "WhatsApp engine initializing in background..." });
                 } else if (data.status === 'loading') {
                     updateWhatsappSidebarDot(true, false);
-                    renderWhatsappModal("loading", { message: data.message || "WhatsApp Linked! Syncing messages..." });
+                    renderWhatsappModal("loading", { message: data.message || "WhatsApp Linked! Syncing messages...", user: data.user });
                 } else if (data.qr || data.pairingCode) {
                     updateWhatsappSidebarDot(false, true);
                     renderWhatsappModal("login", data);

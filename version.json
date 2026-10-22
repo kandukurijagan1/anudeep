@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.5.6",
-  "build": 156,
+  "version": "1.5.7",
+  "build": 157,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: permanent whatsapp session persistence - suppress transient startup QR codes when saved session exists, ensure always connected, and protect invoices from tombstone number clashes"
+  "description": "fix: permanent local api lock on desktop, immortality shield preventing invoice sync clobbering, zero manual whatsapp browser tabs, and async launcher cloud sync"
 }

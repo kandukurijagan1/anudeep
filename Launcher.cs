@@ -51,10 +51,15 @@ namespace AnudeepKhadiBandar
                 try
                 {
                     InitializeSystemTray();
-                    TrySilentCloudSync();
                     EnsureBackendRunning();
                     LaunchDedicatedBrowserWindow(activeUrl);
                     StartWatchdog();
+
+                    // Run cloud sync asynchronously in background without blocking app startup
+                    new Thread(() =>
+                    {
+                        try { TrySilentCloudSync(); } catch { }
+                    }) { IsBackground = true }.Start();
 
                     Application.Run();
                 }
