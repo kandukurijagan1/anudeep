@@ -55,11 +55,13 @@ const ALLOWED_ORIGINS = new Set([
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (!origin || origin === 'null' || origin.startsWith('file:') || ALLOWED_ORIGINS.has(origin) || origin.includes('127.0.0.1') || origin.includes('localhost')) {
+  const isLanOrigin = origin && (origin.includes('192.168.') || origin.includes('10.') || origin.includes('172.'));
+  if (!origin || origin === 'null' || origin.startsWith('file:') || ALLOWED_ORIGINS.has(origin) || origin.includes('127.0.0.1') || origin.includes('localhost') || isLanOrigin) {
     const allowOrigin = origin && origin !== 'null' ? origin : '*';
     res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-App-Token');
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
     if (req.method === 'OPTIONS') {
       return res.sendStatus(204);
     }
@@ -604,30 +606,39 @@ function cleanAuthDirectory() {
 
 const chatIdCache = new Map();
 async function resolveChatId(cl, phone) {
-  if (!cl || !phone) return null;
+  if (!phone) return null;
   let clean = String(phone).replace(/\D/g, '');
   if (clean.length === 10) clean = '91' + clean;
   if (!clean || clean.length < 10) return null;
   
+  // Standard phone user direct JID (ALWAYS universally deliverable):
+  const directId = clean + '@c.us';
+
   if (chatIdCache.has(clean)) {
-    return chatIdCache.get(clean);
+    const cached = chatIdCache.get(clean);
+    // Sanitize: NEVER use cached @lid JIDs
+    if (cached && !cached.endsWith('@lid')) {
+      return cached;
+    }
   }
 
-  try {
-    // Attempt getNumberId with a rapid 1.5s race timeout
-    const contactId = await Promise.race([
-      cl.getNumberId(clean),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('getNumberId timeout')), 1500))
-    ]);
-    if (contactId && contactId._serialized) {
-      chatIdCache.set(clean, contactId._serialized);
-      return contactId._serialized;
+  if (cl && typeof cl.getNumberId === 'function') {
+    try {
+      // Attempt getNumberId with a rapid 1.5s race timeout
+      const contactId = await Promise.race([
+        cl.getNumberId(clean),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('getNumberId timeout')), 1500))
+      ]);
+      // ONLY accept if it is a valid phone JID ending with @c.us! NEVER route to internal @lid
+      if (contactId && contactId._serialized && contactId._serialized.endsWith('@c.us')) {
+        chatIdCache.set(clean, contactId._serialized);
+        return contactId._serialized;
+      }
+    } catch (e) {
+      // Instant direct fallback on timeout or error
     }
-  } catch (e) {
-    // Instant direct fallback on timeout or error
   }
   
-  const directId = clean + '@c.us';
   chatIdCache.set(clean, directId);
   return directId;
 }
@@ -3000,7 +3011,7 @@ app.get(['/', '/index.html'], (req, res) => {
 // ==========================================
 // 7. START SERVER
 // ==========================================
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`===============================================`);
   console.log(`⚡ AKB High-Speed Backend Server Running`);
   console.log(`🌐 Local URL: http://127.0.0.1:${PORT}`);

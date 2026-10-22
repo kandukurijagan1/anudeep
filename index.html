@@ -3454,12 +3454,24 @@
                                 style="padding:10px; border-radius:8px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.84rem; margin-bottom:12px;">
                                 Loading WhatsApp status...
                             </div>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
                                 <button class="btn btn-primary" onclick="openWhatsappModal()"
                                     style="background:#25D366; border-color:#25D366;"><i
                                         class="ph ph-whatsapp-logo"></i> Open WhatsApp Manager</button>
                                 <button class="btn btn-secondary" onclick="fetchWhatsappStatus(true)"><i
                                         class="ph ph-arrows-clockwise"></i> Check Status</button>
+                            </div>
+                            <div class="form-group" style="margin-top:10px; border-top:1px dashed #e2e8f0; padding-top:10px;">
+                                <label style="font-size:0.8rem; font-weight:600; color:var(--tl);">WhatsApp Server URL (Optional — for Client PCs on LAN)</label>
+                                <div style="display:flex; gap:6px; margin-top:4px;">
+                                    <input type="text" id="s-wa-server-url" class="form-control"
+                                        placeholder="http://127.0.0.1:3000/api (Default) or Host PC IP"
+                                        style="font-size:0.82rem; padding:6px 10px; flex:1;"
+                                        onchange="localStorage.setItem('akb_wa_server_url', this.value.trim()); fetchWhatsappStatus(false);">
+                                    <button type="button" class="btn btn-secondary" style="font-size:0.78rem; padding:6px 10px;"
+                                        onclick="localStorage.removeItem('akb_wa_server_url'); document.getElementById('s-wa-server-url').value=''; fetchWhatsappStatus(true);">Reset</button>
+                                </div>
+                                <div class="settings-hint" style="margin-top:4px;">Leave empty if using on the main server laptop. Enter Host PC IP (e.g. <code>http://192.168.1.X:3000/api</code>) when running on client counter devices.</div>
                             </div>
                         </div>
                     </div>
@@ -3945,8 +3957,15 @@
         var API_MODE = localStorage.getItem("akb_db_mode") || "local";
         var API_LATENCY_MS = 0;
         var _isStaticHosting = (location.hostname.includes("github.io") || location.hostname.includes("vercel.app") || location.hostname.includes("netlify.app") || location.hostname.includes("pages.dev"));
-        var waApiBase = (location.origin && location.origin.startsWith("http")) ? (location.origin + "/api") : "http://127.0.0.1:3000/api";
-        function getWaApiUrl() { return waApiBase; }
+        function getWaApiUrl() {
+            var custom = localStorage.getItem("akb_wa_server_url");
+            if (custom && custom.trim()) return custom.trim().replace(/\/+$/, '');
+            if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app")) {
+                return (location.origin + '/api').replace(/\/+$/, '');
+            }
+            return 'http://127.0.0.1:3000/api';
+        }
+        var waApiBase = getWaApiUrl();
 
         // Secure app token handling from Electron / URL parameter
         (function initAppSecurity() {
@@ -5453,6 +5472,8 @@
                 var waSt = (STM._settings && STM._settings.whatsapp) || D.go("whatsapp") || (D.go("settings") && D.go("settings").whatsapp) || { enabled: true };
                 var waAutoEl = document.getElementById("s-wa-auto-send");
                 if (waAutoEl) waAutoEl.checked = waSt.enabled !== false;
+                var customWaEl = document.getElementById("s-wa-server-url");
+                if (customWaEl) customWaEl.value = localStorage.getItem("akb_wa_server_url") || "";
                 var waBadge = document.getElementById("s-wa-badge");
                 var waBox = document.getElementById("s-wa-status-box");
                 if (waBadge && waBox) {
@@ -9023,7 +9044,7 @@
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
             currentVersion: '1.4.6',
-            build: 139,
+            build: 140,
             hasUpdate: false,
             latestInfo: null,
 
@@ -9620,7 +9641,7 @@
         function getWaApiUrl() {
             var custom = localStorage.getItem("akb_wa_server_url");
             if (custom && custom.trim()) return custom.trim().replace(/\/+$/, '');
-            if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app") && (location.origin.includes("3000") || location.origin.includes("localhost") || location.origin.includes("127.0.0.1"))) {
+            if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app")) {
                 return (location.origin + '/api').replace(/\/+$/, '');
             }
             return 'http://127.0.0.1:3000/api';
@@ -10214,10 +10235,40 @@
                     updateWhatsappSidebarDot(false, false);
                     renderWhatsappModal("login", data);
                 }
+
+                var waBadge = document.getElementById("s-wa-badge");
+                var waBox = document.getElementById("s-wa-status-box");
+                if (waBadge && waBox) {
+                    if (data.connected || data.status === 'authenticated' || data.status === 'ready') {
+                        waBadge.style.background = "#ecfdf5";
+                        waBadge.style.color = "#065f46";
+                        waBadge.textContent = "CONNECTED";
+                        waBox.innerHTML = '<span style="color:#059669; font-weight:700;"><i class="ph ph-check-circle"></i> WhatsApp Bot is Connected</span><br><span style="color:var(--tl)">Ready for automated background receipt delivery to customers.</span>';
+                    } else if (data.qr || data.pairingCode) {
+                        waBadge.style.background = "#fffbeb";
+                        waBadge.style.color = "#b45309";
+                        waBadge.textContent = "PAIRING READY";
+                        waBox.innerHTML = '<span style="color:#b45309; font-weight:700;"><i class="ph ph-warning"></i> Pairing Code / QR Ready</span><br><span style="color:var(--tl)">Click Open WhatsApp Manager to link via Phone Number or QR.</span>';
+                    } else {
+                        waBadge.style.background = "#f1f5f9";
+                        waBadge.style.color = "#64748b";
+                        waBadge.textContent = "NOT LINKED";
+                        waBox.innerHTML = '<span style="color:#64748b; font-weight:700;"><i class="ph ph-prohibit"></i> WhatsApp Bot Not Linked</span><br><span style="color:var(--tl)">Click Open WhatsApp Manager to connect.</span>';
+                    }
+                }
             } catch (err) {
                 _waOfflineCount++;
                 _waStatusState = { connected: false, offline: true };
                 updateWhatsappSidebarDot(false, false);
+
+                var waBadge = document.getElementById("s-wa-badge");
+                var waBox = document.getElementById("s-wa-status-box");
+                if (waBadge && waBox) {
+                    waBadge.style.background = "#fef2f2";
+                    waBadge.style.color = "#991b1b";
+                    waBadge.textContent = "OFFLINE";
+                    waBox.innerHTML = '<span style="color:#dc2626; font-weight:700;"><i class="ph ph-warning-circle"></i> WhatsApp Server Offline</span><br><span style="color:var(--tl)">Check server connection or configure host IP in Settings.</span>';
+                }
 
                 // Auto-heal: If in Electron, trigger ensureBackendRunning immediately
                 if (window.electronAPI && window.electronAPI.ensureBackendRunning && !_isAutoConnecting) {
@@ -10620,7 +10671,7 @@
         var isElectronEnv = location.search.indexOf('mode=dedicated_app') > -1 || (navigator.userAgent && navigator.userAgent.toLowerCase().indexOf('electron') > -1);
         if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !isElectronEnv) {
             window.addEventListener('load', function () {
-                navigator.serviceWorker.register('./sw.js?v=2.0.6').then(function (reg) {
+                navigator.serviceWorker.register('./sw.js?v=2.0.7').then(function (reg) {
                     reg.update();
                     reg.addEventListener('updatefound', function () {
                         var newWorker = reg.installing;
