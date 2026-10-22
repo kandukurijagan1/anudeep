@@ -3481,6 +3481,9 @@
                                         class="ph ph-whatsapp-logo"></i> Open WhatsApp Manager</button>
                                 <button class="btn btn-secondary" onclick="fetchWhatsappStatus(true)"><i
                                         class="ph ph-arrows-clockwise"></i> Check Status</button>
+                                <button class="btn btn-secondary" onclick="resetWhatsappSession()"
+                                    style="font-size:0.82rem; color:#9a3412; border-color:#fed7aa; background:#fff7ed;"><i
+                                        class="ph ph-arrows-clockwise"></i> Change Phone Number</button>
                             </div>
                             <div class="form-group" style="margin-top:10px; border-top:1px dashed #e2e8f0; padding-top:10px;">
                                 <label style="font-size:0.8rem; font-weight:600; color:var(--tl);">WhatsApp Server URL (Optional — for Client PCs on LAN)</label>
@@ -9270,8 +9273,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.4.8',
-            build: 148,
+            currentVersion: '1.4.9',
+            build: 149,
             hasUpdate: false,
             latestInfo: null,
 
@@ -10116,23 +10119,26 @@
 
                 container.innerHTML =
                     '<div style="text-align:center; padding:6px 0;">' +
-                    '<div style="display:inline-flex; align-items:center; gap:8px; background:#ecfdf5; border:1px solid #10b981; color:#065f46; font-size:0.95rem; font-weight:700; padding:8px 16px; border-radius:30px; margin-bottom:14px;">' +
-                    '<i class="ph ph-check-circle" style="font-size:1.3rem; color:#10b981;"></i> WhatsApp Bot Connected & Ready' +
+                    '<div style="display:inline-flex; align-items:center; gap:8px; background:#ecfdf5; border:1px solid #10b981; color:#065f46; font-size:0.95rem; font-weight:700; padding:8px 18px; border-radius:30px; margin-bottom:14px;">' +
+                    '<i class="ph ph-check-circle" style="font-size:1.3rem; color:#10b981;"></i> WhatsApp Bot Connected & Always Active' +
                     '</div>' +
                     '<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; text-align:left; font-size:0.86rem; margin-bottom:14px;">' +
                     '<div style="display:flex; justify-content:space-between; margin-bottom:6px; border-bottom:1px dashed #cbd5e1; padding-bottom:5px;">' +
                     '<span style="color:var(--tl)">Sender Name:</span>' +
                     '<span style="font-weight:700; color:var(--fg);">' + U.esc(userName) + '</span>' +
                     '</div>' +
-                    '<div style="display:flex; justify-content:space-between; margin-bottom:6px; border-bottom:1px dashed #cbd5e1; padding-bottom:5px;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px dashed #cbd5e1; padding-bottom:5px;">' +
                     '<span style="color:var(--tl)">Connected Phone:</span>' +
-                    '<span style="font-weight:700; color:#059669;">+' + U.esc(userPhone) + '</span>' +
+                    '<div style="display:flex; align-items:center; gap:8px;">' +
+                    '<span style="font-weight:700; color:#059669; font-size:0.92rem;">+' + U.esc(userPhone) + '</span>' +
+                    '<button class="btn" onclick="resetWhatsappSession()" style="background:#f0fdf4; color:#166534; border:1px solid #86efac; font-size:0.75rem; font-weight:700; padding:3px 9px; border-radius:5px; cursor:pointer;" title="Change linked number"><i class="ph ph-arrows-clockwise"></i> Change</button>' +
+                    '</div>' +
                     '</div>' +
                     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
                     '<span style="color:var(--tl)">Auto-Send Invoices:</span>' +
                     '<label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:700; color:' + (isAutoWaEnabled ? '#16a34a' : '#64748b') + ';">' +
                     '<input type="checkbox" id="wa-modal-auto-toggle" onchange="toggleWhatsappAutoDispatch(this.checked)" ' + (isAutoWaEnabled ? 'checked' : '') + ' style="cursor:pointer;" /> ' +
-                    (isAutoWaEnabled ? '<i class="ph ph-lightning"></i> Active' : '<i class="ph ph-prohibit"></i> Disabled') +
+                    (isAutoWaEnabled ? '<i class="ph ph-lightning"></i> Active (Always Connected)' : '<i class="ph ph-prohibit"></i> Disabled') +
                     '</label>' +
                     '</div>' +
                     '</div>' +
@@ -10143,12 +10149,12 @@
                     '<button id="btn-wa-send-test" class="btn btn-primary" onclick="sendWhatsappTestMessage()" style="padding:7px 12px; font-size:0.85rem; white-space:nowrap; background:#25D366; border-color:#25D366;"><i class="ph ph-paper-plane"></i> Test Send</button>' +
                     '</div>' +
                     '</div>' +
-                    '<div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:10px 14px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; text-align:left;">' +
+                    '<div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:12px 14px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; text-align:left;">' +
                     '<div>' +
-                    '<div style="font-weight:700; font-size:0.82rem; color:#9a3412;"><i class="ph ph-arrows-left-right"></i> Need to use another phone number?</div>' +
-                    '<div style="font-size:0.74rem; color:#c2410c;">Unlinks current number and prepares fresh QR code immediately.</div>' +
+                    '<div style="font-weight:700; font-size:0.86rem; color:#9a3412;"><i class="ph ph-phone-call"></i> Want to use a different WhatsApp number?</div>' +
+                    '<div style="font-size:0.75rem; color:#c2410c; margin-top:2px;">Safely unlinks current number and prepares fresh QR code / Pairing Code instantly.</div>' +
                     '</div>' +
-                    '<button class="btn" style="background:#ea580c; color:#fff; border:none; font-weight:700; font-size:0.82rem; padding:7px 14px; border-radius:6px; cursor:pointer; white-space:nowrap;" onclick="resetWhatsappSession()"><i class="ph ph-arrows-clockwise"></i> Switch Number</button>' +
+                    '<button class="btn" style="background:#ea580c; color:#fff; border:none; font-weight:700; font-size:0.82rem; padding:8px 14px; border-radius:6px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:6px;" onclick="resetWhatsappSession()"><i class="ph ph-arrows-clockwise"></i> Change Number</button>' +
                     '</div>' +
                     '<div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">' +
                     '<a href="https://web.whatsapp.com" target="_blank" class="btn btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.85rem;"><i class="ph ph-arrow-square-out"></i> WhatsApp Web</a>' +
@@ -10426,35 +10432,39 @@
         }
 
         async function resetWhatsappSession() {
-            if (!confirm("Switch to a different phone number?\n\nThis will safely disconnect the current WhatsApp and generate a new QR code.")) return;
+            var curPhone = (_waStatusState && _waStatusState.user && _waStatusState.user.phone) ? _waStatusState.user.phone : '';
+            var confirmText = (curPhone && curPhone !== 'Connected') ? 
+                ("Do you want to change the linked WhatsApp number?\n\nCurrently Linked: +" + curPhone + "\n\nThis will safely unlink this phone and immediately generate a fresh QR code / Pairing Code so you can link your new number.") :
+                ("Do you want to change the linked WhatsApp number?\n\nThis will safely unlink the current phone and immediately generate a fresh QR code / Pairing Code so you can link your new number.");
+
+            if (!confirm(confirmText)) return;
             localStorage.removeItem("akb_wa_logged_in");
             localStorage.removeItem("akb_wa_phone");
             
-            renderWhatsappModal("loading", { message: "Step 1/3: Disconnecting old number..." });
-            U.toast("Switching WhatsApp number...", "info");
+            openWhatsappModal();
+            renderWhatsappModal("loading", { message: "Step 1/2: Unlinking old phone number..." });
+            U.toast("Unlinking current WhatsApp number...", "info");
             
             try {
-                var base = getWaApiUrl();
-                var res = await originalFetch(base + '/whatsapp/reset', { method: 'POST' });
-                var data = await res.json();
+                var directFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
+                var endpoint = (typeof getWaApiUrl === 'function') ? (getWaApiUrl() + '/whatsapp/change-number') : 'http://127.0.0.1:3000/api/whatsapp/change-number';
+                await directFetch(endpoint, { method: 'POST' });
                 
                 setTimeout(function() {
-                    renderWhatsappModal("loading", { message: "Step 2/3: Cleaning session cache..." });
-                }, 800);
-
-                setTimeout(function() {
-                    renderWhatsappModal("loading", { message: "Step 3/3: Generating fresh QR code..." });
-                }, 1600);
+                    renderWhatsappModal("loading", { message: "Step 2/2: Generating fresh QR & Pairing Code for your new number..." });
+                }, 600);
             } catch (e) {
-                console.warn("Reset warning:", e);
+                console.warn("Change number warning:", e);
             }
             
+            var pollCount = 0;
             var pollInterval = setInterval(async function () {
+                pollCount++;
                 await fetchWhatsappStatus(false);
-                if (_waStatusState && (_waStatusState.qr || _waStatusState.connected)) {
+                if (_waStatusState && (_waStatusState.qr || _waStatusState.pairingCode || _waStatusState.connected)) {
                     clearInterval(pollInterval);
                 }
-            }, 2000);
+            }, 1000);
             setTimeout(function () { clearInterval(pollInterval); }, 25000);
         }
 

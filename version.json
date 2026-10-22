@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.4.8",
-  "build": 148,
+  "version": "1.4.9",
+  "build": 149,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: permanent WhatsApp session persistence, zero QR retry disconnect, takeover on conflict, and keepalive resilience"
+  "description": "feat: permanent always-connected WhatsApp with 1-click change/switch phone number option"
 }

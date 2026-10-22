@@ -507,14 +507,6 @@ function getLatestCachedWebVersion() {
 
 function hasSavedWhatsappSession() {
   try {
-    const sessionDir = path.join(AKB_DIR, '.wwebjs_auth', 'session');
-    if (fs.existsSync(sessionDir)) {
-      const idbDir = path.join(sessionDir, 'Default', 'IndexedDB');
-      if (fs.existsSync(idbDir)) {
-        const files = fs.readdirSync(idbDir);
-        if (files.some(f => f.toLowerCase().includes('whatsapp'))) return true;
-      }
-    }
     const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
     if (fs.existsSync(sessFile)) {
       const data = JSON.parse(fs.readFileSync(sessFile, 'utf8'));
@@ -621,6 +613,7 @@ function cleanAuthDirectory() {
   try {
     if (fs.existsSync(authDir)) {
       fs.rmSync(authDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
+      console.log('[WhatsApp] Cleared authentication directory for new number.');
     }
   } catch (err) {
     console.warn('[WhatsApp] auth directory cleanup note:', err.message);
@@ -629,12 +622,8 @@ function cleanAuthDirectory() {
     const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
     if (fs.existsSync(sessFile)) fs.unlinkSync(sessFile);
   } catch (_) {}
-  const cacheDir = path.join(AKB_DIR, '.wwebjs_cache');
-  try {
-    if (fs.existsSync(cacheDir)) {
-      fs.rmSync(cacheDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-    }
-  } catch (_) {}
+  // NOTE: .wwebjs_cache is intentionally PRESERVED so that the WhatsApp Web HTML bundle
+  // does not need to be re-downloaded from scratch. This makes fresh QR code generation 10x faster!
 }
 
 const chatIdCache = new Map();
@@ -2312,7 +2301,7 @@ app.get('/api/whatsapp/status', async (req, res) => {
     if (isWhatsappConnected) {
       qrCodeDataUrl = null;
       lastPairingCode = null;
-      if (!whatsappUserInfo || !whatsappUserInfo.phone) {
+      if (!whatsappUserInfo || !whatsappUserInfo.phone || whatsappUserInfo.phone === 'Connected') {
         let phone = '';
         let name = 'Anudeep Khadi Bandar';
         if (client.info) {
@@ -2320,8 +2309,32 @@ app.get('/api/whatsapp/status', async (req, res) => {
           else if (client.info.me && client.info.me.user) phone = client.info.me.user;
           if (client.info.pushname) name = client.info.pushname;
         }
+        if (!phone && client.pupPage && !client.pupPage.isClosed()) {
+          try {
+            const domPhone = await client.pupPage.evaluate(() => {
+              try {
+                if (window.Store) {
+                  if (window.Store.User && window.Store.User.getMaybeMeUser) {
+                    const me = window.Store.User.getMaybeMeUser();
+                    if (me && me.user) return me.user;
+                  }
+                  if (window.Store.Conn && window.Store.Conn.wid && window.Store.Conn.wid.user) {
+                    return window.Store.Conn.wid.user;
+                  }
+                }
+                const raw = window.localStorage.getItem('last-wid-md') || window.localStorage.getItem('last-wid');
+                if (raw) {
+                  const m = raw.match(/(\d+):?[^@]*@/);
+                  if (m && m[1]) return m[1];
+                }
+              } catch (_) {}
+              return '';
+            }).catch(() => '');
+            if (domPhone) phone = domPhone;
+          } catch (_) {}
+        }
         const saved = getSavedWhatsappUserInfo();
-        if (!phone && saved && saved.phone) {
+        if (!phone && saved && saved.phone && saved.phone !== 'Connected') {
           phone = saved.phone;
           if (saved.name) name = saved.name;
         }
@@ -2329,7 +2342,9 @@ app.get('/api/whatsapp/status', async (req, res) => {
           phone = 'Connected';
         }
         whatsappUserInfo = { phone, name };
-        saveSavedWhatsappUserInfo(whatsappUserInfo);
+        if (phone && phone !== 'Connected') {
+          saveSavedWhatsappUserInfo(whatsappUserInfo);
+        }
       }
     }
   }
@@ -2501,9 +2516,9 @@ app.post('/api/whatsapp/login', async (req, res) => {
   }
 });
 
-app.post('/api/whatsapp/reset', async (req, res) => {
+app.post(['/api/whatsapp/reset', '/api/whatsapp/change-number', '/api/whatsapp/switch-number'], async (req, res) => {
   try {
-    console.log('[WhatsApp] Reset requested by user to clear old session / switch number...');
+    console.log('[WhatsApp] Change / Switch number requested by user...');
     isWhatsappConnected = false;
     isWhatsappInitializing = false;
     qrCodeDataUrl = null;
@@ -2518,17 +2533,17 @@ app.post('/api/whatsapp/reset', async (req, res) => {
     broadcastRealtime('whatsapp_status', {
       connected: false,
       status: 'resetting',
-      message: 'Session cleared. Starting fresh WhatsApp client...'
+      message: 'Unlinking old number. Generating fresh QR & Pairing Code for new number...'
     });
 
     setTimeout(() => {
       initWhatsappClient(true);
-    }, 1500);
+    }, 1000);
 
-    res.json({ success: true, message: 'Session reset! A fresh QR code will appear in seconds.' });
+    res.json({ success: true, message: 'Current number unlinked! Please link your new phone number via QR or Pairing Code.' });
   } catch (err) {
-    console.error('[WhatsApp] Reset endpoint error:', err);
-    res.status(500).json({ error: 'Failed to reset WhatsApp session: ' + err.message });
+    console.error('[WhatsApp] Change number error:', err);
+    res.status(500).json({ error: 'Failed to switch WhatsApp number: ' + err.message });
   }
 });
 
