@@ -4,12 +4,16 @@ cd /d "%~dp0"
 
 :: 0. Silent background auto-sync from GitHub (zero prompt, timeout 3s)
 if not exist "%APPDATA%\AnudeepKhadiBandar" mkdir "%APPDATA%\AnudeepKhadiBandar" >nul 2>&1
+if not exist "%APPDATA%\AnudeepKhadiBandar\data" mkdir "%APPDATA%\AnudeepKhadiBandar\data" >nul 2>&1
+if not exist "%~dp0data" mkdir "%~dp0data" >nul 2>&1
 curl -s -m 3 -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html" -o "%APPDATA%\AnudeepKhadiBandar\index.html" >nul 2>&1
 curl -s -m 3 -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js" -o "%APPDATA%\AnudeepKhadiBandar\server.js" >nul 2>&1
 curl -s -m 3 -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/version.json" -o "%APPDATA%\AnudeepKhadiBandar\version.json" >nul 2>&1
+curl -s -m 3 -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json" -o "%APPDATA%\AnudeepKhadiBandar\data\invoices.json" >nul 2>&1
 copy /Y "%APPDATA%\AnudeepKhadiBandar\index.html" "%~dp0index.html" >nul 2>&1
 copy /Y "%APPDATA%\AnudeepKhadiBandar\server.js" "%~dp0server.js" >nul 2>&1
 copy /Y "%APPDATA%\AnudeepKhadiBandar\version.json" "%~dp0version.json" >nul 2>&1
+copy /Y "%APPDATA%\AnudeepKhadiBandar\data\invoices.json" "%~dp0data\invoices.json" >nul 2>&1
 
 
 :: 1. Ensure background Node.js server is running

@@ -3530,9 +3530,12 @@
                         <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem;">
                             <button class="btn btn-secondary" onclick="STM.testDbLatency()"><i class="ph ph-gauge"></i>
                                 Test Latency</button>
+                            <button class="btn btn-secondary" onclick="STM.forceSyncLedger()" style="background:#ecfdf5; border-color:#a7f3d0; color:#065f46;"><i class="ph ph-arrows-clockwise"></i>
+                                Sync All 20 Invoices from Master Ledger</button>
                             <button class="btn btn-primary" onclick="STM.saveDbConfig()"><i
                                     class="ph ph-floppy-disk"></i> Save Mode & Reload</button>
                         </div>
+                        <div class="settings-hint" style="margin-top:6px;">If a customer or counter device only shows 5 invoices, click <b>Sync All 20 Invoices</b> to pull the full master ledger instantly.</div>
                     </div>
                 </div>
 
@@ -5581,6 +5584,25 @@
                     STM.loadUI();
                 } catch (e) {
                     U.toast("Connection test failed: " + e.message, "error");
+                }
+            },
+            forceSyncLedger: async function () {
+                U.toast("Synchronizing all invoices from master cloud ledger...", "info");
+                try {
+                    var res = await fetch('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json?_t=' + Date.now());
+                    if (res.ok) {
+                        var invs = await res.json();
+                        if (Array.isArray(invs) && invs.length > 0) {
+                            IM.applyInvoices(invs);
+                            if (typeof DM !== 'undefined' && DM.render) DM.render();
+                            U.toast("Successfully synchronized all " + invs.length + " invoices to this device!", "success");
+                            return;
+                        }
+                    }
+                    await IM.fetchInvoices();
+                    U.toast("Invoices refreshed: " + (IM._all ? IM._all.length : 0), "success");
+                } catch (e) {
+                    U.toast("Sync error: " + e.message, "error");
                 }
             },
             save: async function () {
@@ -9080,7 +9102,7 @@
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
             currentVersion: '1.4.6',
-            build: 142,
+            build: 143,
             hasUpdate: false,
             latestInfo: null,
 
@@ -9367,7 +9389,23 @@
                     }
                 }
 
-                if (bootstrapDone || (IM._all && IM._all.length > 0)) {
+                // Self-healing master ledger sync: Ensure client device has all official master invoices from GitHub ledger
+                try {
+                    var curCount = (IM._all && Array.isArray(IM._all)) ? IM._all.length : 0;
+                    if (curCount < 20) {
+                        var masterRes = await fetch('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json?_t=' + Date.now());
+                        if (masterRes.ok) {
+                            var masterInvs = await masterRes.json();
+                            if (Array.isArray(masterInvs) && masterInvs.length > curCount) {
+                                IM.applyInvoices(masterInvs);
+                                if (typeof DM !== 'undefined' && DM.render) DM.render();
+                                console.log('[Client-Ledger] Synced ' + masterInvs.length + ' master invoices from GitHub repository.');
+                            }
+                        }
+                    }
+                } catch (_) { }
+
+                if ((typeof bootstrapDone !== 'undefined' && bootstrapDone) || (IM._all && IM._all.length > 0)) {
                     App.updateSyncStatus('synced');
                 } else {
                     App.updateSyncStatus('offline');
@@ -9422,7 +9460,23 @@
                                 }
                             }
                         }
-                        if (bootstrapDone || (IM._all && IM._all.length > 0)) {
+                        // Self-healing master ledger sync: Ensure client device has all official master invoices from GitHub ledger
+                try {
+                    var curCount = (IM._all && Array.isArray(IM._all)) ? IM._all.length : 0;
+                    if (curCount < 20) {
+                        var masterRes = await fetch('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json?_t=' + Date.now());
+                        if (masterRes.ok) {
+                            var masterInvs = await masterRes.json();
+                            if (Array.isArray(masterInvs) && masterInvs.length > curCount) {
+                                IM.applyInvoices(masterInvs);
+                                if (typeof DM !== 'undefined' && DM.render) DM.render();
+                                console.log('[Client-Ledger] Synced ' + masterInvs.length + ' master invoices from GitHub repository.');
+                            }
+                        }
+                    }
+                } catch (_) { }
+
+                if ((typeof bootstrapDone !== 'undefined' && bootstrapDone) || (IM._all && IM._all.length > 0)) {
                     App.updateSyncStatus('synced');
                 } else {
                     App.updateSyncStatus('offline');

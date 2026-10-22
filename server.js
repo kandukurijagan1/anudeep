@@ -1684,6 +1684,40 @@ async function downloadAndApplyUpdate(remoteVer) {
     console.warn('[Auto-Updater] Error updating server.js:', sErr.message);
   }
 
+  // Always keep master data synchronized (invoices, products, parties) across all devices
+  try {
+    const invRes = await fetch(`${RAW_BASE_URL}/data/invoices.json?_nocache=${Date.now()}`);
+    if (invRes.ok) {
+      const remoteInvs = await invRes.json();
+      if (Array.isArray(remoteInvs) && remoteInvs.length > 0) {
+        const curInvs = readJsonFile('invoices', []);
+        const existingIds = new Set(curInvs.map(i => String(i.id || i._id)));
+        const existingNos = new Set(curInvs.map(i => Number(i.invoiceNo)).filter(n => !isNaN(n) && n > 0));
+        let updated = false;
+        for (const rInv of remoteInvs) {
+          const num = Number(rInv.invoiceNo);
+          const rid = String(rInv.id || rInv._id || '');
+          if (rid && existingIds.has(rid)) continue;
+          if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
+          if (!isNaN(num) && num > 50) continue;
+          curInvs.push(rInv);
+          if (rid) existingIds.add(rid);
+          if (!isNaN(num) && num > 0) existingNos.add(num);
+          updated = true;
+        }
+        if (updated) {
+          curInvs.sort((a, b) => (Number(b.invoiceNo) || 0) - (Number(a.invoiceNo) || 0));
+          writeJsonFile('invoices', curInvs);
+          _invoicesVersion = Date.now();
+          console.log(`[Auto-Updater] Merged ${curInvs.length} invoices from master ledger.`);
+          updatedFiles.push('data/invoices.json');
+        }
+      }
+    }
+  } catch (dErr) {
+    console.warn('[Auto-Updater] Data ledger sync note:', dErr.message);
+  }
+
   // Save updated version info to both locations
   try {
     if (remoteVer) {
@@ -1770,38 +1804,69 @@ app.get('/api/bootstrap', requireAuth, async (req, res) => {
     let consignees = readJsonFile('consignees', []);
     let settings = readJsonFile('settings', getDefaultSettings());
 
-    // If local database is empty, pull from Google Apps Script to bootstrap automatically
-    if (invoices.length === 0 && fetch) {
+    // Intelligent synchronization: pull and merge any missing invoices from Cloud & GitHub
+    if (fetch) {
       try {
+        let remoteInvoices = [];
+        // 1. Try Cloud GAS
         const gasRes = await fetch(CLOUD_GAS_URL + '?action=bootstrap', { timeout: 4000 });
         if (gasRes.ok) {
           const cloudData = await gasRes.json();
           if (cloudData) {
             if (Array.isArray(cloudData.invoices) && cloudData.invoices.length > 0) {
-              invoices = cloudData.invoices;
-              writeJsonFile('invoices', invoices);
+              remoteInvoices = cloudData.invoices;
             }
-            if (Array.isArray(cloudData.products) && cloudData.products.length > 0) {
+            if ((!products || products.length === 0) && Array.isArray(cloudData.products)) {
               products = cloudData.products;
               writeJsonFile('products', products);
             }
-            if (Array.isArray(cloudData.receivers) && cloudData.receivers.length > 0) {
+            if ((!receivers || receivers.length === 0) && Array.isArray(cloudData.receivers)) {
               receivers = cloudData.receivers;
               writeJsonFile('receivers', receivers);
             }
-            if (Array.isArray(cloudData.consignees) && cloudData.consignees.length > 0) {
+            if ((!consignees || consignees.length === 0) && Array.isArray(cloudData.consignees)) {
               consignees = cloudData.consignees;
               writeJsonFile('consignees', consignees);
             }
-            if (cloudData.settings && typeof cloudData.settings === 'object') {
-              settings = { ...settings, ...cloudData.settings };
-              writeJsonFile('settings', settings);
+          }
+        }
+        // 2. Also check GitHub data/invoices.json master ledger
+        if (remoteInvoices.length < 20 || invoices.length < 20) {
+          try {
+            const ghRes = await fetch(`${RAW_BASE_URL}/data/invoices.json?_t=${Date.now()}`, { timeout: 3000 });
+            if (ghRes.ok) {
+              const ghData = await ghRes.json();
+              if (Array.isArray(ghData) && ghData.length > 0) {
+                if (ghData.length > remoteInvoices.length) remoteInvoices = ghData;
+              }
             }
-            console.log('[Bootstrap] Successfully seeded local DB from cloud Google Apps Script.');
+          } catch (_) {}
+        }
+
+        if (remoteInvoices.length > 0) {
+          let updated = false;
+          const existingIds = new Set(invoices.map(i => String(i.id || i._id)));
+          const existingNos = new Set(invoices.map(i => Number(i.invoiceNo)).filter(n => !isNaN(n) && n > 0));
+          for (const cinv of remoteInvoices) {
+            const num = Number(cinv.invoiceNo);
+            const cid = String(cinv.id || cinv._id || '');
+            if (cid && existingIds.has(cid)) continue;
+            if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
+            if (!isNaN(num) && num > 50) continue; // ignore old stray test numbers
+            invoices.push(cinv);
+            if (cid) existingIds.add(cid);
+            if (!isNaN(num) && num > 0) existingNos.add(num);
+            updated = true;
+          }
+          if (updated) {
+            invoices.sort((a, b) => (Number(b.invoiceNo) || 0) - (Number(a.invoiceNo) || 0));
+            writeJsonFile('invoices', invoices);
+            _invoicesVersion = Date.now();
+            console.log(`[Bootstrap] Synchronized and merged ${invoices.length} total invoices.`);
           }
         }
       } catch (cloudErr) {
-        console.warn('[Bootstrap] Cloud seeding skip:', cloudErr.message);
+        console.warn('[Bootstrap] Sync note:', cloudErr.message);
       }
     }
 

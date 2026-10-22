@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
   "version": "1.4.6",
-  "build": 142,
+  "build": 143,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: allow full LAN data communication, unified private network auth/CORS, and dual endpoint cloud fallback"
+  "description": "fix: self-healing multi-device ledger sync ensuring all 20 invoices appear on client/customer systems"
 }
