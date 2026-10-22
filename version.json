@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
   "version": "1.4.6",
-  "build": 138,
+  "build": 139,
   "commit": "HEAD",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: fully decouple Place of Supply from Consignee, calculate tax strictly based on Consignee and manual selection, fix date clipping"
+  "description": "fix: fix JavaScript syntax error in script tag 4, fix password reset and login unlocking in desktop workstation"
 }
