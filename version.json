@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
   "version": "1.4.6",
-  "build": 140,
-  "commit": "HEAD",
+  "build": 141,
+  "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: sanitize WhatsApp phone numbers to strictly use @c.us JIDs instead of undeliverable @lid, allow LAN binding and Private Network Access, update status UI"
+  "description": "fix: fix invoice header metadata State row to display TENALI"
 }
