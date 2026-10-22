@@ -1691,12 +1691,15 @@ async function downloadAndApplyUpdate(remoteVer) {
       const remoteInvs = await invRes.json();
       if (Array.isArray(remoteInvs) && remoteInvs.length > 0) {
         const curInvs = readJsonFile('invoices', []);
+        const deletedInvs = new Set(readJsonFile('deleted_invoices', []).map(String));
         const existingIds = new Set(curInvs.map(i => String(i.id || i._id)));
         const existingNos = new Set(curInvs.map(i => Number(i.invoiceNo)).filter(n => !isNaN(n) && n > 0));
         let updated = false;
         for (const rInv of remoteInvs) {
           const num = Number(rInv.invoiceNo);
           const rid = String(rInv.id || rInv._id || '');
+          if (rid && deletedInvs.has(rid)) continue;
+          if (!isNaN(num) && num > 0 && deletedInvs.has(String(num))) continue;
           if (rid && existingIds.has(rid)) continue;
           if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
           if (!isNaN(num) && num > 50) continue;
@@ -1830,8 +1833,8 @@ app.get('/api/bootstrap', requireAuth, async (req, res) => {
             }
           }
         }
-        // 2. Also check GitHub data/invoices.json master ledger
-        if (remoteInvoices.length < 20 || invoices.length < 20) {
+        // 2. Also check GitHub data/invoices.json master ledger if invoices are empty
+        if (invoices.length === 0) {
           try {
             const ghRes = await fetch(`${RAW_BASE_URL}/data/invoices.json?_t=${Date.now()}`, { timeout: 3000 });
             if (ghRes.ok) {
@@ -1845,11 +1848,14 @@ app.get('/api/bootstrap', requireAuth, async (req, res) => {
 
         if (remoteInvoices.length > 0) {
           let updated = false;
+          const deletedInvs = new Set(readJsonFile('deleted_invoices', []).map(String));
           const existingIds = new Set(invoices.map(i => String(i.id || i._id)));
           const existingNos = new Set(invoices.map(i => Number(i.invoiceNo)).filter(n => !isNaN(n) && n > 0));
           for (const cinv of remoteInvoices) {
             const num = Number(cinv.invoiceNo);
             const cid = String(cinv.id || cinv._id || '');
+            if (cid && deletedInvs.has(cid)) continue;
+            if (!isNaN(num) && num > 0 && deletedInvs.has(String(num))) continue;
             if (cid && existingIds.has(cid)) continue;
             if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
             if (!isNaN(num) && num > 50) continue; // ignore old stray test numbers
@@ -1988,12 +1994,22 @@ app.delete('/api/invoices/:id', (req, res) => {
   try {
     const id = req.params.id;
     let invoices = readJsonFile('invoices', []);
-    invoices = invoices.filter(i => String(i.id || i._id) !== String(id));
+    const target = invoices.find(i => String(i.id || i._id) === String(id) || String(i.invoiceNo) === String(id));
+    const invNo = target ? String(target.invoiceNo) : '';
+
+    invoices = invoices.filter(i => String(i.id || i._id) !== String(id) && String(i.invoiceNo) !== String(id));
     writeJsonFile('invoices', invoices);
     _invoicesVersion = Date.now();
+
+    // Persist deletion to tombstone list so sync never resurrects it
+    const deletedList = readJsonFile('deleted_invoices', []);
+    if (id && !deletedList.includes(String(id))) deletedList.push(String(id));
+    if (invNo && !deletedList.includes(invNo)) deletedList.push(invNo);
+    writeJsonFile('deleted_invoices', deletedList);
+
     forwardToGas('deleteInvoice', {}, id);
-    broadcastRealtime('invoice_deleted', { id });
-    res.json({ success: true });
+    broadcastRealtime('invoice_deleted', { id, invoiceNo: invNo });
+    res.json({ success: true, id, invoiceNo: invNo });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

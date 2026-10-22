@@ -2504,6 +2504,24 @@
                 }
             } catch (_) { }
 
+            // If empty on client device / static hosting, fetch from GitHub Base Link
+            if (list.length === 0) {
+                try {
+                    var ghRes = await fetch('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/settings.json?_t=' + Date.now());
+                    if (ghRes.ok) {
+                        var ghData = await ghRes.json();
+                        if (ghData && Array.isArray(ghData.adminEmails)) {
+                            ghData.adminEmails.forEach(function (e) {
+                                if (e && typeof e === 'string') {
+                                    var c = e.toLowerCase().trim();
+                                    if (!list.includes(c)) list.push(c);
+                                }
+                            });
+                        }
+                    }
+                } catch (_) { }
+            }
+
             return list;
         }
 
@@ -3534,11 +3552,11 @@
                             <button class="btn btn-secondary" onclick="STM.testDbLatency()"><i class="ph ph-gauge"></i>
                                 Test Latency</button>
                             <button class="btn btn-secondary" onclick="STM.forceSyncLedger()" style="background:#ecfdf5; border-color:#a7f3d0; color:#065f46;"><i class="ph ph-arrows-clockwise"></i>
-                                Sync All 20 Invoices from Master Ledger</button>
+                                Sync All Invoices from GitHub Master Ledger</button>
                             <button class="btn btn-primary" onclick="STM.saveDbConfig()"><i
                                     class="ph ph-floppy-disk"></i> Save Mode & Reload</button>
                         </div>
-                        <div class="settings-hint" style="margin-top:6px;">If a customer or counter device only shows 5 invoices, click <b>Sync All 20 Invoices</b> to pull the full master ledger instantly.</div>
+                        <div class="settings-hint" style="margin-top:6px;">If a customer or counter device is missing invoices or settings, click <b>Sync All Invoices from GitHub</b> to pull the master data instantly.</div>
                     </div>
                 </div>
 
@@ -5456,6 +5474,7 @@
                 if (typeof resetActivityTimer === "function") resetActivityTimer();
             },
             fetchSettings: async function () {
+                var loaded = false;
                 try {
                     var url = (API_URL || location.origin + '/api') + '/settings';
                     let response = await fetch(url);
@@ -5464,10 +5483,33 @@
                         if (data && !data.error) {
                             var settingsObj = data.settings || data;
                             STM.applySettings(settingsObj);
+                            if (settingsObj && Array.isArray(settingsObj.adminEmails) && settingsObj.adminEmails.length > 0) {
+                                loaded = true;
+                            }
                         }
                     }
                 } catch (e) {
-                    console.warn("Settings fetch fallback to local:", e.message);
+                    console.warn("Settings fetch fallback to GitHub / local:", e.message);
+                }
+
+                // If admin emails or settings are missing (e.g. client device, static hosting), fetch from GitHub Base Link
+                if (!loaded || !STM._settings || !STM._settings.adminEmails || STM._settings.adminEmails.length === 0) {
+                    try {
+                        var ghRes = await fetch('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/settings.json?_t=' + Date.now());
+                        if (ghRes.ok) {
+                            var ghSettings = await ghRes.json();
+                            if (ghSettings) {
+                                STM.applySettings(ghSettings);
+                                loaded = true;
+                                console.log('[Settings] Loaded settings and authorized emails from GitHub base link.');
+                            }
+                        }
+                    } catch (ghErr) {
+                        console.warn("GitHub settings fetch fallback:", ghErr.message);
+                    }
+                }
+
+                if (!loaded) {
                     STM.loadLocal();
                 }
             },
@@ -5590,15 +5632,29 @@
                 }
             },
             forceSyncLedger: async function () {
-                U.toast("Synchronizing all invoices from master cloud ledger...", "info");
+                U.toast("Synchronizing all data from GitHub master ledger...", "info");
                 try {
-                    var res = await fetch('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json?_t=' + Date.now());
+                    var GITHUB_BASE = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main';
+                    // 1. Sync Settings & OTP Emails from GitHub
+                    try {
+                        var sRes = await fetch(GITHUB_BASE + '/data/settings.json?_t=' + Date.now());
+                        if (sRes.ok) {
+                            var sData = await sRes.json();
+                            if (sData) {
+                                STM.applySettings(sData);
+                                STM.loadUI();
+                            }
+                        }
+                    } catch (_) { }
+
+                    // 2. Sync Invoices (applying tombstone filter)
+                    var res = await fetch(GITHUB_BASE + '/data/invoices.json?_t=' + Date.now());
                     if (res.ok) {
                         var invs = await res.json();
-                        if (Array.isArray(invs) && invs.length > 0) {
+                        if (Array.isArray(invs)) {
                             IM.applyInvoices(invs);
                             if (typeof DM !== 'undefined' && DM.render) DM.render();
-                            U.toast("Successfully synchronized all " + invs.length + " invoices to this device!", "success");
+                            U.toast("Successfully synchronized invoices & settings from GitHub!", "success");
                             return;
                         }
                     }
@@ -8365,10 +8421,16 @@
 
                 var offlineQueue = (typeof OM !== 'undefined' ? OM.q() : (D.g("offline_queue") || []));
 
-                // Remove invoices that are queued for offline deletion so they don't resurrect
-                var deletedIds = offlineQueue.filter(function (t) { return t.type === 'invoice_delete'; }).map(function (t) { return t.id; });
+                // Permanent deletion filter: exclude any invoice deleted locally or via tombstone
+                var deletedList = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
+                var deletedSet = new Set(deletedList.map(String));
+                var queuedDeletedIds = offlineQueue.filter(function (t) { return t.type === 'invoice_delete'; }).map(function (t) { return String(t.id); });
+                queuedDeletedIds.forEach(function (d) { deletedSet.add(d); });
+
                 normalized = normalized.filter(function (inv) {
-                    return deletedIds.indexOf(inv.id) === -1 && deletedIds.indexOf(inv._id) === -1 && deletedIds.indexOf(inv.invoiceNo) === -1;
+                    var iid = String(inv.id || inv._id || '');
+                    var inum = String(inv.invoiceNo || '');
+                    return (!iid || !deletedSet.has(iid)) && (!inum || !deletedSet.has(inum));
                 });
 
                 var offlineInvs = offlineQueue.filter(function (t) { return t.type === 'invoice_save'; }).map(function (t) { return t.inv; });
@@ -8542,7 +8604,15 @@
                     return;
                 }
 
-                // 1. Optimistically delete from state & localStorage immediately (< 1ms)
+                // 1. Record in permanent tombstone so sync never restores this invoice
+                var target = (IM._all || []).find(function (i) { return String(i.id) === idStr || String(i._id) === idStr || String(i.invoiceNo) === idStr; });
+                var targetNo = target ? String(target.invoiceNo) : '';
+                var deletedList = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
+                if (!deletedList.includes(idStr)) deletedList.push(idStr);
+                if (targetNo && !deletedList.includes(targetNo)) deletedList.push(targetNo);
+                localStorage.setItem('akb_deleted_invoices', JSON.stringify(deletedList));
+
+                // 2. Optimistically delete from state & localStorage immediately (< 1ms)
                 IM._all = (IM._all || []).filter(function (inv) {
                     return String(inv.id) !== idStr && String(inv._id) !== idStr && String(inv.invoiceNo) !== idStr;
                 });
@@ -9118,7 +9188,7 @@
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
             currentVersion: '1.4.6',
-            build: 145,
+            build: 146,
             hasUpdate: false,
             latestInfo: null,
 
@@ -9405,18 +9475,54 @@
                     }
                 }
 
-                // Self-healing master ledger sync: Ensure client device has all official master invoices from GitHub ledger
+                // GitHub Base Data Sync: When running on a client/customer device or static hosting, ensure full data sync from GitHub
                 try {
-                    var curCount = (IM._all && Array.isArray(IM._all)) ? IM._all.length : 0;
-                    if (curCount < 20) {
-                        var masterRes = await fetch('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json?_t=' + Date.now());
-                        if (masterRes.ok) {
-                            var masterInvs = await masterRes.json();
-                            if (Array.isArray(masterInvs) && masterInvs.length > curCount) {
+                    var GITHUB_BASE = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main';
+
+                    // 1. Settings & Authorized Admin Emails
+                    if (!STM._settings || !Array.isArray(STM._settings.adminEmails) || STM._settings.adminEmails.length === 0) {
+                        var sRes = await fetch(GITHUB_BASE + '/data/settings.json?_t=' + Date.now());
+                        if (sRes.ok) {
+                            var sData = await sRes.json();
+                            if (sData) STM.applySettings(sData);
+                        }
+                    }
+
+                    // 2. Invoices (seed from GitHub only if local device has zero invoices)
+                    if (!IM._all || IM._all.length === 0) {
+                        var iRes = await fetch(GITHUB_BASE + '/data/invoices.json?_t=' + Date.now());
+                        if (iRes.ok) {
+                            var masterInvs = await iRes.json();
+                            if (Array.isArray(masterInvs) && masterInvs.length > 0) {
                                 IM.applyInvoices(masterInvs);
                                 if (typeof DM !== 'undefined' && DM.render) DM.render();
-                                console.log('[Client-Ledger] Synced ' + masterInvs.length + ' master invoices from GitHub repository.');
+                                console.log('[Client-Ledger] Seeded ' + masterInvs.length + ' master invoices from GitHub repository.');
                             }
+                        }
+                    }
+
+                    // 3. Products (seed from GitHub only if empty)
+                    if (!PDM._all || PDM._all.length === 0) {
+                        var pRes = await fetch(GITHUB_BASE + '/data/products.json?_t=' + Date.now());
+                        if (pRes.ok) {
+                            var pData = await pRes.json();
+                            if (Array.isArray(pData) && pData.length > 0) PDM.applyProducts(pData);
+                        }
+                    }
+
+                    // 4. Receivers & Consignees (seed from GitHub only if empty)
+                    if (!PM._parties || !PM._parties.receiver || PM._parties.receiver.length === 0) {
+                        var rRes = await fetch(GITHUB_BASE + '/data/receivers.json?_t=' + Date.now());
+                        if (rRes.ok) {
+                            var rData = await rRes.json();
+                            if (Array.isArray(rData) && rData.length > 0) PM.applyParties('receiver', rData);
+                        }
+                    }
+                    if (!PM._parties || !PM._parties.consignee || PM._parties.consignee.length === 0) {
+                        var cRes = await fetch(GITHUB_BASE + '/data/consignees.json?_t=' + Date.now());
+                        if (cRes.ok) {
+                            var cData = await cRes.json();
+                            if (Array.isArray(cData) && cData.length > 0) PM.applyParties('consignee', cData);
                         }
                     }
                 } catch (_) { }
@@ -9476,27 +9582,6 @@
                                 }
                             }
                         }
-                        // Self-healing master ledger sync: Ensure client device has all official master invoices from GitHub ledger
-                try {
-                    var curCount = (IM._all && Array.isArray(IM._all)) ? IM._all.length : 0;
-                    if (curCount < 20) {
-                        var masterRes = await fetch('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json?_t=' + Date.now());
-                        if (masterRes.ok) {
-                            var masterInvs = await masterRes.json();
-                            if (Array.isArray(masterInvs) && masterInvs.length > curCount) {
-                                IM.applyInvoices(masterInvs);
-                                if (typeof DM !== 'undefined' && DM.render) DM.render();
-                                console.log('[Client-Ledger] Synced ' + masterInvs.length + ' master invoices from GitHub repository.');
-                            }
-                        }
-                    }
-                } catch (_) { }
-
-                if ((typeof bootstrapDone !== 'undefined' && bootstrapDone) || (IM._all && IM._all.length > 0)) {
-                    App.updateSyncStatus('synced');
-                } else {
-                    App.updateSyncStatus('offline');
-                }
                     } catch (_) {
                     } finally {
                         App._isSyncingNow = false;

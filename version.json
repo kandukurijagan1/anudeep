@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
   "version": "1.4.6",
-  "build": 145,
+  "build": 146,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat: configurable manual state input field in billing form and printable invoice"
+  "description": "fix: robust cross-device GitHub base data sync & permanent invoice deletion tombstone"
 }
