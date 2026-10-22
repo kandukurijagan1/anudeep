@@ -814,6 +814,10 @@ async function initWhatsappClient(forceClean = false) {
     console.log('[WhatsApp] Fast-boot Web Version:', cachedVersion || 'Dynamic Remote Fetch', cachedInfo ? `(from ${cachedInfo.path})` : '');
 
     const clientOptions = {
+      webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1018944810-alpha.html',
+      },
       authStrategy: authStrategy,
       authTimeoutMs: 180000,
       qrMaxRetries: 0,
@@ -958,21 +962,27 @@ async function initWhatsappClient(forceClean = false) {
         try {
           const isLinked = await client.pupPage.evaluate(() => {
             try {
-              if (window.Store) {
-                if (window.Store.Conn && (window.Store.Conn.status === 'CONNECTED' || window.Store.Conn.canSend)) return true;
-                if (window.Store.User && window.Store.User.getMaybeMeUser && window.Store.User.getMaybeMeUser()) return true;
-                if (window.Store.AppState && window.Store.AppState.state === 'CONNECTED') return true;
+              // 1. If QR canvas, data-ref or pairing container exists, definitely NOT logged in
+              if (document.querySelector('canvas') || document.querySelector('div[data-ref]') || document.querySelector('[data-testid="qrcode"]')) {
+                return false;
               }
-              if (typeof window.WWebJS !== 'undefined' && window.WWebJS.isLoggedIn) return true;
-              if (document.querySelector('#app [data-testid="chat-list"]') ||
-                  document.querySelector('#side') ||
-                  document.querySelector('header [data-testid="menu-bar-chat"]') ||
-                  document.querySelector('[data-testid="conversation-panel-wrapper"]')) {
+              // 2. Check WhatsApp internal store models
+              if (window.Store) {
+                if (window.Store.User && typeof window.Store.User.getMaybeMeUser === 'function' && window.Store.User.getMaybeMeUser()) {
+                  return true;
+                }
+                if (window.Store.Conn && (window.Store.Conn.status === 'CONNECTED' || window.Store.Conn.canSend === true)) {
+                  return true;
+                }
+              }
+              if (typeof window.WWebJS !== 'undefined' && window.WWebJS.isLoggedIn === true) {
                 return true;
               }
-              // If QR canvas is gone and intro pane/chatlist is showing
-              if (!document.querySelector('canvas[aria-label="Scan this QR code"]') && 
-                  (document.querySelector('div[data-testid="intro-title"]') || document.querySelector('#pane-side'))) {
+              // 3. Genuine authenticated DOM elements
+              if (document.querySelector('#app [data-testid="chat-list"]') ||
+                  document.querySelector('#pane-side [data-testid="chat-list"]') ||
+                  document.querySelector('header [data-testid="menu-bar-chat"]') ||
+                  document.querySelector('[data-testid="conversation-panel-wrapper"]')) {
                 return true;
               }
             } catch (_) {}
@@ -2262,29 +2272,31 @@ app.get('/api/whatsapp/status', async (req, res) => {
         const isPageLoggedIn = await Promise.race([
           client.pupPage.evaluate(() => {
             try {
-              if (window.Store) {
-                if (window.Store.Conn && (window.Store.Conn.status === 'CONNECTED' || window.Store.Conn.canSend)) return true;
-                if (window.Store.User && window.Store.User.getMaybeMeUser && window.Store.User.getMaybeMeUser()) return true;
-                if (window.Store.AppState && (window.Store.AppState.state === 'CONNECTED' || window.Store.AppState.state === 'SYNCING')) return true;
+              // 1. If QR canvas, data-ref or pairing container exists, definitely NOT logged in
+              if (document.querySelector('canvas') || document.querySelector('div[data-ref]') || document.querySelector('[data-testid="qrcode"]')) {
+                return false;
               }
-              if (typeof window.WWebJS !== 'undefined' && window.WWebJS.isLoggedIn) return true;
-              // Check DOM elements present when linked
+              // 2. Check WhatsApp internal store models
+              if (window.Store) {
+                if (window.Store.User && typeof window.Store.User.getMaybeMeUser === 'function' && window.Store.User.getMaybeMeUser()) {
+                  return true;
+                }
+                if (window.Store.Conn && (window.Store.Conn.status === 'CONNECTED' || window.Store.Conn.canSend === true)) {
+                  return true;
+                }
+              }
+              if (typeof window.WWebJS !== 'undefined' && window.WWebJS.isLoggedIn === true) {
+                return true;
+              }
+              // 3. Genuine authenticated DOM elements
               if (document.querySelector('#app [data-testid="chat-list"]') ||
-                  document.querySelector('#side') ||
+                  document.querySelector('#pane-side [data-testid="chat-list"]') ||
                   document.querySelector('header [data-testid="menu-bar-chat"]') ||
                   document.querySelector('[data-testid="conversation-panel-wrapper"]')) {
                 return true;
               }
-              // If QR canvas is absent and loading spinner, progress bar or main pane is present, device is authenticated
-              const hasQr = !!document.querySelector('canvas[aria-label="Scan this QR code"]') || !!document.querySelector('div[data-ref]');
-              const hasProgress = !!document.querySelector('progress') || !!document.querySelector('[data-testid="intro-title"]') || !!document.querySelector('#pane-side');
-              if (!hasQr && hasProgress) {
-                return true;
-              }
-              return false;
-            } catch (_) {
-              return false;
-            }
+            } catch (_) {}
+            return false;
           }),
           new Promise(r => setTimeout(() => r(false), 2000))
         ]);

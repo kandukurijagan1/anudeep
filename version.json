@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.4.9",
-  "build": 149,
+  "version": "1.5.0",
+  "build": 150,
   "commit": "latest",
   "releaseDate": "2026-10-22",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat: permanent always-connected WhatsApp with 1-click change/switch phone number option"
+  "description": "fix: eliminate false-positive DOM connection on intro-title, enforce strict logged-in verification, and seamless change-number workflow"
 }
