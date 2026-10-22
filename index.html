@@ -5672,7 +5672,17 @@
                         }
                     } catch (_) { }
 
-                    // 3. Sync Invoices (applying tombstone filter & deduplication)
+                    // 3. Sync Products & Parties from GitHub
+                    try {
+                        var pRes = await fetch(GITHUB_BASE + '/data/products.json?_t=' + Date.now());
+                        if (pRes.ok) { var pData = await pRes.json(); if (Array.isArray(pData)) PDM.applyProducts(pData); }
+                        var rRes = await fetch(GITHUB_BASE + '/data/receivers.json?_t=' + Date.now());
+                        if (rRes.ok) { var rData = await rRes.json(); if (Array.isArray(rData)) PM.applyParties('receiver', rData); }
+                        var cRes = await fetch(GITHUB_BASE + '/data/consignees.json?_t=' + Date.now());
+                        if (cRes.ok) { var cData = await cRes.json(); if (Array.isArray(cData)) PM.applyParties('consignee', cData); }
+                    } catch (_) { }
+
+                    // 4. Sync Invoices (applying tombstone filter & deduplication)
                     var res = await fetch(GITHUB_BASE + '/data/invoices.json?_t=' + Date.now());
                     if (res.ok) {
                         var invs = await res.json();
@@ -5680,7 +5690,7 @@
                             IM.applyInvoices(invs);
                             if (typeof DM !== 'undefined' && DM.render) DM.render();
                             App.updateSyncStatus('synced');
-                            U.toast("Successfully synchronized " + invs.length + " invoices & settings from GitHub!", "success");
+                            U.toast("Successfully synchronized " + invs.length + " invoices, products & settings from GitHub!", "success");
                             return;
                         }
                     }
@@ -9635,8 +9645,24 @@
                             await OM.process();
                         }
 
-                        // 2. On static hosting / cloud, sync from GitHub master ledger
+                        // 2. On static hosting / cloud, sync tombstones & invoices from GitHub master ledger
                         if (_isStaticHosting || (API_URL && API_URL.includes('script.google.com'))) {
+                            try {
+                                var delUrl = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/deleted_invoices.json?_t=' + Date.now();
+                                var delRes = await fetch(delUrl, { cache: 'no-store' });
+                                if (delRes.ok) {
+                                    var delList = await delRes.json();
+                                    if (Array.isArray(delList)) {
+                                        var curDeleted = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
+                                        var changed = false;
+                                        delList.forEach(function (d) {
+                                            if (!curDeleted.includes(String(d))) { curDeleted.push(String(d)); changed = true; }
+                                        });
+                                        if (changed) localStorage.setItem('akb_deleted_invoices', JSON.stringify(curDeleted));
+                                    }
+                                }
+                            } catch (_) { }
+
                             try {
                                 var ghUrl = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json?_t=' + Date.now();
                                 var ghRes = await fetch(ghUrl, { cache: 'no-store' });

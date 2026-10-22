@@ -1711,15 +1711,60 @@ async function downloadAndApplyUpdate(remoteVer) {
 
   // Always keep master data synchronized (invoices, products, parties) across all devices
   try {
+    // 1. Sync deleted tombstones from GitHub
+    try {
+      const delRes = await fetch(`${RAW_BASE_URL}/data/deleted_invoices.json?_nocache=${Date.now()}`);
+      if (delRes.ok) {
+        const remoteDel = await delRes.json();
+        if (Array.isArray(remoteDel)) {
+          const curDel = readJsonFile('deleted_invoices', []);
+          let delChanged = false;
+          for (const d of remoteDel) {
+            if (!curDel.includes(String(d))) { curDel.push(String(d)); delChanged = true; }
+          }
+          if (delChanged) {
+            writeJsonFile('deleted_invoices', curDel);
+            updatedFiles.push('data/deleted_invoices.json');
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Sync products, receivers, consignees if local is empty
+    for (const table of ['products', 'receivers', 'consignees']) {
+      try {
+        const curData = readJsonFile(table, []);
+        if (!Array.isArray(curData) || curData.length === 0) {
+          const tRes = await fetch(`${RAW_BASE_URL}/data/${table}.json?_nocache=${Date.now()}`);
+          if (tRes.ok) {
+            const tData = await tRes.json();
+            if (Array.isArray(tData) && tData.length > 0) {
+              writeJsonFile(table, tData);
+              updatedFiles.push(`data/${table}.json`);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     const invRes = await fetch(`${RAW_BASE_URL}/data/invoices.json?_nocache=${Date.now()}`);
     if (invRes.ok) {
       const remoteInvs = await invRes.json();
       if (Array.isArray(remoteInvs) && remoteInvs.length > 0) {
-        const curInvs = readJsonFile('invoices', []);
+        let curInvs = readJsonFile('invoices', []);
         const deletedInvs = new Set(readJsonFile('deleted_invoices', []).map(String));
+        let updated = false;
+
+        const beforeLen = curInvs.length;
+        curInvs = curInvs.filter(i => {
+          const cid = String(i.id || i._id || '');
+          const cnum = String(i.invoiceNo || '');
+          return (!cid || !deletedInvs.has(cid)) && (!cnum || !deletedInvs.has(cnum));
+        });
+        if (curInvs.length !== beforeLen) updated = true;
+
         const existingIds = new Set(curInvs.map(i => String(i.id || i._id)));
         const existingNos = new Set(curInvs.map(i => Number(i.invoiceNo)).filter(n => !isNaN(n) && n > 0));
-        let updated = false;
         for (const rInv of remoteInvs) {
           const num = Number(rInv.invoiceNo);
           const rid = String(rInv.id || rInv._id || '');
@@ -1831,6 +1876,18 @@ app.get('/api/bootstrap', requireAuth, async (req, res) => {
     let receivers = readJsonFile('receivers', []);
     let consignees = readJsonFile('consignees', []);
     let settings = readJsonFile('settings', getDefaultSettings());
+
+    // Filter out any tombstoned deleted invoices immediately
+    const deletedInvs = new Set(readJsonFile('deleted_invoices', []).map(String));
+    if (invoices.some(i => (i.id && deletedInvs.has(String(i.id))) || (i._id && deletedInvs.has(String(i._id))) || (i.invoiceNo && deletedInvs.has(String(i.invoiceNo))))) {
+      invoices = invoices.filter(i => {
+        const iid = String(i.id || i._id || '');
+        const inum = String(i.invoiceNo || '');
+        return (!iid || !deletedInvs.has(iid)) && (!inum || !deletedInvs.has(inum));
+      });
+      writeJsonFile('invoices', invoices);
+      _invoicesVersion = Date.now();
+    }
 
     // Intelligent synchronization: pull and merge any missing invoices from Cloud & GitHub
     if (fetch) {

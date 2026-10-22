@@ -115,7 +115,15 @@ namespace AnudeepKhadiBandar
                             wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, "server.js"));
                             string dataDir = Path.Combine(appDataDir, "data");
                             if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
-                            wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json?_t=" + DateTime.UtcNow.Ticks, Path.Combine(dataDir, "invoices.json"));
+                            string[] syncTables = new string[] { "invoices.json", "deleted_invoices.json", "settings.json", "products.json", "receivers.json", "consignees.json" };
+                            foreach (string tbl in syncTables)
+                            {
+                                try
+                                {
+                                    wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/" + tbl + "?_t=" + DateTime.UtcNow.Ticks, Path.Combine(dataDir, tbl));
+                                }
+                                catch { }
+                            }
                             File.WriteAllText(localVerPath, remoteVerJson);
                         }
                     }
