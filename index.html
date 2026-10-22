@@ -3982,15 +3982,38 @@
             } catch (_) { }
         })();
 
+        function getCandidateLocalApi() {
+            var custom = localStorage.getItem("akb_wa_server_url");
+            if (custom && custom.trim()) return custom.trim().replace(/\/+$/, '');
+            if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app") && !location.origin.includes("netlify.app") && !location.origin.includes("pages.dev")) {
+                return (location.origin + '/api').replace(/\/+$/, '');
+            }
+            return 'http://127.0.0.1:3000/api';
+        }
+
         async function resolveApiUrl(forceRefresh) {
-            var checkLocal = location.hostname === '127.0.0.1' || location.hostname === 'localhost' || location.protocol === 'file:' || location.search.includes('mode=dedicated_app') || (typeof window !== 'undefined' && window.electronAPI !== undefined);
+            var dbMode = localStorage.getItem("akb_db_mode") || "auto";
+            if (dbMode === "cloud") {
+                API_URL = CLOUD_GAS_URL;
+                API_MODE = "cloud";
+                sessionStorage.setItem("akb_cached_api_url", API_URL);
+                return API_URL;
+            }
+
+            var localBase = getCandidateLocalApi();
+            var checkLocal = dbMode === "local" ||
+                location.hostname === '127.0.0.1' || location.hostname === 'localhost' ||
+                location.hostname.startsWith('192.168.') || location.hostname.startsWith('10.') || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(location.hostname) ||
+                location.protocol === 'file:' || location.search.includes('mode=dedicated_app') ||
+                (typeof window !== 'undefined' && window.electronAPI !== undefined) ||
+                !!localStorage.getItem("akb_wa_server_url");
 
             // Instant fast-path: If already resolved and not forced, return cached URL immediately (0ms)
             if (!forceRefresh) {
                 var cached = sessionStorage.getItem("akb_cached_api_url");
                 if (cached) {
                     API_URL = cached;
-                    API_MODE = (cached.includes("127.0.0.1") || cached.includes("localhost")) ? "local" : "cloud";
+                    API_MODE = (cached.includes("script.google.com")) ? "cloud" : "local";
                     return API_URL;
                 }
             }
@@ -3998,11 +4021,11 @@
             if (checkLocal) {
                 try {
                     var testCtrl = new AbortController();
-                    var testTimer = setTimeout(function () { testCtrl.abort(); }, 800);
-                    var healthRes = await originalFetch("http://127.0.0.1:3000/api/health", { signal: testCtrl.signal });
+                    var testTimer = setTimeout(function () { testCtrl.abort(); }, 1200);
+                    var healthRes = await originalFetch(localBase + "/health", { signal: testCtrl.signal });
                     clearTimeout(testTimer);
                     if (healthRes.ok) {
-                        API_URL = "http://127.0.0.1:3000/api";
+                        API_URL = localBase;
                         API_MODE = "local";
                         sessionStorage.setItem("akb_cached_api_url", API_URL);
                         return API_URL;
@@ -4010,6 +4033,7 @@
                 } catch (_) { }
             }
 
+            // Fallback to high-availability Google Apps Script Cloud Database
             API_URL = CLOUD_GAS_URL;
             API_MODE = "cloud";
             sessionStorage.setItem("akb_cached_api_url", API_URL);
@@ -4154,14 +4178,17 @@
                 }
                 // Fallback to local server if GAS get fails
                 try {
-                    var localGetUrl = "http://127.0.0.1:3000/api" + path;
+                    var localGetUrl = (typeof getCandidateLocalApi === 'function' ? getCandidateLocalApi() : "http://127.0.0.1:3000/api") + path;
                     return await originalFetch(localGetUrl, { method: 'GET' });
                 } catch (_) { }
                 return originalFetch(targetUrl, { method: 'GET' });
             }
 
-            // If targeting local server but local server is offline, fallback seamlessly to GAS
-            if (urlToMatch.includes("127.0.0.1:3000/api") || urlToMatch.includes("localhost:3000/api")) {
+            // If targeting local server but local server is offline or errors, fallback seamlessly to GAS
+            var isBackendApi = (API_URL && urlToMatch.startsWith(API_URL) && !API_URL.includes("script.google.com")) ||
+                               urlToMatch.includes("127.0.0.1:3000/api") || urlToMatch.includes("localhost:3000/api") ||
+                               /:[0-9]+\/api\//.test(urlToMatch);
+            if (isBackendApi) {
                 var appToken = sessionStorage.getItem('akb_app_token');
                 if (appToken) {
                     config = config || {};
@@ -4175,6 +4202,15 @@
                 try {
                     var localAttempt = await originalFetch(resource, config);
                     if (localAttempt.ok) return localAttempt;
+                    if (localAttempt.status === 401 || localAttempt.status === 403 || localAttempt.status >= 500) {
+                        var isLocalOnly = urlToMatch.includes('/whatsapp/') || urlToMatch.includes('/savePdfLocally');
+                        if (!isLocalOnly && typeof CLOUD_GAS_URL !== 'undefined') {
+                            var localPath = urlToMatch.replace(/^https?:\/\/[^\/]+\/api/, '');
+                            var gasTarget = CLOUD_GAS_URL + localPath;
+                            return window.fetch(gasTarget, config);
+                        }
+                    }
+                    return localAttempt;
                 } catch (locErr) {
                     var isLocalOnly = urlToMatch.includes('/whatsapp/') || urlToMatch.includes('/savePdfLocally');
                     var isAborted = (locErr && locErr.name === 'AbortError') || (config && config.signal && config.signal.aborted);
@@ -9044,7 +9080,7 @@
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
             currentVersion: '1.4.6',
-            build: 141,
+            build: 142,
             hasUpdate: false,
             latestInfo: null,
 
@@ -9331,7 +9367,11 @@
                     }
                 }
 
-                App.updateSyncStatus('synced');
+                if (bootstrapDone || (IM._all && IM._all.length > 0)) {
+                    App.updateSyncStatus('synced');
+                } else {
+                    App.updateSyncStatus('offline');
+                }
                 App.startContinuousSync();
             },
 
@@ -9382,7 +9422,11 @@
                                 }
                             }
                         }
-                        App.updateSyncStatus('synced');
+                        if (bootstrapDone || (IM._all && IM._all.length > 0)) {
+                    App.updateSyncStatus('synced');
+                } else {
+                    App.updateSyncStatus('offline');
+                }
                     } catch (_) {
                     } finally {
                         App._isSyncingNow = false;

@@ -53,10 +53,38 @@ const ALLOWED_ORIGINS = new Set([
   'https://kandukurijagan1.github.io'
 ]);
 
+function isPrivateOrLocalIp(ip) {
+  if (!ip) return false;
+  const cleanIp = String(ip).replace(/^.*:/, ''); // strips IPv6 prefix like ::ffff:
+  return (
+    cleanIp === '127.0.0.1' ||
+    cleanIp === '::1' ||
+    cleanIp === 'localhost' ||
+    cleanIp.startsWith('192.168.') ||
+    cleanIp.startsWith('10.') ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(cleanIp)
+  );
+}
+
+function isAllowedClientOrigin(origin) {
+  if (!origin || origin === 'null' || origin.startsWith('file:') || origin.startsWith('vscode-webview:')) return true;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  if (origin.includes('127.0.0.1') || origin.includes('localhost')) return true;
+  if (origin.includes('192.168.') || origin.includes('10.') || /^https?:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(origin)) return true;
+  return false;
+}
+
+function isAllowedClientReferer(referer) {
+  if (!referer) return true;
+  if (referer.startsWith(`http://127.0.0.1:${PORT}`) || referer.startsWith(`http://localhost:${PORT}`)) return true;
+  if (referer.startsWith('https://kandukurijagan1.github.io') || referer.startsWith('file:')) return true;
+  if (referer.includes('192.168.') || referer.includes('10.') || /^https?:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(referer)) return true;
+  return false;
+}
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const isLanOrigin = origin && (origin.includes('192.168.') || origin.includes('10.') || origin.includes('172.'));
-  if (!origin || origin === 'null' || origin.startsWith('file:') || ALLOWED_ORIGINS.has(origin) || origin.includes('127.0.0.1') || origin.includes('localhost') || isLanOrigin) {
+  if (isAllowedClientOrigin(origin)) {
     const allowOrigin = origin && origin !== 'null' ? origin : '*';
     res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -75,12 +103,12 @@ app.use((req, res, next) => {
 
 // --- Centralized Authentication Middleware ---
 function requireAuth(req, res, next) {
-  // Block cross-site browser requests if originating from unknown external sites
-  const secFetchSite = req.headers['sec-fetch-site'];
   const origin = req.headers.origin;
   const ip = req.ip || (req.connection && req.connection.remoteAddress) || (req.socket && req.socket.remoteAddress) || '';
-  const isLocalIp = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1');
-  const isLocalOrigin = !origin || origin === 'null' || origin.startsWith('file:') || origin.includes('127.0.0.1') || origin.includes('localhost') || ALLOWED_ORIGINS.has(origin);
+  const isTrustedNetwork = isPrivateOrLocalIp(ip);
+  const isLocalOrigin = isAllowedClientOrigin(origin);
+  const referer = req.headers.referer;
+  const isAllowedReferer = isAllowedClientReferer(referer);
 
   // 1. Electron app passing secret token
   const clientAppToken = req.headers['x-app-token'] || req.query.app_token;
@@ -88,10 +116,8 @@ function requireAuth(req, res, next) {
     return next();
   }
 
-  // 2. Local workstation connection (Desktop app / Electron / Localhost / file://)
-  const referer = req.headers.referer;
-  const isAllowedReferer = !referer || referer.startsWith(`http://127.0.0.1:${PORT}`) || referer.startsWith(`http://localhost:${PORT}`) || referer.startsWith('https://kandukurijagan1.github.io') || referer.startsWith('file:');
-  if (isLocalIp && isLocalOrigin && isAllowedReferer) {
+  // 2. Local workstation & LAN client connections (Desktop app / Electron / Localhost / LAN / GitHub Pages / file://)
+  if (isTrustedNetwork && isLocalOrigin && isAllowedReferer) {
     return next();
   }
 
@@ -104,11 +130,12 @@ function requireAuth(req, res, next) {
     return next();
   }
 
-  if (secFetchSite === 'cross-site' && !isLocalIp) {
+  const secFetchSite = req.headers['sec-fetch-site'];
+  if (secFetchSite === 'cross-site' && !isTrustedNetwork) {
     return res.status(403).json({ success: false, error: 'Unauthorized: Cross-site access blocked' });
   }
 
-  if (origin && !ALLOWED_ORIGINS.has(origin) && !isLocalOrigin) {
+  if (origin && !isLocalOrigin) {
     return res.status(403).json({ success: false, error: 'Unauthorized: Origin not allowed' });
   }
 
