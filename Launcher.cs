@@ -569,6 +569,9 @@ namespace AnudeepKhadiBandar
 
                     ctx.Response.ContentType = mime;
                     ctx.Response.StatusCode = 200;
+                    ctx.Response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate");
+                    ctx.Response.Headers.Add("Pragma", "no-cache");
+                    ctx.Response.Headers.Add("Expires", "0");
 
                     byte[] data = File.ReadAllBytes(filePath);
                     ctx.Response.ContentLength64 = data.Length;
@@ -582,6 +585,9 @@ namespace AnudeepKhadiBandar
                         byte[] data = File.ReadAllBytes(indexFile);
                         ctx.Response.ContentType = "text/html; charset=utf-8";
                         ctx.Response.StatusCode = 200;
+                        ctx.Response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate");
+                        ctx.Response.Headers.Add("Pragma", "no-cache");
+                        ctx.Response.Headers.Add("Expires", "0");
                         ctx.Response.ContentLength64 = data.Length;
                         ctx.Response.OutputStream.Write(data, 0, data.Length);
                     }
