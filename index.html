@@ -7980,16 +7980,8 @@
             },
             applyProducts: function (data) {
                 if (!Array.isArray(data)) return;
+                // Directly set from server/cloud so deletions are strictly respected
                 PDM._all = data;
-                var localProds = D.g("products") || [];
-                if (PDM._all.length === 0 && localProds.length > 0) {
-                    PDM._all = localProds;
-                } else if (localProds.length > 0) {
-                    var serverIds = PDM._all.map(function (p) { return p.id });
-                    localProds.forEach(function (lp) {
-                        if (!serverIds.includes(lp.id)) PDM._all.push(lp);
-                    });
-                }
                 D.s("products", PDM._all);
                 PDM._draw(PDM._all);
                 if (typeof BM !== 'undefined' && BM.updateProductDropdown) {
@@ -8328,16 +8320,8 @@
 
             applyParties: function (type, data) {
                 if (!Array.isArray(data)) return;
+                // Directly set from server/cloud so deletions are strictly respected
                 PM._parties[type] = data;
-                var localParties = D.g(type + "s") || [];
-                if (PM._parties[type].length === 0 && localParties.length > 0) {
-                    PM._parties[type] = localParties;
-                } else if (localParties.length > 0) {
-                    var serverIds = PM._parties[type].map(function (p) { return p.id });
-                    localParties.forEach(function (lp) {
-                        if (!serverIds.includes(lp.id)) PM._parties[type].push(lp);
-                    });
-                }
                 D.s(type + "s", PM._parties[type]);
                 PM._drawList(type, type + "-list");
             },
@@ -9755,8 +9739,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.8.1',
-            build: 181,
+            currentVersion: '1.8.2',
+            build: 182,
             hasUpdate: false,
             latestInfo: null,
 

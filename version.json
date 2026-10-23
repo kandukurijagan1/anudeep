@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.8.1",
-  "build": 181,
-  "commit": "dfd3251e3257bc34e7a83475435fd0c3cc8690d4",
+  "version": "1.8.2",
+  "build": 182,
+  "commit": "9b1c39e4eeac7ce9d63b007139b656911d7a0d54",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
   "description": "feat(auto-reflect): complete service worker purge and disable-cache browser launch flags to force instant update reflection (Build 177)",
-  "releaseNotes": "Unified Single Source of Truth: Web and Desktop strictly synchronized to Supabase Cloud Database"
+  "releaseNotes": "Fix entity deletion resurrection: Stop local merger from re-adding deleted products and parties"
 }

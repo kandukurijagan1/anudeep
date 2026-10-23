@@ -2634,6 +2634,8 @@ app.delete('/api/products/:id', (req, res) => {
     products = products.filter(p => String(p.id) !== String(id));
     writeJsonFile('products', products);
     forwardToGas('deleteProduct', {}, id);
+    forwardToSupabase('products', { id: String(id) }, false);
+    broadcastRealtime('products_updated', { products });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2694,6 +2696,8 @@ app.delete('/api/receivers/:id', (req, res) => {
     receivers = receivers.filter(r => String(r.id) !== String(id));
     writeJsonFile('receivers', receivers);
     forwardToGas('deleteReceiver', {}, id);
+    forwardToSupabase('receivers', { id: String(id) }, false);
+    broadcastRealtime('parties_updated', { type: 'receiver', data: receivers });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2753,6 +2757,8 @@ app.delete('/api/consignees/:id', (req, res) => {
     consignees = consignees.filter(c => String(c.id) !== String(id));
     writeJsonFile('consignees', consignees);
     forwardToGas('deleteConsignee', {}, id);
+    forwardToSupabase('consignees', { id: String(id) }, false);
+    broadcastRealtime('parties_updated', { type: 'consignee', data: consignees });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

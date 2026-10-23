@@ -28,15 +28,5 @@
     "description": "Test Silk Saree",
     "action": "createProduct",
     "_version": 1
-  },
-  {
-    "name": "Test Silk Item",
-    "hsn": "5007",
-    "rate": 1500,
-    "unit": "MTR",
-    "id": "prod_1791884185091",
-    "description": "Test Silk Item",
-    "action": "createProduct",
-    "_version": 1
   }
 ]
