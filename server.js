@@ -2108,6 +2108,7 @@ setInterval(async () => {
 
       const existingIds = new Set(curInvs.map(i => String(i.id || i._id)));
       const existingNos = new Set(curInvs.map(i => Number(i.invoiceNo)).filter(n => !isNaN(n) && n > 0));
+      const newlyAddedInvoices = [];
       for (const rInv of remoteInvoices) {
         const num = Number(rInv.invoiceNo);
         const rid = String(rInv.id || rInv._id || '');
@@ -2115,6 +2116,7 @@ setInterval(async () => {
         if (rid && existingIds.has(rid)) continue;
         if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
         curInvs.push(rInv);
+        newlyAddedInvoices.push(rInv);
         if (rid) existingIds.add(rid);
         if (!isNaN(num) && num > 0) existingNos.add(num);
         updated = true;
@@ -2126,11 +2128,34 @@ setInterval(async () => {
         _invoicesVersion = Date.now();
         broadcastRealtime('invoice_created', { invoices: curInvs });
 
+        // Advance nextInvoiceNo in settings if client system created higher invoice
+        if (newlyAddedInvoices.length > 0) {
+          const settings = readJsonFile('settings', getDefaultSettings());
+          let highestNum = settings.nextInvoiceNo || 1;
+          for (const ni of newlyAddedInvoices) {
+            const invNum = Number(ni.invoiceNo);
+            if (!isNaN(invNum) && invNum >= highestNum) {
+              highestNum = invNum + 1;
+            }
+          }
+          if (highestNum > (settings.nextInvoiceNo || 1)) {
+            settings.nextInvoiceNo = highestNum;
+            writeJsonFile('settings', settings);
+            forwardToGas('updateSettings', { nextInvoiceNo: settings.nextInvoiceNo });
+          }
+
+          // ⚡ AUTOMATIC DISPATCH: Send WhatsApp & Telegram for every client-generated invoice!
+          for (const ni of newlyAddedInvoices) {
+            console.log(`⚡ [Client-Sync] Auto-dispatching store bot for client system invoice #${ni.invoiceNo || ni.id}...`);
+            autoDispatchBots(ni).catch(err => console.warn('[Client-Sync] Auto-dispatch warning:', err.message));
+          }
+        }
+
         // If new invoices came from cloud, asynchronously sync to GitHub repository
         if (newFromCloud) {
           try {
             const { exec } = require('child_process');
-            exec('git add data/invoices.json data/deleted_invoices.json && git commit -m "sync: automatic master ledger update from cloud" && git push origin main', (gErr) => {
+            exec('git add data/invoices.json data/deleted_invoices.json data/settings.json && git commit -m "sync: automatic master ledger update from cloud" && git push origin main', (gErr) => {
               if (!gErr) console.log('[Cloud-Ledger] Pushed latest cloud invoices to GitHub repository.');
             });
           } catch (_) {}
@@ -2148,6 +2173,30 @@ app.get('/api/update/status', (req, res) => {
     lastCheck: lastUpdateCheck,
     repo: GITHUB_REPO,
     branch: GITHUB_BRANCH
+  });
+});
+
+// API: Get Host LAN connection information for client systems
+app.get('/api/lan-info', (req, res) => {
+  const os = require('os');
+  const interfaces = os.networkInterfaces();
+  const addresses = [];
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        addresses.push({ interface: name, address: iface.address });
+      }
+    }
+  }
+  const primaryIp = addresses.find(a => a.address.startsWith('192.168.') || a.address.startsWith('10.'))?.address || (addresses[0]?.address || '127.0.0.1');
+  res.json({
+    success: true,
+    primaryIp,
+    port: PORT,
+    clientUrl: `http://${primaryIp}:${PORT}`,
+    dedicatedUrl: `http://${primaryIp}:${PORT}/?mode=dedicated_app`,
+    allAddresses: addresses,
+    whatsappConnected: isWhatsappConnected
   });
 });
 

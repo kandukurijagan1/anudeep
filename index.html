@@ -3542,6 +3542,18 @@
                                         class="ph ph-arrows-clockwise"></i> Change Phone Number</button>
                             </div>
                             <div class="form-group" style="margin-top:10px; border-top:1px dashed #e2e8f0; padding-top:10px;">
+                                <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 12px; margin-bottom:10px;">
+                                    <div style="font-weight:700; color:#1e40af; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
+                                        <i class="ph ph-desktop" style="font-size:1.1rem;"></i> Client Counter Terminal Access (LAN):
+                                    </div>
+                                    <div style="font-size:0.8rem; color:#1e3a8a; margin-top:4px;">
+                                        Open this URL on your second laptop / billing counter PC to connect directly to this workstation with 0ms latency:
+                                    </div>
+                                    <div style="display:flex; gap:6px; margin-top:6px; align-items:center;">
+                                        <input type="text" id="s-lan-url" readonly value="http://10.209.191.184:3000" style="flex:1; padding:5px 8px; font-size:0.82rem; font-family:monospace; font-weight:700; background:#fff; border:1px solid #93c5fd; border-radius:4px;" />
+                                        <button type="button" class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('s-lan-url').value); U.toast('LAN URL copied to clipboard!', 'success');" style="font-size:0.75rem; padding:5px 10px; background:#2563eb; border-color:#2563eb; white-space:nowrap;"><i class="ph ph-copy"></i> Copy</button>
+                                    </div>
+                                </div>
                                 <label style="font-size:0.8rem; font-weight:600; color:var(--tl);">WhatsApp Server URL (Optional — for Client PCs on LAN)</label>
                                 <div style="display:flex; gap:6px; margin-top:4px;">
                                     <input type="text" id="s-wa-server-url" class="form-control"
@@ -3551,7 +3563,7 @@
                                     <button type="button" class="btn btn-secondary" style="font-size:0.78rem; padding:6px 10px;"
                                         onclick="localStorage.removeItem('akb_wa_server_url'); document.getElementById('s-wa-server-url').value=''; fetchWhatsappStatus(true);">Reset</button>
                                 </div>
-                                <div class="settings-hint" style="margin-top:4px;">Leave empty if using on the main server laptop. Enter Host PC IP (e.g. <code>http://192.168.1.X:3000/api</code>) when running on client counter devices.</div>
+                                <div class="settings-hint" style="margin-top:4px;">When using a client laptop on the store Wi-Fi, you can set this to <code>http://10.209.191.184:3000/api</code> to link directly to the host bot.</div>
                             </div>
                         </div>
                     </div>
@@ -6596,10 +6608,10 @@
 
             openDirectWhatsapp: function (inv, explicitPhone) {
                 // Automatically dispatch in background via WhatsApp bot - ABSOLUTELY NO MANUAL TABS
-                return SM.autoSendWhatsapp(inv, explicitPhone);
+                return SM.autoSendWhatsapp(inv, explicitPhone, true);
             },
 
-            autoSendWhatsapp: function (inv, explicitPhone) {
+            autoSendWhatsapp: function (inv, explicitPhone, isManualAction) {
                 if (!inv) return;
                 var st = (typeof D !== 'undefined' && D.go ? D.go("settings") : {}) || {};
                 var waSettings = (st.whatsapp) || (typeof STM !== 'undefined' && STM._settings && STM._settings.whatsapp) || {};
@@ -6618,7 +6630,7 @@
                 // Detect if running on remote HTTPS static hosting (e.g. GitHub Pages) without direct localhost access:
                 var isWebCloud = _isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'));
                 if (isWebCloud) {
-                    // 1. Asynchronously forward invoice to Cloud GAS so host workstation picks it up
+                    // 1. Asynchronously forward invoice to Cloud GAS so host workstation bot delivers it automatically
                     if (typeof CLOUD_GAS_URL !== 'undefined') {
                         try {
                             fetch(CLOUD_GAS_URL + '?action=createInvoice', {
@@ -6630,15 +6642,15 @@
                         } catch (_) { }
                     }
 
-                    // 2. Open pre-filled direct WhatsApp link so customer receives message immediately!
-                    U.toast("Opening WhatsApp chat for Invoice #" + invNo + "...", "info");
-                    var waDirectUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(textMsg);
-                    window.open(waDirectUrl, '_blank');
-
-                    // 3. Download PDF receipt so user has the file ready to attach
-                    SM.generatePdfBlob(inv, function (blob, pdfName) {
-                        if (blob) SM.downloadPdfBlob(blob, pdfName, inv);
-                    });
+                    if (isManualAction) {
+                        // User explicitly clicked "Send WhatsApp" in table/share modal -> open direct WhatsApp chat
+                        U.toast("Opening WhatsApp chat for Invoice #" + invNo + "...", "info");
+                        var waDirectUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(textMsg);
+                        window.open(waDirectUrl, '_blank');
+                    } else {
+                        // Automatic dispatch upon invoice creation -> host workstation bot delivers it cleanly in background
+                        U.toast("⚡ Invoice #" + invNo + " saved! Host Workstation Bot will auto-deliver WhatsApp receipt to " + cleanPhone, "success");
+                    }
                     return;
                 }
 
@@ -6649,7 +6661,7 @@
                 }
                 var waApiBase = (typeof getWaApiUrl === 'function') ? getWaApiUrl() : 'http://127.0.0.1:3000/api';
 
-                U.toast("🚀 Auto-dispatching invoice #" + invNo + " to WhatsApp " + cleanPhone + "...", "info");
+                U.toast("⚡ Auto-dispatching invoice #" + invNo + " to WhatsApp " + cleanPhone + "...", "info");
 
                 // 2. Headless background dispatch for formatted text (ABSOLUTELY NO NEW TAB EVER!)
                 var directFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
@@ -6944,12 +6956,12 @@
                     return;
                 }
                 SM.currentInv = inv;
-                SM.autoSendWhatsapp(inv);
+                SM.autoSendWhatsapp(inv, null, true);
             },
 
             manualSendWhatsapp: function () {
                 if (!SM.currentInv) return;
-                SM.autoSendWhatsapp(SM.currentInv);
+                SM.autoSendWhatsapp(SM.currentInv, null, true);
             },
 
             sendTelegram: function () {

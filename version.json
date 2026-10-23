@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.6.1",
-  "build": 161,
+  "version": "1.6.2",
+  "build": 162,
   "commit": "latest",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: resolve split-brain web vs desktop discrepancy, unify master ledger sync, fix WhatsApp cloud web direct dispatch and auto-push to GitHub"
+  "description": "fix: full client system support with auto bot dispatch for remote invoices, LAN IP counter access, duplicate PDF purge, and next invoice number sync"
 }
