@@ -9846,13 +9846,11 @@
                         var data = await res.json();
                         if (data && (data.invoices || data.products || data.settings)) {
                             if (data.settings) STM.applySettings(data.settings);
-                            if (Array.isArray(data.products) && (!PDM._all || PDM._all.length === 0 || !_isStaticHosting)) PDM.applyProducts(data.products);
-                            if (Array.isArray(data.receivers) && (!PM._parties || !PM._parties.receiver || PM._parties.receiver.length === 0 || !_isStaticHosting)) PM.applyParties('receiver', data.receivers);
-                            if (Array.isArray(data.consignees) && (!PM._parties || !PM._parties.consignee || PM._parties.consignee.length === 0 || !_isStaticHosting)) PM.applyParties('consignee', data.consignees);
+                            if (Array.isArray(data.products)) PDM.applyProducts(data.products);
+                            if (Array.isArray(data.receivers)) PM.applyParties('receiver', data.receivers);
+                            if (Array.isArray(data.consignees)) PM.applyParties('consignee', data.consignees);
                             if (Array.isArray(data.invoices)) {
-                                if (!_isStaticHosting || !IM._all || IM._all.length === 0) {
-                                    IM.applyInvoices(data.invoices);
-                                }
+                                IM.applyInvoices(data.invoices);
                             }
 
                             BM.init();
@@ -9988,11 +9986,19 @@
                                 } catch (_) { }
                             }
 
-                            // 2c. Check products & parties periodically (every 10 cycles = 20 seconds)
-                            if (App._syncCycleCount % 10 === 0) {
+                            // 2c. Check products & parties periodically (every 5 cycles = 10 seconds)
+                            if (App._syncCycleCount % 5 === 0) {
                                 try {
                                     var pRes = await fetchWithTimeout('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/products.json?_t=' + Date.now(), { cache: 'no-store' }, 2500);
-                                    if (pRes.ok) { var pData = await pRes.json(); if (Array.isArray(pData) && pData.length > (PDM._all ? PDM._all.length : 0)) PDM.applyProducts(pData); }
+                                    if (pRes.ok) { var pData = await pRes.json(); if (Array.isArray(pData)) PDM.applyProducts(pData); }
+                                } catch (_) { }
+                                try {
+                                    var rRes = await fetchWithTimeout('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/receivers.json?_t=' + Date.now(), { cache: 'no-store' }, 2500);
+                                    if (rRes.ok) { var rData = await rRes.json(); if (Array.isArray(rData)) PM.applyParties('receiver', rData); }
+                                } catch (_) { }
+                                try {
+                                    var cRes = await fetchWithTimeout('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/consignees.json?_t=' + Date.now(), { cache: 'no-store' }, 2500);
+                                    if (cRes.ok) { var cData = await cRes.json(); if (Array.isArray(cData)) PM.applyParties('consignee', cData); }
                                 } catch (_) { }
                             }
                             return;
