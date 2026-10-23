@@ -118,6 +118,19 @@ namespace AnudeepKhadiBandar
                         {
                             wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, "index.html"));
                             wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, "server.js"));
+                            string[] assetFiles = new string[] { "logo.jpeg", "left-god.jpg", "right-god.jpg", "icon.ico", "icon-192.png", "icon-512.png" };
+                            foreach (string asset in assetFiles)
+                            {
+                                try
+                                {
+                                    wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/" + asset + "?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, asset));
+                                    if (Directory.Exists(appDir))
+                                    {
+                                        try { File.Copy(Path.Combine(appDataDir, asset), Path.Combine(appDir, asset), true); } catch { }
+                                    }
+                                }
+                                catch { }
+                            }
                             string dataDir = Path.Combine(appDataDir, "data");
                             if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
                             string[] syncTables = new string[] { "invoices.json", "deleted_invoices.json", "settings.json", "products.json", "receivers.json", "consignees.json" };
@@ -245,8 +258,17 @@ namespace AnudeepKhadiBandar
                 }
             }
 
-            // Always prioritize local backend on port 3000 for full WhatsApp & POS workstation integration
-            activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
+            if (localResponding)
+            {
+                activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
+            }
+            else
+            {
+                // Fallback to embedded web server so the app runs smoothly even without Node.js installed
+                int port = GetFreePort(3005);
+                StartEmbeddedServer(port);
+                activeUrl = "http://localhost:" + port + "/index.html?mode=dedicated_app";
+            }
         }
 
         private static void StartNodeProcess(string nodePath, string scriptPath)
