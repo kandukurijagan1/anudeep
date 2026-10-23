@@ -1783,7 +1783,7 @@ function getLocalVersion() {
   } catch (e) {
     console.warn('[Auto-Updater] Could not read version.json:', e.message);
   }
-  return { version: '1.6.4', build: 164, commit: 'latest', releaseDate: '2026-10-23' };
+  return { version: '1.6.5', build: 165, commit: 'latest', releaseDate: '2026-10-23' };
 }
 
 let lastUpdateCheck = {
@@ -1980,7 +1980,7 @@ async function downloadAndApplyUpdate(remoteVer) {
         const beforeLen = curInvs.length;
         curInvs = curInvs.filter(i => {
           const cid = String(i.id || i._id || '');
-          return (!cid || !deletedInvs.has(cid));
+          const cnum = String(i.invoiceNo || ''); return (!cid || !deletedInvs.has(cid)) && (!cnum || !deletedInvs.has(cnum));
         });
         if (curInvs.length !== beforeLen) updated = true;
 
@@ -1989,7 +1989,7 @@ async function downloadAndApplyUpdate(remoteVer) {
         for (const rInv of remoteInvs) {
           const num = Number(rInv.invoiceNo);
           const rid = String(rInv.id || rInv._id || '');
-          if (rid && deletedInvs.has(rid)) continue;
+          const rnum = String(rInv.invoiceNo || ''); if ((rid && deletedInvs.has(rid)) || (rnum && deletedInvs.has(rnum))) continue;
           if (rid && existingIds.has(rid)) continue;
           if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
           curInvs.push(rInv);
@@ -2106,7 +2106,7 @@ setInterval(async () => {
       const beforeLen = curInvs.length;
       curInvs = curInvs.filter(i => {
         const cid = String(i.id || i._id || '');
-        return (!cid || !deletedInvs.has(cid));
+        const cnum = String(i.invoiceNo || ''); return (!cid || !deletedInvs.has(cid)) && (!cnum || !deletedInvs.has(cnum));
       });
       if (curInvs.length !== beforeLen) updated = true;
 
@@ -2116,7 +2116,7 @@ setInterval(async () => {
       for (const rInv of remoteInvoices) {
         const num = Number(rInv.invoiceNo);
         const rid = String(rInv.id || rInv._id || '');
-        if (rid && deletedInvs.has(rid)) continue;
+        const rnum = String(rInv.invoiceNo || ''); if ((rid && deletedInvs.has(rid)) || (rnum && deletedInvs.has(rnum))) continue;
         if (rid && existingIds.has(rid)) continue;
         if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
         curInvs.push(rInv);

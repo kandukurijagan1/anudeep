@@ -8672,7 +8672,8 @@
 
                 normalized = normalized.filter(function (inv) {
                     var iid = String(inv.id || inv._id || '');
-                    return (!iid || !deletedSet.has(iid));
+                    var inum = String(inv.invoiceNo || '');
+                    return (!iid || !deletedSet.has(iid)) && (!inum || !deletedSet.has(inum));
                 });
 
                 var offlineInvs = offlineQueue.filter(function (t) { return t.type === 'invoice_save'; }).map(function (t) { return t.inv; });
@@ -9509,8 +9510,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.6.4',
-            build: 164,
+            currentVersion: '1.6.5',
+            build: 165,
             hasUpdate: false,
             latestInfo: null,
 
