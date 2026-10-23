@@ -74,58 +74,6 @@
     "_version": 1
   },
   {
-    "id": 1792601170156,
-    "invoiceNo": 15,
-    "date": "2026-10-21",
-    "reverseCharge": "No",
-    "transportMode": "",
-    "lrNo": "",
-    "transportDate": "",
-    "supplyDate": "",
-    "bundles": "5",
-    "placeOfSupply": "ANDAMAN & NICOBAR ISLANDS",
-    "stateCode": "35",
-    "receiver": {
-      "name": "UYGHJBN",
-      "phone": "8367047947",
-      "address": "YUHJM",
-      "gstin": "",
-      "state": "ANDHRA PRADESH",
-      "stateCode": "37"
-    },
-    "consignee": {
-      "name": "UGYHJNM",
-      "phone": "8367047947",
-      "address": "YUHJBN",
-      "gstin": "",
-      "state": "ANDAMAN & NICOBAR ISLANDS",
-      "stateCode": "35"
-    },
-    "customerPhone": "8367047947",
-    "items": [
-      {
-        "baleNo": "1",
-        "description": "FINE KHADI TOWEL",
-        "hsn": "6302",
-        "calcType": "qty",
-        "rate": 180,
-        "qty": 6,
-        "meters": 0,
-        "cms": 0,
-        "totalMeters": 0,
-        "amount": 1080
-      }
-    ],
-    "taxableAmount": 1080,
-    "cgstAmount": 0,
-    "sgstAmount": 0,
-    "igstAmount": 54,
-    "rawGrandTotal": 1134,
-    "roundOff": 0,
-    "totalAmount": 1134,
-    "isInterState": true
-  },
-  {
     "id": 1792120500430,
     "invoiceNo": 14,
     "date": "2026-10-16",
