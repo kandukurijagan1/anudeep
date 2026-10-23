@@ -53,59 +53,6 @@
     "transportMode": ""
   },
   {
-    "id": "1791873490504",
-    "invoiceNo": 8,
-    "date": "2026-10-13",
-    "reverseCharge": "No",
-    "transportMode": "yughjk",
-    "lrNo": "5678uy",
-    "transportDate": "2026-10-13",
-    "supplyDate": "2026-10-13",
-    "bundles": "6",
-    "placeOfSupply": "Andhra Pradesh",
-    "stateCode": "37",
-    "receiver": {
-      "name": "uyghjbn",
-      "phone": "8367047947",
-      "address": "yuhjm",
-      "gstin": "",
-      "state": "Andhra Pradesh",
-      "stateCode": "37"
-    },
-    "consignee": {
-      "name": "ugyhjnm",
-      "phone": "8367047947",
-      "address": "yuhjbn",
-      "gstin": "",
-      "state": "Andhra Pradesh",
-      "stateCode": "37"
-    },
-    "customerPhone": "8367047947",
-    "items": [
-      {
-        "baleNo": "1",
-        "description": "Fine Khadi Towel",
-        "hsn": "6302",
-        "calcType": "qty",
-        "qty": 5,
-        "meters": 0,
-        "cms": 0,
-        "totalMeters": 0,
-        "rate": 1000,
-        "amount": 5000
-      }
-    ],
-    "taxableAmount": 5000,
-    "cgstAmount": 125,
-    "sgstAmount": 125,
-    "igstAmount": 0,
-    "rawGrandTotal": 5250,
-    "roundOff": 0,
-    "totalAmount": 5250,
-    "isInterState": false,
-    "_id": "1791873490504"
-  },
-  {
     "id": "1791738488098",
     "invoiceNo": 7,
     "date": "2026-10-11",
@@ -282,60 +229,6 @@
     "rawGrandTotal": 45776.8,
     "roundOff": 0.2,
     "totalAmount": 45777,
-    "isInterState": false,
-    "__v": 0
-  },
-  {
-    "_id": "1791278209249",
-    "id": "1791278209249",
-    "invoiceNo": 2,
-    "date": "2026-10-06",
-    "reverseCharge": "No",
-    "transportMode": "ytu",
-    "lrNo": "879uij",
-    "transportDate": "2026-10-06",
-    "supplyDate": "2026-10-06",
-    "bundles": "5",
-    "placeOfSupply": "Andhra Pradesh",
-    "stateCode": "37",
-    "receiver": {
-      "name": "Jagan Kandukuri",
-      "phone": "8367047947",
-      "address": "yuhj",
-      "gstin": "9876689",
-      "state": "Andhra Pradesh",
-      "stateCode": "37"
-    },
-    "consignee": {
-      "name": "Jagan Kandukuri",
-      "phone": "8367047947",
-      "address": "uhjm",
-      "gstin": "987568",
-      "state": "Andhra Pradesh",
-      "stateCode": "37"
-    },
-    "customerPhone": "8367047947",
-    "items": [
-      {
-        "baleNo": "1",
-        "description": "yiukj",
-        "hsn": "098698",
-        "calcType": "qty",
-        "qty": 5,
-        "meters": 0,
-        "cms": 0,
-        "totalMeters": 0,
-        "rate": 7898,
-        "amount": 39490
-      }
-    ],
-    "taxableAmount": 39490,
-    "cgstAmount": 987.25,
-    "sgstAmount": 987.25,
-    "igstAmount": 0,
-    "rawGrandTotal": 41464.5,
-    "roundOff": 0.5,
-    "totalAmount": 41465,
     "isInterState": false,
     "__v": 0
   },
