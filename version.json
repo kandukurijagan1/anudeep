@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.7.5",
-  "build": 175,
+  "version": "1.7.6",
+  "build": 176,
   "commit": "latest",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(cloud-auto-updater): continuous background self-updating thread inside AKB-Billing.exe and synchronized UpdaterUI (Build 175)"
+  "description": "feat(app-dir-sync): ensure updates write directly to both AppData and local application folder (Build 176)"
 }

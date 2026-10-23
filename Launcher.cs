@@ -128,6 +128,11 @@ namespace AnudeepKhadiBandar
                         {
                             wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, "index.html"));
                             wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, "server.js"));
+                            if (Directory.Exists(appDir))
+                            {
+                                try { File.Copy(Path.Combine(appDataDir, "index.html"), Path.Combine(appDir, "index.html"), true); } catch { }
+                                try { File.Copy(Path.Combine(appDataDir, "server.js"), Path.Combine(appDir, "server.js"), true); } catch { }
+                            }
                             string[] assetFiles = new string[] { "logo.jpeg", "left-god.jpg", "right-god.jpg", "icon.ico", "icon-192.png", "icon-512.png" };
                             foreach (string asset in assetFiles)
                             {
