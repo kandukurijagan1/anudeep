@@ -981,11 +981,13 @@ async function initWhatsappClient(forceClean = false) {
     console.log('[WhatsApp] Fast-boot Web Version:', cachedVersion || 'Dynamic Remote Fetch', cachedInfo ? `(from ${cachedInfo.path})` : '');
 
     const clientOptions = {
+      webVersionCache: {
+        type: 'none'
+      },
       authStrategy: authStrategy,
       authTimeoutMs: 180000,
       qrMaxRetries: 0,
-      takeoverOnConflict: true,
-      takeoverTimeoutMs: 1000,
+      takeoverOnConflict: false,
       userAgent: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`,
       evalOnNewDoc: () => {
         try {
@@ -1020,15 +1022,6 @@ async function initWhatsappClient(forceClean = false) {
         ignoreDefaultArgs: ['--enable-automation']
       }
     };
-
-    if (cachedInfo) {
-      clientOptions.webVersion = cachedInfo.version;
-      clientOptions.webVersionCache = {
-        type: 'local',
-        path: cachedInfo.path,
-        strict: false
-      };
-    }
 
     client = new Client(clientOptions);
 
@@ -1309,8 +1302,9 @@ async function initWhatsappClient(forceClean = false) {
 
       // AUTO-RECONNECT GUARANTEE: Never stay disconnected!
       console.log('🔄 [WhatsApp] Self-healing activated: Reconnecting WhatsApp in 3 seconds...');
-      setTimeout(() => {
+      setTimeout(async () => {
         if (!isWhatsappConnected && !isWhatsappInitializing) {
+          await safeDestroyClient();
           initWhatsappClient(false);
         }
       }, 3000);
