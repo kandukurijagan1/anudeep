@@ -8888,11 +8888,14 @@
                     return;
                 }
 
-                // 1. Record in permanent tombstone by unique ID so sync never restores this deleted instance
+                // 1. Record in permanent tombstone by unique ID AND invoice number so sync never restores this deleted instance
                 var target = (IM._all || []).find(function (i) { return String(i.id) === idStr || String(i._id) === idStr || String(i.invoiceNo) === idStr; });
                 var deletedList = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
-                if (idStr && idStr.length > 5 && !deletedList.includes(idStr)) deletedList.push(idStr);
-                if (target && target.id && String(target.id).length > 5 && !deletedList.includes(String(target.id))) deletedList.push(String(target.id));
+                if (idStr && !deletedList.includes(idStr)) deletedList.push(idStr);
+                if (target) {
+                    if (target.id && !deletedList.includes(String(target.id))) deletedList.push(String(target.id));
+                    if (target.invoiceNo && !deletedList.includes(String(target.invoiceNo))) deletedList.push(String(target.invoiceNo));
+                }
                 localStorage.setItem('akb_deleted_invoices', JSON.stringify(deletedList));
 
                 // 2. Optimistically delete from state & localStorage immediately (< 1ms)
