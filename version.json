@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.6.3",
-  "build": 163,
+  "version": "1.6.4",
+  "build": 164,
   "commit": "latest",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: resolve client updater infinite loop, fix GitHub Pages 404 navigation, auto-bind store LAN IP for client PCs, and expand cloud GAS timeout"
+  "description": "fix: instant PWA cache-purge, web force-sync with zero server dependency, and unregister stale service workers (Build 164)"
 }

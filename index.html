@@ -9509,8 +9509,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.6.3',
-            build: 163,
+            currentVersion: '1.6.4',
+            build: 164,
             hasUpdate: false,
             latestInfo: null,
 
@@ -9698,9 +9698,21 @@
                         applied = true;
                     } catch (_) { }
 
+                    // Web / Client Browser Force Refresh
+                    if (_isStaticHosting || !window.electronAPI) {
+                        if (statusEl) statusEl.innerHTML = '<span style="color:#10b981;font-weight:700">✨ Cache cleared! Reloading latest version...</span>';
+                        setTimeout(function () {
+                            var p = location.pathname || '/';
+                            var q = new URLSearchParams(location.search);
+                            q.set('_force_v', Date.now());
+                            location.href = p + '?' + q.toString() + location.hash;
+                        }, 800);
+                        return;
+                    }
+
                     if (applied) {
                         if (statusEl) statusEl.innerHTML = '<span style="color:#10b981;font-weight:700">✨ Update installed successfully!</span>';
-                        UpdaterUI.showNotification(UpdaterUI.latestInfo || { version: '1.6.3' });
+                        UpdaterUI.showNotification(UpdaterUI.latestInfo || { version: '1.6.4' });
                     } else {
                         if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444">Could not apply update.</span>';
                     }
@@ -11475,8 +11487,8 @@
 
         /* ===== PWA SERVICE WORKER REGISTRATION ===== */
         try {
-            if (localStorage.getItem('akb_sw_purged_133') !== 'true') {
-                localStorage.setItem('akb_sw_purged_133', 'true');
+            if (localStorage.getItem('akb_sw_purged_164') !== 'true') {
+                localStorage.setItem('akb_sw_purged_164', 'true'); if (navigator.serviceWorker) { navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ r.unregister(); }); }); };
                 if ('caches' in window) {
                     caches.keys().then(function (names) {
                         names.forEach(function (name) { caches.delete(name); });
@@ -11488,7 +11500,7 @@
         var isElectronEnv = location.search.indexOf('mode=dedicated_app') > -1 || (navigator.userAgent && navigator.userAgent.toLowerCase().indexOf('electron') > -1);
         if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !isElectronEnv) {
             window.addEventListener('load', function () {
-                navigator.serviceWorker.register('./sw.js?v=2.0.7').then(function (reg) {
+                navigator.serviceWorker.register('./sw.js?v=2.1.4').then(function (reg) {
                     reg.update();
                     reg.addEventListener('updatefound', function () {
                         var newWorker = reg.installing;

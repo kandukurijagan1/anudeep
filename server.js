@@ -1783,7 +1783,7 @@ function getLocalVersion() {
   } catch (e) {
     console.warn('[Auto-Updater] Could not read version.json:', e.message);
   }
-  return { version: '1.6.3', build: 163, commit: 'latest', releaseDate: '2026-10-23' };
+  return { version: '1.6.4', build: 164, commit: 'latest', releaseDate: '2026-10-23' };
 }
 
 let lastUpdateCheck = {
