@@ -416,7 +416,7 @@ namespace AnudeepKhadiBandar
                     "--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=1400,850 --start-maximized " +
                     "--disable-features=Translate,OptimizationHints --disable-extensions " +
                     "--enable-gpu-rasterization --disable-background-timer-throttling --no-first-run " +
-                    "--disk-cache-size=1 --media-cache-size=1",
+                    "--disable-cache --disable-application-cache --disk-cache-size=1 --media-cache-size=1",
                     url,
                     profileDir
                 );

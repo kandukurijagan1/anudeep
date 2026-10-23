@@ -9625,8 +9625,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.7.6',
-            build: 176,
+            currentVersion: '1.7.7',
+            build: 177,
             hasUpdate: false,
             latestInfo: null,
 
@@ -11657,23 +11657,13 @@
             }
         } catch (e) { }
 
-        var isElectronEnv = location.search.indexOf('mode=dedicated_app') > -1 || (navigator.userAgent && navigator.userAgent.toLowerCase().indexOf('electron') > -1);
-        if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !isElectronEnv) {
-            window.addEventListener('load', function () {
-                navigator.serviceWorker.register('./sw.js?v=2.1.4').then(function (reg) {
-                    reg.update();
-                    reg.addEventListener('updatefound', function () {
-                        var newWorker = reg.installing;
-                        if (newWorker) {
-                            newWorker.addEventListener('statechange', function () {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    window.location.reload();
-                                }
-                            });
-                        }
-                    });
-                }).catch(function () { });
-            });
+        // Automatic Service Worker Unregistration to prevent browser caching of old HTML/JS
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (var registration of registrations) {
+                    registration.unregister();
+                }
+            }).catch(function () { });
         }
 
         /* ===== HIGH USAGE NETWORK STATUS SYNC ===== */
