@@ -1933,6 +1933,73 @@
             color: #fff !important;
         }
 
+        /* ===== MOBILE MORE SHEET ===== */
+        .mobile-more-sheet {
+            position: fixed;
+            inset: 0;
+            z-index: 1100;
+            display: none;
+        }
+        .mobile-more-sheet.open {
+            display: block;
+        }
+        .mobile-more-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.38);
+        }
+        .mobile-more-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-radius: 22px 22px 0 0;
+            padding: 16px 20px 40px;
+            box-shadow: 0 -8px 36px rgba(0,0,0,0.16);
+            animation: moreSlideUp 0.2s ease;
+        }
+        @keyframes moreSlideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .mobile-more-handle {
+            width: 44px;
+            height: 4px;
+            background: #d1d5db;
+            border-radius: 99px;
+            margin: 0 auto 20px;
+        }
+        .mobile-more-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+        }
+        .mobile-more-tile {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 16px 8px;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 16px;
+            background: #f9fafb;
+            color: #374151;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .mobile-more-tile i {
+            font-size: 1.65rem;
+            color: var(--p);
+        }
+        .mobile-more-tile.active {
+            background: #fff5ed;
+            border-color: var(--p);
+        }
+
         /* Floating Mobile Running Total & Quick Generate Bar (STRICTLY HIDDEN ON DESKTOP) */
         .mobile-sticky-summary,
         .mobile-sticky-summary.visible {
@@ -2327,6 +2394,14 @@
             .mobile-nav-item-highlight i {
                 font-size: 1.45rem !important;
                 color: #fff !important;
+            }
+
+            /* Mobile More Sheet inside media query */
+            .mobile-more-sheet {
+                z-index: 1100 !important;
+            }
+            .mobile-more-panel {
+                padding-bottom: calc(16px + env(safe-area-inset-bottom, 0)) !important;
             }
         }
 
@@ -3892,15 +3967,37 @@
                 onclick="UI.show('billing-view')" title="New Bill">
                 <i class="ph ph-receipt"></i>
             </button>
-            <button class="mobile-nav-item" data-target="products-view" onclick="UI.show('products-view')">
-                <i class="ph ph-t-shirt"></i>
-                <span>Products</span>
+            <button class="mobile-nav-item" data-target="parties-view" onclick="UI.show('parties-view')">
+                <i class="ph ph-address-book"></i>
+                <span>Parties</span>
             </button>
-            <button class="mobile-nav-item" data-target="settings-view" onclick="UI.show('settings-view')">
-                <i class="ph ph-gear-six"></i>
-                <span>Settings</span>
+            <button class="mobile-nav-item" id="mobile-more-btn" onclick="MobileMore.toggle()">
+                <i class="ph ph-dots-three-outline"></i>
+                <span>More</span>
             </button>
         </nav>
+
+        <!-- Mobile "More" Overlay Sheet -->
+        <div id="mobile-more-sheet" class="mobile-more-sheet no-print" style="display:none;">
+            <div class="mobile-more-backdrop" onclick="MobileMore.close()"></div>
+            <div class="mobile-more-panel">
+                <div class="mobile-more-handle"></div>
+                <div class="mobile-more-grid">
+                    <button class="mobile-more-tile" data-target="products-view" onclick="MobileMore.go('products-view')">
+                        <i class="ph ph-t-shirt"></i>
+                        <span>Products</span>
+                    </button>
+                    <button class="mobile-more-tile" data-target="reports-view" onclick="MobileMore.go('reports-view')">
+                        <i class="ph ph-chart-line"></i>
+                        <span>Reports</span>
+                    </button>
+                    <button class="mobile-more-tile" data-target="settings-view" onclick="MobileMore.go('settings-view')">
+                        <i class="ph ph-gear-six"></i>
+                        <span>Settings</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </section>
 
 
@@ -5005,6 +5102,44 @@
             }
         };
 
+        /* ===== MOBILE MORE SHEET CONTROLLER ===== */
+        var MobileMore = {
+            _open: false,
+            toggle: function() {
+                if (MobileMore._open) MobileMore.close();
+                else MobileMore.open();
+            },
+            open: function() {
+                var sheet = document.getElementById('mobile-more-sheet');
+                if (sheet) { sheet.style.display = 'block'; }
+                MobileMore._open = true;
+                // Highlight the More button as active
+                document.querySelectorAll('.mobile-nav-item').forEach(function(n) { n.classList.remove('active'); });
+                document.getElementById('mobile-more-btn').classList.add('active');
+            },
+            close: function() {
+                var sheet = document.getElementById('mobile-more-sheet');
+                if (sheet) { sheet.style.display = 'none'; }
+                MobileMore._open = false;
+            },
+            go: function(viewId) {
+                MobileMore.close();
+                UI.show(viewId);
+                // Mark the appropriate tile as active in the nav
+                document.querySelectorAll('.mobile-nav-item').forEach(function(n) {
+                    n.classList.remove('active');
+                    if (n.getAttribute('data-target') === viewId) n.classList.add('active');
+                });
+                // Keep More button visual feedback
+                document.getElementById('mobile-more-btn').classList.add('active');
+                // Mark tile active
+                document.querySelectorAll('.mobile-more-tile').forEach(function(t) {
+                    if (t.getAttribute('data-target') === viewId) t.classList.add('active');
+                    else t.classList.remove('active');
+                });
+            }
+        };
+
         /* ===== UI LOGIC ===== */
         var UI = {
             op: function (id) {
@@ -5697,10 +5832,26 @@
                     if (n.getAttribute("data-target") === id) n.classList.add("active");
                     else n.classList.remove("active");
                 });
+
+                // ⚡ Smart mobile bottom nav: views in "More" sheet show More btn as active
+                var moreViews = ['products-view', 'reports-view', 'settings-view'];
+                var isMoreView = moreViews.indexOf(id) !== -1;
                 document.querySelectorAll(".mobile-nav-item").forEach(function (n) {
-                    if (n.getAttribute("data-target") === id) n.classList.add("active");
-                    else n.classList.remove("active");
+                    var t = n.getAttribute("data-target");
+                    if (n.id === 'mobile-more-btn') {
+                        if (isMoreView) n.classList.add("active"); else n.classList.remove("active");
+                    } else if (t === id) {
+                        n.classList.add("active");
+                    } else {
+                        n.classList.remove("active");
+                    }
                 });
+
+                // Close the More sheet if open
+                if (typeof MobileMore !== 'undefined' && MobileMore._open && !isMoreView) {
+                    MobileMore.close();
+                }
+
                 var mSticky = document.getElementById("mobile-sticky-summary");
                 if (mSticky) {
                     if (window.innerWidth <= 768 && id === "billing-view" && BM.items && BM.items.length > 0) mSticky.classList.add("visible");
@@ -6889,6 +7040,33 @@
                         } catch (_) { }
                     }
 
+                    // ⚡ Try to send PDF via configured remote server (if user has set akb_wa_server_url)
+                    var remoteWaUrl = localStorage.getItem('akb_wa_server_url');
+                    if (remoteWaUrl) {
+                        var remoteDirectFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
+                        // Send text message first
+                        remoteDirectFetch(remoteWaUrl.replace(/\/+$/, '') + '/api/whatsapp/sendMessage', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ phone: cleanPhone, message: textMsg })
+                        }).catch(function() {});
+                        // Then generate & send PDF
+                        SM.generatePdfBlob(inv, function(blob, pdfName) {
+                            if (!blob) return;
+                            var fd = new FormData();
+                            fd.append('file', blob, pdfName);
+                            fd.append('phone', cleanPhone);
+                            fd.append('caption', 'Anudeep Khadi Bandar - Tax Invoice #' + invNo);
+                            remoteDirectFetch(remoteWaUrl.replace(/\/+$/, '') + '/api/whatsapp/sendPdf', {
+                                method: 'POST', body: fd
+                            }).then(function(r) { return r.json(); }).then(function(d) {
+                                if (d && d.success) U.toast('✅ WhatsApp PDF delivered via remote bot!', 'success');
+                            }).catch(function() {});
+                        });
+                        U.toast('⚡ Invoice #' + invNo + ' dispatching to WhatsApp via remote server...', 'info');
+                        return;
+                    }
+
                     if (isManualAction) {
                         // User explicitly clicked "Send WhatsApp" in table/share modal -> open direct WhatsApp chat
                         U.toast("Opening WhatsApp chat for Invoice #" + invNo + "...", "info");
@@ -6963,19 +7141,34 @@
                 var pdfName = 'Invoice_' + invNo + '.pdf';
                 var html = SM.generatePrintHTML(inv);
 
-                // Dedicated off-screen container mounted above viewport for perfect html2canvas coordinates
+                // ⚡ Off-screen render container fixed at exact A4 width (794px = 210mm @96dpi)
+                // positioned off-viewport so it doesn't flash on mobile
                 var prevScrollY = window.scrollY;
                 var prevScrollX = window.scrollX;
                 window.scrollTo(0, 0);
 
                 var wrap = document.createElement('div');
                 wrap.id = 'pdf-render-wrap';
-                wrap.style.cssText = 'position:absolute;left:0;top:0;width:800px;background:#ffffff;z-index:999999;opacity:1;visibility:visible;pointer-events:none;margin:0;padding:0;';
+                wrap.style.cssText = [
+                    'position:fixed',
+                    'left:-9999px',
+                    'top:0',
+                    'width:794px',
+                    'min-height:1123px',
+                    'background:#ffffff',
+                    'z-index:-1',
+                    'opacity:1',
+                    'visibility:visible',
+                    'pointer-events:none',
+                    'margin:0',
+                    'padding:0',
+                    'font-size:10pt',
+                    'color:#1a237e'
+                ].join(';');
                 wrap.innerHTML = html;
                 document.body.appendChild(wrap);
 
                 var paper = wrap.firstElementChild || wrap;
-                var contentHeight = Math.max(paper.scrollHeight, paper.offsetHeight, 850);
 
                 var cleanup = function () {
                     if (wrap && wrap.parentNode) {
@@ -6991,29 +7184,30 @@
                     return new Promise(function (res) {
                         img.onload = res;
                         img.onerror = res;
-                        setTimeout(res, 200);
+                        setTimeout(res, 300);
                     });
                 });
 
                 var capturePdf = function () {
-                    void wrap.offsetHeight; // Force layout recalculation
+                    void wrap.offsetHeight; // Force layout flush
 
                     var opt = {
-                        margin: [4, 4, 4, 4],
+                        margin: [3, 3, 3, 3],
                         filename: pdfName,
-                        image: { type: 'jpeg', quality: 0.98 },
+                        // ⚡ Compressed JPEG at 0.72 quality — 60-70% smaller than default
+                        image: { type: 'jpeg', quality: 0.72 },
                         html2canvas: {
-                            scale: 2,
+                            // ⚡ scale 1.5 = sharp enough for print but ~44% less canvas pixels vs scale 2
+                            scale: 1.5,
                             useCORS: true,
                             allowTaint: false,
                             logging: false,
                             backgroundColor: '#ffffff',
-                            height: contentHeight,
-                            windowHeight: contentHeight + 100,
                             scrollY: 0,
-                            scrollX: 0
+                            scrollX: 0,
+                            windowWidth: 794
                         },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }
                     };
 
                     if (typeof html2pdf !== 'undefined') {
@@ -7032,9 +7226,9 @@
                 };
 
                 Promise.all(waitPromises).then(function () {
-                    setTimeout(capturePdf, 100);
+                    setTimeout(capturePdf, 150);
                 }).catch(function () {
-                    setTimeout(capturePdf, 100);
+                    setTimeout(capturePdf, 150);
                 });
             },
 

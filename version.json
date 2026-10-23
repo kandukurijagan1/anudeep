@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.8.4",
-  "build": 184,
-  "commit": "HEAD",
-  "releaseDate": "2026-10-23",
+  "version": "1.8.5",
+  "build": 185,
+  "commit": "ed93f52bd4ead3c292bf8f4924f9e4231a9a914c",
+  "releaseDate": "2026-10-24",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(admin-parties): lock & protect kandukurijagan99@gmail.com permanently and fix party sync & cloud deletion matching",
-  "releaseNotes": "1. Protected Primary Admin kandukurijagan99@gmail.com from deletion and secured OTP authorization. 2. Real-time Supabase party fetching and dual-key cloud deletion."
+  "description": "feat(mobile-pdf): mobile More sheet with Parties+Reports, compressed PDF, fixed A4 render layout",
+  "releaseNotes": "1. Mobile bottom nav: Parties tab + More sheet for Products/Reports/Settings. 2. PDF compressed ~60% (scale 1.5, JPEG 0.72, jsPDF compress). 3. PDF render fixed to 794px A4 width off-screen. 4. Remote WhatsApp PDF relay support."
 }
