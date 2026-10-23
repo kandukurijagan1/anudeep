@@ -1669,8 +1669,10 @@ async function sendOTPEmail(email, otp) {
   }
 }
 
+const PRIMARY_ADMIN_EMAIL = 'kandukurijagan99@gmail.com';
+
 function getAuthorizedAdminEmails() {
-  const list = [];
+  const list = [PRIMARY_ADMIN_EMAIL];
   try {
     const st = readJsonFile('settings', {});
     if (Array.isArray(st.adminEmails) && st.adminEmails.length > 0) {

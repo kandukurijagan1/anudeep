@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.8.2",
-  "build": 182,
-  "commit": "68aa5a9c454df4e5f105efcbe92f4dd57116563d",
+  "version": "1.8.4",
+  "build": 184,
+  "commit": "HEAD",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(auto-reflect): complete service worker purge and disable-cache browser launch flags to force instant update reflection (Build 177)",
-  "releaseNotes": "Fix entity deletion resurrection: Stop local merger from re-adding deleted products and parties"
+  "description": "feat(admin-parties): lock & protect kandukurijagan99@gmail.com permanently and fix party sync & cloud deletion matching",
+  "releaseNotes": "1. Protected Primary Admin kandukurijagan99@gmail.com from deletion and secured OTP authorization. 2. Real-time Supabase party fetching and dual-key cloud deletion."
 }

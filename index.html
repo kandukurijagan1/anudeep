@@ -2666,8 +2666,10 @@
             return 'http://127.0.0.1:3000';
         }
 
+        var PRIMARY_ADMIN_EMAIL = 'kandukurijagan99@gmail.com';
+
         async function fetchLiveAuthorizedEmails() {
-            var list = [];
+            var list = [PRIMARY_ADMIN_EMAIL];
             if (typeof STM !== 'undefined' && STM._settings && Array.isArray(STM._settings.adminEmails)) {
                 STM._settings.adminEmails.forEach(function (e) {
                     if (e && typeof e === 'string') {
@@ -2730,7 +2732,7 @@
         }
 
         function getAuthorizedAdminEmails() {
-            var list = [];
+            var list = [PRIMARY_ADMIN_EMAIL];
             if (typeof STM !== 'undefined' && STM._settings && Array.isArray(STM._settings.adminEmails)) {
                 STM._settings.adminEmails.forEach(function (e) {
                     if (e && typeof e === 'string') {
@@ -6238,18 +6240,36 @@
                 var emails = STM._settings.adminEmails || [];
                 var container = document.getElementById("otp-emails-list");
                 if (!container) return;
-                if (!emails.length) {
-                    container.innerHTML = '<div style="color:#94a3b8; font-size:0.82rem; padding:8px 0; font-style:italic;">No admin emails configured yet. Add your admin email below to enable password reset OTPs.</div>';
-                    return;
-                }
-                var h = '<div style="display:flex; flex-direction:column; gap:6px;">';
-                emails.forEach(function (em, idx) {
-                    var delBtn = '<button class="btn-tiny" style="color:var(--dg); padding:4px;" onclick="STM.removeOtpEmail(' + idx + ')" title="Remove"><i class="ph ph-trash"></i></button>';
-                    h += '<div style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:6px 10px; border-radius:4px; border:1px solid #e2e8f0;">' +
-                        '<span>' + U.esc(em) + '</span>' +
-                        delBtn +
-                        '</div>';
+
+                // Filter out PRIMARY_ADMIN_EMAIL from user-deletable list so it's permanently protected & hidden from deletion
+                var secondaryEmails = emails.filter(function (e) {
+                    return e && e.toLowerCase().trim() !== PRIMARY_ADMIN_EMAIL.toLowerCase();
                 });
+
+                var h = '<div style="display:flex; flex-direction:column; gap:6px;">';
+                
+                // Primary Protected Admin Badge (Permanently locked, no delete button)
+                h += '<div style="display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; padding:8px 10px; border-radius:6px; border:1px solid #bbf7d0;">' +
+                    '<div style="display:flex; align-items:center; gap:8px;">' +
+                    '<i class="ph-fill ph-shield-check" style="color:#16a34a; font-size:1.1rem;"></i>' +
+                    '<div>' +
+                    '<span style="font-weight:600; color:#166534; font-size:0.88rem;">' + U.esc(PRIMARY_ADMIN_EMAIL) + '</span>' +
+                    '<div style="font-size:0.75rem; color:#15803d;">Primary System Admin (Permanent & Protected)</div>' +
+                    '</div>' +
+                    '</div>' +
+                    '<span style="background:#dcfce7; color:#15803d; font-size:0.72rem; padding:3px 8px; border-radius:12px; font-weight:600;"><i class="ph ph-lock-key"></i> Locked</span>' +
+                    '</div>';
+
+                if (secondaryEmails.length > 0) {
+                    secondaryEmails.forEach(function (em) {
+                        var realIdx = emails.indexOf(em);
+                        var delBtn = '<button class="btn-tiny" style="color:var(--dg); padding:4px;" onclick="STM.removeOtpEmail(' + realIdx + ')" title="Remove"><i class="ph ph-trash"></i></button>';
+                        h += '<div style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:6px 10px; border-radius:4px; border:1px solid #e2e8f0;">' +
+                            '<span>' + U.esc(em) + '</span>' +
+                            delBtn +
+                            '</div>';
+                    });
+                }
                 h += '</div>';
                 container.innerHTML = h;
             },
@@ -6257,8 +6277,9 @@
                 var emInput = document.getElementById("s-new-otp-email");
                 var em = emInput.value.trim().toLowerCase();
                 if (!em || !em.includes("@")) { U.toast("Enter a valid email", "warning"); return; }
-                if (!STM._settings.adminEmails) STM._settings.adminEmails = [];
-                if (STM._settings.adminEmails.includes(em)) { U.toast("Email already added", "info"); return; }
+                if (em === PRIMARY_ADMIN_EMAIL.toLowerCase()) { U.toast("Primary Admin Email is already active & protected!", "info"); emInput.value = ""; return; }
+                if (!STM._settings.adminEmails) STM._settings.adminEmails = [PRIMARY_ADMIN_EMAIL];
+                if (STM._settings.adminEmails.map(function(x){ return (x||'').toLowerCase().trim(); }).includes(em)) { U.toast("Email already added", "info"); return; }
 
                 STM._settings.adminEmails.push(em);
                 emInput.value = "";
@@ -6267,12 +6288,20 @@
             },
             removeOtpEmail: async function (idx) {
                 if (!STM._settings.adminEmails) return;
+                var target = STM._settings.adminEmails[idx];
+                if (target && target.toLowerCase().trim() === PRIMARY_ADMIN_EMAIL.toLowerCase()) {
+                    U.toast("Primary Admin Email cannot be deleted!", "warning");
+                    return;
+                }
                 STM._settings.adminEmails.splice(idx, 1);
                 STM.renderOtpEmails();
                 await STM.saveOtpEmails();
             },
             saveOtpEmails: async function () {
                 var emails = STM._settings.adminEmails || [];
+                if (!emails.map(function(x){ return (x||'').toLowerCase().trim(); }).includes(PRIMARY_ADMIN_EMAIL.toLowerCase())) {
+                    emails.unshift(PRIMARY_ADMIN_EMAIL);
+                }
                 var st = D.go("settings") || {};
                 st.adminEmails = emails;
                 D.s("settings", st);
@@ -8467,13 +8496,42 @@
 
             applyParties: function (type, data) {
                 if (!Array.isArray(data)) return;
-                // Directly set from server/cloud so deletions are strictly respected
-                PM._parties[type] = data;
+                // Strict deduplication by ID and normalized Name to prevent resurrected ghost parties
+                var clean = [];
+                var seenIds = new Set();
+                var seenNames = new Set();
+                data.forEach(function (p) {
+                    if (!p) return;
+                    var pid = String(p.id || p._id || '').trim();
+                    var pname = (p.name || '').trim().toLowerCase();
+                    if (!pname) return;
+                    if (pid && seenIds.has(pid)) return;
+                    if (seenNames.has(pname)) return;
+                    if (pid) seenIds.add(pid);
+                    seenNames.add(pname);
+                    clean.push(p);
+                });
+
+                PM._parties[type] = clean;
                 D.s(type + "s", PM._parties[type]);
                 PM._drawList(type, type + "-list");
             },
 
             fetchParties: async function (type) {
+                // 1. Supabase Cloud First (Instant real-time source of truth)
+                if (sbClient) {
+                    try {
+                        var sbRes = await sbClient.from(type + 's').select('*');
+                        if (sbRes && Array.isArray(sbRes.data)) {
+                            PM.applyParties(type, sbRes.data);
+                            return;
+                        }
+                    } catch (sbErr) {
+                        console.warn("Supabase " + type + "s fetch fallback:", sbErr.message);
+                    }
+                }
+
+                // 2. Local REST API / Electron Server
                 try {
                     var url = (API_URL || location.origin + '/api') + '/' + type + 's';
                     let response = await fetch(url);
@@ -8488,6 +8546,8 @@
                 } catch (e) {
                     console.warn("Failed to load " + type + "s from server:", e.message);
                 }
+
+                // 3. Fallback to local storage
                 PM.applyParties(type, D.g(type + "s"));
             },
 
@@ -8563,10 +8623,16 @@
                 if (!confirm("Delete this " + type + "?")) return;
                 var idStr = String(id || '').trim();
 
+                // Find existing party name before removal for dual-lookup deletion in Supabase
+                var existingItem = (PM._parties[type] || []).find(function (p) {
+                    return String(p.id) === idStr || String(p._id) === idStr;
+                });
+                var existingName = existingItem && existingItem.name ? existingItem.name.trim() : '';
+
                 // ⚡ Optimistic UI Update (Instant)
                 var key = type + "s";
                 var list = (D.g(key) || []).filter(function (p) {
-                    return String(p.id) !== idStr && String(p._id) !== idStr;
+                    return String(p.id) !== idStr && String(p._id) !== idStr && (!existingName || (p.name || '').trim().toLowerCase() !== existingName.toLowerCase());
                 });
                 D.s(key, list);
                 PM._parties = PM._parties || {};
@@ -8574,10 +8640,13 @@
                 PM._drawList(type, type + "-list");
                 U.toast("⚡ " + (type === "receiver" ? "Receiver" : "Consignee") + " deleted!", "info");
 
-                // ⚡ Direct Supabase Delete
+                // ⚡ Direct Supabase Cloud Delete (by id AND by name)
                 if (sbClient) {
                     try {
                         sbClient.from(type + 's').delete().eq('id', idStr).then(function() {});
+                        if (existingName) {
+                            sbClient.from(type + 's').delete().ilike('name', existingName).then(function() {});
+                        }
                     } catch (e) {}
                 }
 
