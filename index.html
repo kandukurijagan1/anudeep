@@ -6185,6 +6185,11 @@
                             var sres = await fetch((API_URL || location.origin + '/api') + '/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(t.settings) });
                             if (!sres.ok) throw new Error("Failed");
                         } else if (t.type === 'invoice_delete') {
+                            if (sbClient && t.id) {
+                                try {
+                                    await sbClient.from('invoices').delete().eq('id', String(t.id));
+                                } catch(_) {}
+                            }
                             var dres = await fetch(t.url, { method: 'DELETE' });
                             if (!dres.ok) throw new Error("Failed");
                         }
@@ -9319,6 +9324,24 @@
                         })
                         .subscribe();
 
+                    // Settings Channel (Keeps next invoice number in sync across counters)
+                    sbClient.channel('realtime_settings')
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, async function (payload) {
+                            try {
+                                var stData = payload.new ? (payload.new.data || payload.new) : null;
+                                if (stData && stData.nextInvoiceNo) {
+                                    var curSt = D.go('settings') || {};
+                                    curSt.nextInvoiceNo = parseInt(stData.nextInvoiceNo, 10);
+                                    D.s('settings', curSt);
+                                    var invnoEl = document.getElementById('b-invno');
+                                    if (invnoEl && (!BM._userEditedInvNo || invnoEl.value === '')) {
+                                        invnoEl.value = U.pi(curSt.nextInvoiceNo);
+                                    }
+                                }
+                            } catch (_) {}
+                        })
+                        .subscribe();
+
                     RTM.connected = true;
                     RTM.updateBadge('connected');
                 } catch (sbErr) {
@@ -9524,14 +9547,35 @@
                     DM.render();
                 } else if (type === 'invoice_deleted') {
                     var delId = String(data.id || '');
+                    var delNum = data.invoiceNo ? String(data.invoiceNo) : '';
+
+                    // 1. Record in local permanent tombstone so it can NEVER be resurrected
+                    var deletedList = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
+                    if (delId && !deletedList.includes(delId)) deletedList.push(delId);
+                    if (delNum && !deletedList.includes(delNum)) deletedList.push(delNum);
+                    localStorage.setItem('akb_deleted_invoices', JSON.stringify(deletedList));
+
+                    // 2. Filter from active ledger
                     var curInvs = D.g("invoices") || [];
-                    curInvs = curInvs.filter(function (i) { return String(i.id) !== delId && String(i._id) !== delId && String(i.invoiceNo) !== delId; });
+                    curInvs = curInvs.filter(function (i) { 
+                        var iid = String(i.id || i._id || '');
+                        var inum = String(i.invoiceNo || '');
+                        return iid !== delId && inum !== delId && (!delNum || inum !== delNum); 
+                    });
                     D.s("invoices", curInvs);
                     if (IM._all) {
-                        IM._all = IM._all.filter(function (i) { return String(i.id) !== delId && String(i._id) !== delId && String(i.invoiceNo) !== delId; });
+                        IM._all = IM._all.filter(function (i) { 
+                            var iid = String(i.id || i._id || '');
+                            var inum = String(i.invoiceNo || '');
+                            return iid !== delId && inum !== delId && (!delNum || inum !== delNum); 
+                        });
+                        IM.sortAndSyncNextNo();
+                        var badge = document.getElementById('inv-count-badge');
+                        if (badge) badge.textContent = '(' + (IM._all.length || 0) + ')';
                         IM._draw(IM._all);
                     }
                     DM.render();
+                    U.toast("⚡ Cloud Sync: Invoice deleted (" + (delNum ? ('#' + delNum) : delId) + ")", "info");
                 } else if (type === 'products_updated') {
                     if (data.products && Array.isArray(data.products)) {
                         PDM.applyProducts(data.products);
@@ -9658,8 +9702,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.7.8',
-            build: 178,
+            currentVersion: '1.7.9',
+            build: 179,
             hasUpdate: false,
             latestInfo: null,
 

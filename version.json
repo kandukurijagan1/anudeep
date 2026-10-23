@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.7.8",
-  "build": 178,
+  "version": "1.7.9",
+  "build": 179,
   "commit": "442f7a2bbccd96948f81fdb2896ca087edd48a22",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
   "description": "feat(auto-reflect): complete service worker purge and disable-cache browser launch flags to force instant update reflection (Build 177)",
-  "releaseNotes": "Full Bi-directional Real-Time Cloud Sync: Instant deletion and generation reflection between Website and Desktop App"
+  "releaseNotes": "Advanced Cloud Engine: Resilient tombstone persistence, settings live-sync, and offline-queue Supabase support"
 }
