@@ -1,5 +1,66 @@
 [
   {
+    "id": 1792770305654,
+    "invoiceNo": 70,
+    "date": "2026-10-23",
+    "state": "ANDHRA PRADESH",
+    "reverseCharge": "No",
+    "transportMode": "YUGHJ",
+    "lrNo": "UYHJN",
+    "transportDate": "2026-10-23",
+    "supplyDate": "2026-10-23",
+    "bundles": "3",
+    "placeOfSupply": "TENALI",
+    "stateCode": "37",
+    "receiver": {
+      "name": "UYGHJBN",
+      "phone": "8367047947",
+      "address": "YUHJM",
+      "gstin": "",
+      "state": "ANDHRA PRADESH",
+      "stateCode": "37"
+    },
+    "consignee": {
+      "name": "UGYHJNM",
+      "phone": "8367047947",
+      "address": "YUHJBN",
+      "gstin": "",
+      "state": "ANDHRA PRADESH",
+      "stateCode": "37"
+    },
+    "customerPhone": "8367047947",
+    "items": [
+      {
+        "baleNo": "1",
+        "description": "WHITE KHADI SHIRT",
+        "hsn": "5208",
+        "calcType": "meters",
+        "quantity": 1,
+        "qty": 1,
+        "price": 650,
+        "rate": 650,
+        "meters": 55555,
+        "cms": 5,
+        "totalMeters": 55555.05,
+        "amount": 36110782.5
+      }
+    ],
+    "taxableAmount": 36110782.5,
+    "cgstAmount": 902769.56,
+    "sgstAmount": 902769.56,
+    "igstAmount": 0,
+    "rawGrandTotal": 37916321.62,
+    "roundOff": 0.38,
+    "totalAmount": 37916322,
+    "isInterState": false,
+    "apiKey": "",
+    "action": "createInvoice",
+    "subtotal": 36110782.5,
+    "tax": 1805539.12,
+    "grandTotal": 37916322,
+    "_version": 1
+  },
+  {
     "id": "1792642487926",
     "invoiceNo": 19,
     "date": "2026-10-22",
