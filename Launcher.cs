@@ -235,9 +235,17 @@ namespace AnudeepKhadiBandar
 
         private static void EnsureBackendRunning()
         {
+            // 1. Check if local backend is responding
             bool localResponding = IsUrlResponding("http://127.0.0.1:3000/api/health", 500);
 
+            // 2. If not local, check if Host Workstation on LAN is responding
+            bool lanResponding = false;
             if (!localResponding)
+            {
+                lanResponding = IsUrlResponding("http://10.209.191.184:3000/api/health", 600);
+            }
+
+            if (!localResponding && !lanResponding)
             {
                 string serverJs = FindServerJs();
                 string nodeExe = FindNodeExe();
@@ -261,6 +269,10 @@ namespace AnudeepKhadiBandar
             if (localResponding)
             {
                 activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
+            }
+            else if (lanResponding)
+            {
+                activeUrl = "http://10.209.191.184:3000/?mode=dedicated_app";
             }
             else
             {

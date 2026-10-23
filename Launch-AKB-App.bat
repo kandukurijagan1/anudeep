@@ -17,17 +17,27 @@ copy /Y "%APPDATA%\AnudeepKhadiBandar\data\invoices.json" "%~dp0data\invoices.js
 
 
 :: 1. Ensure background Node.js server is running
+:: On client machines, check if Host Workstation (10.209.191.184) is reachable first!
 curl -s -m 1 http://127.0.0.1:3000/api/health >nul 2>&1
-if errorlevel 1 (
-    echo Starting background server on port 3000...
-    if exist "C:\Program Files\nodejs\node.exe" (
-        start "AKB-Backend-Server" /min "C:\Program Files\nodejs\node.exe" "%~dp0server.js"
-    ) else if exist "node.exe" (
-        start "AKB-Backend-Server" /min "%~dp0node.exe" "%~dp0server.js"
+if not errorlevel 1 (
+    set "TARGET_HOST_URL=http://127.0.0.1:3000"
+) else (
+    curl -s -m 1 http://10.209.191.184:3000/api/health >nul 2>&1
+    if not errorlevel 1 (
+        echo Found Host Workstation on LAN: http://10.209.191.184:3000
+        set "TARGET_HOST_URL=http://10.209.191.184:3000"
     ) else (
-        start "AKB-Backend-Server" /min node "%~dp0server.js"
+        echo Starting local background server on port 3000...
+        if exist "C:\Program Files\nodejs\node.exe" (
+            start "AKB-Backend-Server" /min "C:\Program Files\nodejs\node.exe" "%~dp0server.js"
+        ) else if exist "node.exe" (
+            start "AKB-Backend-Server" /min "%~dp0node.exe" "%~dp0server.js"
+        ) else (
+            start "AKB-Backend-Server" /min node "%~dp0server.js"
+        )
+        timeout /t 2 /nobreak >nul 2>&1
+        set "TARGET_HOST_URL=http://127.0.0.1:3000"
     )
-    timeout /t 2 /nobreak >nul 2>&1
 )
 
 :: 2. Launch via Electron (Preferred: Full native workstation container)
@@ -48,7 +58,11 @@ if exist "AKB-Billing.exe" (
     exit
 )
 
-:: 5. Fallback: Launch MS Edge in dedicated app mode connected to local backend
-start msedge --app="http://127.0.0.1:3000/?mode=dedicated_app"
+:: 5. Fallback: Launch MS Edge in dedicated app mode connected to host or local backend
+if defined TARGET_HOST_URL (
+    start msedge --app="%TARGET_HOST_URL%/?mode=dedicated_app"
+) else (
+    start msedge --app="http://10.209.191.184:3000/?mode=dedicated_app"
+)
 exit
 
