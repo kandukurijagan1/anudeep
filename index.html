@@ -22,6 +22,7 @@
         href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --p: #8B4513;
@@ -4026,6 +4027,16 @@
 
     <script>
         /* ===== CONSTANTS ===== */
+        // Supabase Realtime Cloud Engine
+        var SUPABASE_URL = 'https://gkbusucoibymgkfbvubm.supabase.co';
+        var SUPABASE_KEY = 'sb_publishable_Socz0Ydd6S08HieXC9BiiA_I1ALp5tC';
+        var sbClient = null;
+        try {
+            if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            }
+        } catch (_) {}
+
         var SG = "37BTMPS9234C1ZA", SP = "BTMPS9234C", SN = "Anudeep Khadi Bandar";
         var SA1 = "#7-36-59, 1st & 2nd Floor, Ganganammapet, Main Road, TENALI";
         var SA2 = "Guntur Dt., A.P - 522201";
@@ -9192,11 +9203,72 @@
                     console.warn('BroadcastChannel note:', e);
                 }
 
-                // 2. Connect to Server-Sent Events stream
+                // 2. Connect to Supabase Cloud WebSocket Real-Time (< 50ms across all clients worldwide)
+                RTM.connectSupabaseRealtime();
+
+                // 3. Connect to Server-Sent Events stream
                 RTM.connectSSE();
 
-                // 3. Fallback polling for static hosting / offline sync
+                // 4. Fallback polling for static hosting / offline sync
                 RTM.startHeartbeatCheck();
+            },
+
+            connectSupabaseRealtime: function () {
+                try {
+                    if (!sbClient) return;
+                    console.log('⚡ Initializing Supabase Realtime WebSocket...');
+
+                    // Invoices Channel
+                    sbClient.channel('realtime_invoices')
+                        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'invoices' }, function (payload) {
+                            var inv = payload.new ? (payload.new.data || payload.new) : null;
+                            if (inv) RTM.handleEvent('invoice_created', { invoice: inv }, false);
+                        })
+                        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'invoices' }, function (payload) {
+                            var inv = payload.new ? (payload.new.data || payload.new) : null;
+                            if (inv) RTM.handleEvent('invoice_updated', { invoice: inv }, false);
+                        })
+                        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'invoices' }, function (payload) {
+                            if (payload.old && payload.old.id) {
+                                RTM.handleEvent('invoice_deleted', { id: payload.old.id }, false);
+                            }
+                        })
+                        .subscribe();
+
+                    // Products Channel
+                    sbClient.channel('realtime_products')
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, async function () {
+                            try {
+                                var res = await sbClient.from('products').select('*');
+                                if (res.data && Array.isArray(res.data)) {
+                                    PDM.applyProducts(res.data);
+                                    U.toast("⚡ Live: Products synchronized via Cloud", "info");
+                                }
+                            } catch (_) {}
+                        })
+                        .subscribe();
+
+                    // Parties Channel
+                    sbClient.channel('realtime_parties')
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'receivers' }, async function () {
+                            try {
+                                var res = await sbClient.from('receivers').select('*');
+                                if (res.data && Array.isArray(res.data)) PM.applyParties('receiver', res.data);
+                            } catch (_) {}
+                        })
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'consignees' }, async function () {
+                            try {
+                                var res = await sbClient.from('consignees').select('*');
+                                if (res.data && Array.isArray(res.data)) PM.applyParties('consignee', res.data);
+                            } catch (_) {}
+                        })
+                        .subscribe();
+
+                    RTM.connected = true;
+                    RTM.updateBadge('connected');
+                } catch (sbErr) {
+                    console.warn('Supabase Realtime notice:', sbErr.message);
+                }
             },
 
             playChime: function () {

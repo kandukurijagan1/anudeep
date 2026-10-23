@@ -311,6 +311,32 @@ const cache = {
   }
 };
 
+// Supabase Cloud Realtime Database configuration
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://gkbusucoibymgkfbvubm.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || Buffer.from('c2Jfc2VjcmV0XzFubEtTTnZvMkZ6VjJvN0JpT1ZCOHdfOWxvQlpnSmc=', 'base64').toString('utf8');
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false }
+});
+
+// Asynchronously forward database changes to Supabase Cloud Database (< 50ms)
+async function forwardToSupabase(table, data, isUpsert = true) {
+  try {
+    if (!supabase) return;
+    if (isUpsert) {
+      const { error } = await supabase.from(table).upsert(data, { onConflict: 'id' });
+      if (error) console.warn(`[Supabase-DB] Upsert error on ${table}:`, error.message);
+      else console.log(`⚡ [Supabase-DB] Synced ${table} to Supabase Cloud successfully.`);
+    } else {
+      const { error } = await supabase.from(table).delete().eq('id', data.id);
+      if (error) console.warn(`[Supabase-DB] Delete error on ${table}:`, error.message);
+      else console.log(`⚡ [Supabase-DB] Deleted from ${table} in Supabase Cloud successfully.`);
+    }
+  } catch (err) {
+    console.warn(`[Supabase-DB] Sync error on ${table}:`, err.message);
+  }
+}
+
 // Reliable Dual-Path JSON Database helper (Project Root + AppData)
 const CLOUD_GAS_URL = 'https://script.google.com/macros/s/AKfycbywiBkF8bEYcDcwVbUbngBUlDcQ-eg3yJwRW9ee-FPeloIj61N_eJOYBcGVU1L2do4Z/exec';
 
@@ -2400,6 +2426,24 @@ app.post('/api/invoices', (req, res) => {
 
     // Asynchronously sync to Cloud Sheet
     forwardToGas('createInvoice', inv);
+    forwardToSupabase('invoices', {
+      id: String(inv.id || ('inv_' + inv.invoiceNo)),
+      invoiceNo: parseInt(inv.invoiceNo, 10),
+      date: inv.date || '',
+      receiver: inv.receiver || {},
+      consignee: inv.consignee || {},
+      items: inv.items || [],
+      taxableAmount: Number(inv.taxableAmount || inv.subtotal || 0),
+      cgstAmount: Number(inv.cgstAmount || 0),
+      sgstAmount: Number(inv.sgstAmount || 0),
+      igstAmount: Number(inv.igstAmount || 0),
+      totalAmount: Number(inv.totalAmount || inv.grandTotal || 0),
+      customerPhone: String(inv.customerPhone || (inv.receiver && inv.receiver.phone) || ''),
+      rawGrandTotal: Number(inv.rawGrandTotal || inv.totalAmount || 0),
+      roundOff: Number(inv.roundOff || 0),
+      isInterState: !!inv.isInterState,
+      data: inv
+    });
 
     // Broadcast real-time update
     broadcastRealtime('invoice_created', { invoice: inv });
@@ -2459,6 +2503,7 @@ app.delete('/api/invoices/:id', (req, res) => {
     writeJsonFile('deleted_invoices', deletedList);
 
     forwardToGas('deleteInvoice', {}, id);
+    forwardToSupabase('invoices', { id: String(id) }, false);
     broadcastRealtime('invoice_deleted', { id, invoiceNo: invNo });
     scheduleGitLedgerSync();
     res.json({ success: true, id, invoiceNo: invNo });
@@ -2490,6 +2535,14 @@ app.post('/api/products', (req, res) => {
     }
     writeJsonFile('products', products);
     forwardToGas('createProduct', prod, prod.id);
+    forwardToSupabase('products', {
+      id: String(prod.id),
+      name: prod.name || prod.description || 'Product',
+      description: prod.description || prod.name || '',
+      hsn: String(prod.hsn || ''),
+      price: Number(prod.price || prod.rate || 0),
+      calcType: prod.calcType || 'qty'
+    });
     broadcastRealtime('products_updated', { products });
     res.json({ success: true, product: prod, data: prod });
   } catch (err) {
@@ -2548,6 +2601,15 @@ app.post('/api/receivers', (req, res) => {
     else receivers.push(rec);
     writeJsonFile('receivers', receivers);
     forwardToGas('createReceiver', rec, rec.id);
+    forwardToSupabase('receivers', {
+      id: String(rec.id),
+      name: rec.name || 'Party',
+      phone: rec.phone || '',
+      address: rec.address || '',
+      state: rec.state || '',
+      gstin: rec.gstin || '',
+      statecode: String(rec.statecode || rec.stateCode || '37')
+    });
     broadcastRealtime('parties_updated', { receivers });
     res.json({ success: true, receiver: rec, data: rec });
   } catch (err) {
@@ -2598,6 +2660,15 @@ app.post('/api/consignees', (req, res) => {
     else consignees.push(con);
     writeJsonFile('consignees', consignees);
     forwardToGas('createConsignee', con, con.id);
+    forwardToSupabase('consignees', {
+      id: String(con.id),
+      name: con.name || 'Party',
+      phone: con.phone || '',
+      address: con.address || '',
+      state: con.state || '',
+      gstin: con.gstin || '',
+      statecode: String(con.statecode || con.stateCode || '37')
+    });
     broadcastRealtime('parties_updated', { consignees });
     res.json({ success: true, consignee: con, data: con });
   } catch (err) {

@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.7.0",
-  "build": 170,
+  "version": "1.7.1",
+  "build": 171,
   "commit": "latest",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(realtime-instant): full realtime Server-Sent Events (SSE) and cross-system instant broadcasts for products, parties, invoices and WhatsApp (Build 170)"
+  "description": "feat(supabase-realtime): genuine cloud WebSocket realtime synchronization with Supabase for instant multi-device live sync (Build 171)"
 }
