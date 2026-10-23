@@ -327,15 +327,46 @@ try {
         const inv = payload.new ? (payload.new.data || payload.new) : null;
         if (inv) {
           console.log(`⚡ [Supabase-Realtime] Detected new invoice #${inv.invoiceNo || inv.id}. Auto-dispatching WhatsApp...`);
+          // Also sync to local json ledger so host stays 100% updated
+          let invoices = readJsonFile('invoices', []);
+          const exists = invoices.some(i => String(i.id || i._id) === String(inv.id) || String(i.invoiceNo) === String(inv.invoiceNo));
+          if (!exists) {
+            invoices.unshift(inv);
+            writeJsonFile('invoices', invoices);
+            _invoicesVersion = Date.now();
+            broadcastRealtime('invoice_created', { invoice: inv });
+          }
           await autoDispatchBots(inv);
         }
       } catch (dispErr) {
         console.warn('[Supabase-Realtime] Dispatch error:', dispErr.message);
       }
     })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'invoices' }, (payload) => {
+      try {
+        const delId = payload.old ? String(payload.old.id || payload.old.invoiceNo) : '';
+        if (delId) {
+          console.log(`⚡ [Supabase-Realtime] Detected deletion from website/cloud for invoice ID: ${delId}`);
+          let invoices = readJsonFile('invoices', []);
+          invoices = invoices.filter(i => String(i.id || i._id) !== delId && String(i.invoiceNo) !== delId);
+          writeJsonFile('invoices', invoices);
+          _invoicesVersion = Date.now();
+          
+          let deletedList = readJsonFile('deleted_invoices', []);
+          if (delId.length > 5 && !deletedList.includes(delId)) {
+            deletedList.push(delId);
+            writeJsonFile('deleted_invoices', deletedList);
+          }
+
+          broadcastRealtime('invoice_deleted', { id: delId });
+        }
+      } catch (delErr) {
+        console.warn('[Supabase-Realtime] Delete sync error:', delErr.message);
+      }
+    })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        console.log('⚡ [Supabase-Realtime] Store WhatsApp Bot subscribed to live Supabase cloud invoice stream.');
+        console.log('⚡ [Supabase-Realtime] Store WhatsApp Bot subscribed to live Supabase cloud invoice stream (INSERT + DELETE).');
       }
     });
 } catch (e) {

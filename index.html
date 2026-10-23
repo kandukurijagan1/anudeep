@@ -8074,6 +8074,13 @@
                 if (typeof BM !== 'undefined' && BM.updateProductDropdown) BM.updateProductDropdown();
                 U.toast("⚡ Product deleted!", "info");
 
+                // ⚡ Direct Supabase Delete
+                if (sbClient) {
+                    try {
+                        sbClient.from('products').delete().eq('id', idStr).then(function() {});
+                    } catch (e) {}
+                }
+
                 // ⚡ Background DB Sync
                 (async function () {
                     try {
@@ -8396,6 +8403,13 @@
                 PM._parties[type] = list;
                 PM._drawList(type, type + "-list");
                 U.toast("⚡ " + (type === "receiver" ? "Receiver" : "Consignee") + " deleted!", "info");
+
+                // ⚡ Direct Supabase Delete
+                if (sbClient) {
+                    try {
+                        sbClient.from(type + 's').delete().eq('id', idStr).then(function() {});
+                    } catch (e) {}
+                }
 
                 // ⚡ Background DB Sync
                 (async function () {
@@ -8959,22 +8973,40 @@
                 U.toast("Invoice deleted", "info");
                 if (typeof RTM !== 'undefined' && RTM.broadcastLocal) RTM.broadcastLocal('invoice_deleted', { id: idStr });
 
-                // 4. Background server deletion
-                var deleteUrl = (API_URL || location.origin + '/api') + '/invoices/' + encodeURIComponent(idStr);
+                // 4. Direct Supabase Cloud Deletion (< 30ms instant sync across all apps & websites)
+                if (sbClient) {
+                    try {
+                        var delQuery = sbClient.from("invoices").delete();
+                        if (target && target.invoiceNo) {
+                            delQuery = delQuery.or("id.eq." + idStr + ",invoiceNo.eq." + target.invoiceNo);
+                        } else {
+                            delQuery = delQuery.eq("id", idStr);
+                        }
+                        delQuery.then(function(res) {
+                            console.log("⚡ [Supabase-DB] Deleted invoice from Supabase Cloud:", idStr, res);
+                        });
+                        sbClient.from("settings").upsert({ id: "app_settings", nextInvoiceNo: newNextNo }).then(function() {});
+                    } catch (sbErr) {
+                        console.warn("[Supabase-DB] Deletion error:", sbErr.message);
+                    }
+                }
+
+                // 5. Background server deletion
+                var deleteUrl = (API_URL || location.origin + "/api") + "/invoices/" + encodeURIComponent(idStr);
                 try {
-                    await fetch(deleteUrl, { method: 'DELETE' });
-                    fetch((API_URL || location.origin + '/api') + '/settings', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                    await fetch(deleteUrl, { method: "DELETE" });
+                    fetch((API_URL || location.origin + "/api") + "/settings", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ nextInvoiceNo: newNextNo })
                     }).catch(function () {
-                        if (typeof OM !== 'undefined') OM.push({ type: 'settings_update', settings: { nextInvoiceNo: newNextNo } });
+                        if (typeof OM !== "undefined") OM.push({ type: "settings_update", settings: { nextInvoiceNo: newNextNo } });
                     });
                 } catch (err) {
                     console.warn("Background server deletion warning:", err.message);
-                    if (typeof OM !== 'undefined') {
-                        OM.push({ type: 'invoice_delete', url: deleteUrl, id: idStr });
-                        OM.push({ type: 'settings_update', settings: { nextInvoiceNo: newNextNo } });
+                    if (typeof OM !== "undefined") {
+                        OM.push({ type: "invoice_delete", url: deleteUrl, id: idStr });
+                        OM.push({ type: "settings_update", settings: { nextInvoiceNo: newNextNo } });
                     }
                 }
             }
@@ -9251,8 +9283,9 @@
                             if (inv) RTM.handleEvent('invoice_updated', { invoice: inv }, false);
                         })
                         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'invoices' }, function (payload) {
-                            if (payload.old && payload.old.id) {
-                                RTM.handleEvent('invoice_deleted', { id: payload.old.id }, false);
+                            var oldId = payload.old ? (payload.old.id || payload.old.invoiceNo) : null;
+                            if (oldId) {
+                                RTM.handleEvent('invoice_deleted', { id: oldId, invoiceNo: payload.old.invoiceNo }, false);
                             }
                         })
                         .subscribe();
@@ -9625,8 +9658,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.7.7',
-            build: 177,
+            currentVersion: '1.7.8',
+            build: 178,
             hasUpdate: false,
             latestInfo: null,
 
