@@ -583,14 +583,24 @@ async function safeDestroyClient() {
 
 function backupAuthDirectory() {
   try {
-    const authDir = path.join(AKB_DIR, '.wwebjs_auth');
-    const backupDir = path.join(AKB_DIR, '.wwebjs_auth_backup');
-    const levelDbDir = path.join(authDir, 'session', 'Default', 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
+    const authDefault = path.join(AKB_DIR, '.wwebjs_auth', 'session', 'Default');
+    const backupDefault = path.join(AKB_DIR, '.wwebjs_auth_backup', 'session', 'Default');
+    const levelDbDir = path.join(authDefault, 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
     if (fs.existsSync(levelDbDir)) {
       const files = fs.readdirSync(levelDbDir).filter(f => f.endsWith('.ldb'));
       if (files.length > 0) {
-        fs.cpSync(authDir, backupDir, { recursive: true, force: true });
-        console.log(`🛡️ [WhatsApp Auth] Backed up active session directory (${files.length} ldb files) to .wwebjs_auth_backup`);
+        ['IndexedDB', 'Local Storage'].forEach(sub => {
+          const src = path.join(authDefault, sub);
+          const dest = path.join(backupDefault, sub);
+          if (fs.existsSync(src)) {
+            fs.cpSync(src, dest, {
+              recursive: true,
+              force: true,
+              filter: (file) => path.basename(file) !== 'LOCK'
+            });
+          }
+        });
+        console.log(`🛡️ [WhatsApp Auth] Backed up active session storage (${files.length} ldb files) to .wwebjs_auth_backup`);
       }
     }
   } catch (err) {
@@ -600,17 +610,27 @@ function backupAuthDirectory() {
 
 function ensureAuthSessionFromBackup() {
   try {
-    const authDir = path.join(AKB_DIR, '.wwebjs_auth');
-    const backupDir = path.join(AKB_DIR, '.wwebjs_auth_backup');
-    const levelDbDir = path.join(authDir, 'session', 'Default', 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
-    const backupLevelDbDir = path.join(backupDir, 'session', 'Default', 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
+    const authDefault = path.join(AKB_DIR, '.wwebjs_auth', 'session', 'Default');
+    const backupDefault = path.join(AKB_DIR, '.wwebjs_auth_backup', 'session', 'Default');
+    const levelDbDir = path.join(authDefault, 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
+    const backupLevelDbDir = path.join(backupDefault, 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
 
     const hasLdb = fs.existsSync(levelDbDir) && fs.readdirSync(levelDbDir).some(f => f.endsWith('.ldb') && fs.statSync(path.join(levelDbDir, f)).size > 10000);
     const backupHasLdb = fs.existsSync(backupLevelDbDir) && fs.readdirSync(backupLevelDbDir).some(f => f.endsWith('.ldb') && fs.statSync(path.join(backupLevelDbDir, f)).size > 10000);
 
     if (!hasLdb && backupHasLdb) {
-      console.log('🛡️ [WhatsApp Auth] Detected missing/corrupted session files. Restoring from .wwebjs_auth_backup...');
-      fs.cpSync(backupDir, authDir, { recursive: true, force: true });
+      console.log('🛡️ [WhatsApp Auth] Detected missing session files. Restoring from .wwebjs_auth_backup...');
+      ['IndexedDB', 'Local Storage'].forEach(sub => {
+        const src = path.join(backupDefault, sub);
+        const dest = path.join(authDefault, sub);
+        if (fs.existsSync(src)) {
+          fs.cpSync(src, dest, {
+            recursive: true,
+            force: true,
+            filter: (file) => path.basename(file) !== 'LOCK'
+          });
+        }
+      });
       cleanChromeLockFiles();
       console.log('🛡️ [WhatsApp Auth] Session successfully restored from backup.');
     }
