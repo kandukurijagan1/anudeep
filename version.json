@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.7.3",
-  "build": 173,
+  "version": "1.7.4",
+  "build": 174,
   "commit": "latest",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(supabase-whatsapp): cloud real-time WhatsApp auto-dispatch between client machines and host bot (Build 173)"
+  "description": "fix(sync-purge): purge resurrected test invoice 70 and switch all background checks to Supabase (Build 174)"
 }
