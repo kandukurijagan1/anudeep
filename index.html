@@ -10255,7 +10255,7 @@
             }
         }
 
-        var _waSavedPhone = '';
+        var _waSavedPhone = localStorage.getItem('akb_wa_phone') || '918367047947';
         var _waActiveTab = 'qr';
 
         async function setWaTab(tab) {

@@ -725,22 +725,29 @@ async function cleanupAndQuit() {
     isQuitting = true;
     console.log('[Electron] Initiating clean application shutdown...');
 
-    // 1. Tell backend to gracefully release WhatsApp and clean locks
+    // 1. Tell backend to gracefully release WhatsApp and cleanly flush database
     try {
-        const req = http.request({
-            hostname: '127.0.0.1',
-            port: 3000,
-            path: '/api/shutdown',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-App-Token': APP_SECRET_TOKEN
-            },
-            timeout: 1000
+        await new Promise((resolve) => {
+            const req = http.request({
+                hostname: '127.0.0.1',
+                port: 3000,
+                path: '/api/shutdown',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-App-Token': APP_SECRET_TOKEN
+                },
+                timeout: 6000
+            });
+            req.on('response', (res) => {
+                res.on('data', () => {});
+                res.on('end', resolve);
+            });
+            req.on('error', () => resolve());
+            req.on('timeout', () => { req.destroy(); resolve(); });
+            req.end();
+            setTimeout(resolve, 5000);
         });
-        req.on('error', () => {});
-        req.end();
-        await new Promise(r => setTimeout(r, 600));
     } catch (_) {}
 
     // 2. Kill serverChild if still active

@@ -156,9 +156,17 @@ function requireAuth(req, res, next) {
 }
 
 // Protected shutdown route
-app.post('/api/shutdown', requireAuth, (req, res) => {
-  res.json({ success: true, message: 'Shutting down gracefully...' });
-  setTimeout(gracefulExit, 500);
+app.post('/api/shutdown', requireAuth, async (req, res) => {
+  console.log('[API] Graceful shutdown request received from Electron.');
+  try {
+    if (typeof safeDestroyClient === 'function') {
+      await safeDestroyClient();
+    }
+  } catch (err) {
+    console.warn('[API] Warning during graceful shutdown:', err.message);
+  }
+  res.json({ success: true, message: 'Shut down cleanly.' });
+  setTimeout(() => process.exit(0), 400);
 });
 
 app.use(express.json({ limit: '10mb' }));
@@ -534,11 +542,6 @@ function getLatestCachedWebVersion() {
 
 function hasSavedWhatsappSession() {
   try {
-    const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
-    if (fs.existsSync(sessFile)) {
-      const data = JSON.parse(fs.readFileSync(sessFile, 'utf8'));
-      if (data && data.phone && data.phone !== 'Connected') return true;
-    }
     const levelDbDir = path.join(AKB_DIR, '.wwebjs_auth', 'session', 'Default', 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
     if (fs.existsSync(levelDbDir)) {
       const files = fs.readdirSync(levelDbDir).filter(f => f.endsWith('.ldb'));
@@ -563,19 +566,65 @@ async function safeDestroyClient() {
     }
 
     try {
+      console.log('🛡️ [WhatsApp] Gracefully closing browser to flush IndexedDB...');
       await Promise.race([
         tempClient.destroy().catch(() => {}),
-        new Promise(resolve => setTimeout(resolve, 1500))
+        new Promise(resolve => setTimeout(resolve, 4000))
       ]);
+      console.log('✅ [WhatsApp] Browser closed cleanly.');
     } catch (_) {}
+
+    // Once cleanly closed, create an intact backup of the session!
+    backupAuthDirectory();
   }
-  killOrphanAuthBrowsers(true);
+  wwebjsBrowserPid = null;
+  killOrphanAuthBrowsers(false);
+}
+
+function backupAuthDirectory() {
+  try {
+    const authDir = path.join(AKB_DIR, '.wwebjs_auth');
+    const backupDir = path.join(AKB_DIR, '.wwebjs_auth_backup');
+    const levelDbDir = path.join(authDir, 'session', 'Default', 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
+    if (fs.existsSync(levelDbDir)) {
+      const files = fs.readdirSync(levelDbDir).filter(f => f.endsWith('.ldb'));
+      if (files.length > 0) {
+        fs.cpSync(authDir, backupDir, { recursive: true, force: true });
+        console.log(`🛡️ [WhatsApp Auth] Backed up active session directory (${files.length} ldb files) to .wwebjs_auth_backup`);
+      }
+    }
+  } catch (err) {
+    console.warn('[WhatsApp Auth] Session backup warning:', err.message);
+  }
+}
+
+function ensureAuthSessionFromBackup() {
+  try {
+    const authDir = path.join(AKB_DIR, '.wwebjs_auth');
+    const backupDir = path.join(AKB_DIR, '.wwebjs_auth_backup');
+    const levelDbDir = path.join(authDir, 'session', 'Default', 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
+    const backupLevelDbDir = path.join(backupDir, 'session', 'Default', 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
+
+    const hasLdb = fs.existsSync(levelDbDir) && fs.readdirSync(levelDbDir).some(f => f.endsWith('.ldb') && fs.statSync(path.join(levelDbDir, f)).size > 10000);
+    const backupHasLdb = fs.existsSync(backupLevelDbDir) && fs.readdirSync(backupLevelDbDir).some(f => f.endsWith('.ldb') && fs.statSync(path.join(backupLevelDbDir, f)).size > 10000);
+
+    if (!hasLdb && backupHasLdb) {
+      console.log('🛡️ [WhatsApp Auth] Detected missing/corrupted session files. Restoring from .wwebjs_auth_backup...');
+      fs.cpSync(backupDir, authDir, { recursive: true, force: true });
+      cleanChromeLockFiles();
+      console.log('🛡️ [WhatsApp Auth] Session successfully restored from backup.');
+    }
+  } catch (err) {
+    console.warn('[WhatsApp Auth] Session restore warning:', err.message);
+  }
 }
 
 function cleanChromeLockFiles() {
   try {
     const sessionDir = path.join(AKB_DIR, '.wwebjs_auth', 'session');
     const defaultDir = path.join(sessionDir, 'Default');
+    // Note: NEVER manually delete LevelDB internal 'LOCK' files inside levelDbDir!
+    // LevelDB manages its own locks and deleting it while dirty corrupts database recovery.
     const lockNames = [
       'lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket', 
       'DevToolsActivePort', 'parent.lock'
@@ -591,6 +640,29 @@ function cleanChromeLockFiles() {
       }
     }
   } catch (_) {}
+}
+
+function ensureWwebjsPatched() {
+  try {
+    const clientPath = path.join(__dirname, 'node_modules', 'whatsapp-web.js', 'src', 'Client.js');
+    if (!fs.existsSync(clientPath)) return;
+    let code = fs.readFileSync(clientPath, 'utf8');
+    let modified = false;
+
+    // Check if initial inject needs retry loop for 'Execution context was destroyed'
+    if (code.includes('await this.inject();\n        this.pupPage.on(\'framenavigated\'')) {
+      const target = 'await this.inject();\n        this.pupPage.on(\'framenavigated\'';
+      const replacement = 'let injectRetries = 0;\n        while (injectRetries < 5) {\n            try {\n                await this.inject();\n                break;\n            } catch (err) {\n                if (err.message && (err.message.includes(\'Execution context was destroyed\') || err.message.includes(\'navigation\'))) {\n                    injectRetries++;\n                    await new Promise(r => setTimeout(r, 1000));\n                } else {\n                    throw err;\n                }\n            }\n        }\n\n        this.pupPage.on(\'framenavigated\'';
+      code = code.replace(target, replacement);
+      modified = true;
+    }
+    if (modified) {
+      fs.writeFileSync(clientPath, code, 'utf8');
+      console.log('🛡️ [WhatsApp] Auto-verified & fortified whatsapp-web.js against navigation context destruction.');
+    }
+  } catch (err) {
+    console.warn('[WhatsApp] Patch check note:', err.message);
+  }
 }
 
 function killOrphanAuthBrowsers(forceKillAll = false) {
@@ -837,6 +909,7 @@ async function initWhatsappClient(forceClean = false) {
   }
 
   try {
+    ensureWwebjsPatched();
     const { Client, LocalAuth, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
     console.log('[WhatsApp] Initializing WhatsApp Client in background...');
     const detectedChrome = findChromeExecutable();
@@ -849,6 +922,8 @@ async function initWhatsappClient(forceClean = false) {
         if (v && v.split('.')[0]) chromeMajor = v.split('.')[0];
       }
     } catch (_) {}
+
+    ensureAuthSessionFromBackup();
 
     if (forceClean) {
       cleanAuthDirectory();
@@ -886,10 +961,6 @@ async function initWhatsappClient(forceClean = false) {
     console.log('[WhatsApp] Fast-boot Web Version:', cachedVersion || 'Dynamic Remote Fetch', cachedInfo ? `(from ${cachedInfo.path})` : '');
 
     const clientOptions = {
-      webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1018944810-alpha.html',
-      },
       authStrategy: authStrategy,
       authTimeoutMs: 180000,
       qrMaxRetries: 0,
@@ -899,6 +970,10 @@ async function initWhatsappClient(forceClean = false) {
       evalOnNewDoc: () => {
         try {
           Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+          if (navigator.storage) {
+            navigator.storage.persist = () => Promise.resolve(true);
+            navigator.storage.persisted = () => Promise.resolve(true);
+          }
         } catch (_) {}
       },
       puppeteer: {
@@ -917,12 +992,23 @@ async function initWhatsappClient(forceClean = false) {
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
+          '--unlimited-storage',
+          '--enable-features=PersistentQuota,StorageBuckets',
           '--window-size=1024,768',
           '--mute-audio'
         ],
         ignoreDefaultArgs: ['--enable-automation']
       }
     };
+
+    if (cachedInfo) {
+      clientOptions.webVersion = cachedInfo.version;
+      clientOptions.webVersionCache = {
+        type: 'local',
+        path: cachedInfo.path,
+        strict: false
+      };
+    }
 
     client = new Client(clientOptions);
 
@@ -1002,6 +1088,12 @@ async function initWhatsappClient(forceClean = false) {
       qrCodeDataUrl = null;
       lastPairingCode = null;
       isWhatsappInitializing = false;
+      // Allow 15 seconds for initial WhatsApp Web IndexedDB sync to fully settle, then back up
+      setTimeout(() => {
+        if (isWhatsappConnected) {
+          backupAuthDirectory();
+        }
+      }, 15000);
       try {
         let phoneStr = '';
         if (client.info) {
@@ -1205,6 +1297,10 @@ async function initWhatsappClient(forceClean = false) {
     });
 
     client.initialize().catch(e => {
+      if (e.message && (e.message.includes('Execution context was destroyed') || e.message.includes('navigation'))) {
+        console.warn('[WhatsApp] Transient navigation during page load. Browser is continuing in background...');
+        return;
+      }
       if (initWatchdogTimer) clearTimeout(initWatchdogTimer);
       isWhatsappInitializing = false;
       console.warn('[WhatsApp] Initial launch warning (Puppeteer busy or initializing):', e.message);
