@@ -82,7 +82,7 @@
     },
     "consignee": {
       "name": "UGYHJNM",
-      "phone": "8688572332",
+      "phone": "8367047947",
       "address": "YUHJBN",
       "gstin": "",
       "state": "ANDHRA PRADESH",
@@ -111,7 +111,8 @@
     "roundOff": 0.06,
     "totalAmount": 104999,
     "isInterState": false,
-    "_id": "1792642487926"
+    "_id": "1792642487926",
+    "state": "TENALI"
   },
   {
     "id": "1792606946175",
