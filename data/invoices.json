@@ -19,29 +19,6 @@
     "tax": 0,
     "grandTotal": 500,
     "totalAmount": 500,
-    "id": "inv_1792763392013",
-    "_id": "inv_1792763392013"
-  },
-  {
-    "invoiceNo": 20,
-    "customerPhone": "9441753678",
-    "date": "2026-10-23",
-    "items": [
-      {
-        "description": "Test Dhoti",
-        "quantity": 1,
-        "rate": 500,
-        "amount": 500
-      }
-    ],
-    "receiver": {
-      "name": "Test 20",
-      "phone": "9441753678"
-    },
-    "subtotal": 500,
-    "tax": 0,
-    "grandTotal": 500,
-    "totalAmount": 500,
     "id": "inv_1792763384406",
     "_id": "inv_1792763384406"
   },
