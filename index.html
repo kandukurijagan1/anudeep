@@ -4087,18 +4087,9 @@
 
             var localBase = getCandidateLocalApi();
 
-            // 🛡️ WORKSTATION & DESKTOP RULE: Always use local backend engine on port 3000!
-            // Never lock desktop workstation to Cloud GAS because that breaks background WhatsApp bot!
+            // 🛡️ WORKSTATION & DESKTOP RULE: Prefer local backend if running; if offline, seamlessly fallback to Google Cloud GAS!
             if (isDesktopOrLocal) {
-                var cached = sessionStorage.getItem("akb_cached_api_url");
-                if (cached && cached.includes("script.google.com")) {
-                    sessionStorage.removeItem("akb_cached_api_url");
-                }
-                API_URL = localBase;
-                API_MODE = "local";
-                sessionStorage.setItem("akb_cached_api_url", API_URL);
-
-                // Ping local health in background
+                // Ping local health
                 try {
                     var testCtrl = new AbortController();
                     var testTimer = setTimeout(function () { testCtrl.abort(); }, 1500);
@@ -4107,8 +4098,15 @@
                     if (healthRes.ok) {
                         API_URL = localBase;
                         API_MODE = "local";
+                        sessionStorage.setItem("akb_cached_api_url", API_URL);
+                        return API_URL;
                     }
                 } catch (_) { }
+
+                // If local backend is not running on this machine (e.g. client laptop running standalone index.html), fallback to Google Cloud Database
+                API_URL = CLOUD_GAS_URL;
+                API_MODE = "cloud";
+                sessionStorage.setItem("akb_cached_api_url", API_URL);
                 return API_URL;
             }
 
