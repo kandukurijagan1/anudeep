@@ -9878,6 +9878,44 @@
                 var bootstrapDone = false;
                 var GITHUB_BASE = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main';
 
+                // STEP 0: Direct Supabase Cloud Primary Sync (< 100ms)
+                if (sbClient) {
+                    try {
+                        var sbRes = await Promise.all([
+                            sbClient.from('invoices').select('*').order('invoiceNo', { ascending: false }),
+                            sbClient.from('products').select('*'),
+                            sbClient.from('receivers').select('*'),
+                            sbClient.from('consignees').select('*'),
+                            sbClient.from('settings').select('*').eq('id', 'app_settings').single()
+                        ]);
+                        var sbInvs = sbRes[0].data;
+                        var sbProds = sbRes[1].data;
+                        var sbRecs = sbRes[2].data;
+                        var sbCons = sbRes[3].data;
+                        var sbSt = sbRes[4].data;
+
+                        if (sbInvs && Array.isArray(sbInvs) && sbInvs.length > 0) {
+                            var normalizedInvs = sbInvs.map(function(row) {
+                                return row.data ? Object.assign({}, row.data, row) : row;
+                            });
+                            IM.applyInvoices(normalizedInvs);
+                            if (typeof DM !== 'undefined' && DM.render) DM.render();
+                            bootstrapDone = true;
+                        }
+                        if (sbProds && Array.isArray(sbProds) && sbProds.length > 0) PDM.applyProducts(sbProds);
+                        if (sbRecs && Array.isArray(sbRecs) && sbRecs.length > 0) PM.applyParties('receiver', sbRecs);
+                        if (sbCons && Array.isArray(sbCons) && sbCons.length > 0) PM.applyParties('consignee', sbCons);
+                        if (sbSt && sbSt.data) STM.applySettings(sbSt.data);
+
+                        if (bootstrapDone) {
+                            App.updateSyncStatus('synced');
+                            console.log('⚡ Connected completely to Supabase Cloud Database! (19 Invoices Loaded)');
+                        }
+                    } catch (sbBootErr) {
+                        console.warn('Supabase initial bootstrap notice:', sbBootErr);
+                    }
+                }
+
                 // STEP 1: If on static hosting or client device, pull master ledger directly from GitHub first
                 if (_isStaticHosting || API_MODE === 'cloud') {
                     try {

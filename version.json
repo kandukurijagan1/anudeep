@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.7.1",
-  "build": 171,
+  "version": "1.7.2",
+  "build": 172,
   "commit": "latest",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(supabase-realtime): genuine cloud WebSocket realtime synchronization with Supabase for instant multi-device live sync (Build 171)"
+  "description": "feat(supabase-complete): full direct Supabase cloud priority bootstrap and real-time syncing (Build 172)"
 }
