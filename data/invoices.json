@@ -1,57 +1,5 @@
 [
   {
-    "id": 1791961030507,
-    "invoiceNo": 10,
-    "date": "2026-10-14",
-    "reverseCharge": "No",
-    "transportMode": "uyj",
-    "lrNo": "yuhj",
-    "transportDate": "2026-10-14",
-    "supplyDate": "2026-10-14",
-    "bundles": "7",
-    "placeOfSupply": "Andhra Pradesh",
-    "stateCode": "37",
-    "receiver": {
-      "name": "uyghjbn",
-      "phone": "8367047947",
-      "address": "yuhjm",
-      "gstin": "",
-      "state": "Andhra Pradesh",
-      "stateCode": "37"
-    },
-    "consignee": {
-      "name": "ugyhjnm",
-      "phone": "8688572332",
-      "address": "yuhjbn",
-      "gstin": "",
-      "state": "Andhra Pradesh",
-      "stateCode": "37"
-    },
-    "customerPhone": "8367047947",
-    "items": [
-      {
-        "baleNo": "1",
-        "description": "Fine Khadi Towel",
-        "hsn": "6302",
-        "calcType": "meters",
-        "rate": 180,
-        "qty": 3,
-        "meters": 11,
-        "cms": 76,
-        "totalMeters": 11.76,
-        "amount": 2116.8
-      }
-    ],
-    "taxableAmount": 2116.8,
-    "cgstAmount": 52.92,
-    "sgstAmount": 52.92,
-    "igstAmount": 0,
-    "rawGrandTotal": 2222.64,
-    "roundOff": 0.36,
-    "totalAmount": 2223,
-    "isInterState": false
-  },
-  {
     "id": 1791885029417,
     "invoiceNo": 9,
     "date": "2026-10-13",
