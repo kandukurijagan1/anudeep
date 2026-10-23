@@ -53,58 +53,6 @@
     "transportMode": ""
   },
   {
-    "id": 1791885029417,
-    "invoiceNo": 9,
-    "date": "2026-10-13",
-    "reverseCharge": "No",
-    "transportMode": "",
-    "lrNo": "",
-    "transportDate": "",
-    "supplyDate": "",
-    "bundles": "0",
-    "placeOfSupply": "Andhra Pradesh",
-    "stateCode": "37",
-    "receiver": {
-      "name": "Jagan Kandukuri",
-      "phone": "",
-      "address": "",
-      "gstin": "",
-      "state": "Andhra Pradesh",
-      "stateCode": "37"
-    },
-    "consignee": {
-      "name": "",
-      "phone": "",
-      "address": "",
-      "gstin": "",
-      "state": "Andhra Pradesh",
-      "stateCode": "37"
-    },
-    "customerPhone": "",
-    "items": [
-      {
-        "baleNo": "1",
-        "description": "Super Fine Cotton",
-        "hsn": "",
-        "calcType": "qty",
-        "rate": 400,
-        "qty": 2,
-        "meters": 0,
-        "cms": 0,
-        "totalMeters": 0,
-        "amount": 800
-      }
-    ],
-    "taxableAmount": 800,
-    "cgstAmount": 20,
-    "sgstAmount": 20,
-    "igstAmount": 0,
-    "rawGrandTotal": 840,
-    "roundOff": 0,
-    "totalAmount": 840,
-    "isInterState": false
-  },
-  {
     "id": "1791873490504",
     "invoiceNo": 8,
     "date": "2026-10-13",
