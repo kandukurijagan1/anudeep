@@ -60,6 +60,17 @@ namespace AnudeepKhadiBandar
                     LaunchDedicatedBrowserWindow(activeUrl);
                     StartWatchdog();
 
+                    // Periodic Cloud Auto-Updater in background every 2 minutes while app is running
+                    new Thread(() =>
+                    {
+                        while (isRunning)
+                        {
+                            Thread.Sleep(120000);
+                            if (!isRunning) break;
+                            try { TrySilentCloudSync(); } catch { }
+                        }
+                    }) { IsBackground = true }.Start();
+
                     Application.Run();
                 }
                 catch (Exception ex)

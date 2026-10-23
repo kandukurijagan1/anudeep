@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.7.4",
-  "build": 174,
+  "version": "1.7.5",
+  "build": 175,
   "commit": "latest",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix(sync-purge): purge resurrected test invoice 70 and switch all background checks to Supabase (Build 174)"
+  "description": "feat(cloud-auto-updater): continuous background self-updating thread inside AKB-Billing.exe and synchronized UpdaterUI (Build 175)"
 }
