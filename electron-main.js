@@ -684,6 +684,13 @@ async function silentPrebootSync() {
             if (fs.existsSync(localVerPath)) {
                 try { localBuild = Number(JSON.parse(fs.readFileSync(localVerPath, 'utf8')).build) || 0; } catch (_) {}
             }
+            const wsVerPath = path.join(__dirname, 'version.json');
+            if (fs.existsSync(wsVerPath)) {
+                try {
+                    const wsB = Number(JSON.parse(fs.readFileSync(wsVerPath, 'utf8')).build) || 0;
+                    if (wsB > localBuild) localBuild = wsB;
+                } catch (_) {}
+            }
             if (Number(cloudVer.build) > localBuild) {
                 console.log(`[Electron PreBoot] Auto-updating to Build ${cloudVer.build} silently without asking...`);
                 await download(`https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html?_t=${Date.now()}`, path.join(appDataDir, 'index.html'));

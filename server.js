@@ -1776,10 +1776,14 @@ function getLocalVersion() {
     if (fs.existsSync(VERSION_PATH)) {
       return JSON.parse(fs.readFileSync(VERSION_PATH, 'utf8'));
     }
+    const wsVer = path.join(__dirname, 'version.json');
+    if (fs.existsSync(wsVer)) {
+      return JSON.parse(fs.readFileSync(wsVer, 'utf8'));
+    }
   } catch (e) {
     console.warn('[Auto-Updater] Could not read version.json:', e.message);
   }
-  return { version: '1.3.1', build: 101, commit: 'latest', releaseDate: '2026-09-25' };
+  return { version: '1.6.3', build: 163, commit: 'latest', releaseDate: '2026-10-23' };
 }
 
 let lastUpdateCheck = {

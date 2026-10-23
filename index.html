@@ -4115,6 +4115,23 @@
                     }
                 } catch (_) { }
 
+                // If local backend is not running on this machine (e.g. client laptop running standalone index.html),
+                // check if Host Workstation on LAN (10.209.191.184:3000) is reachable before falling back to Google Cloud!
+                if (!localStorage.getItem("akb_wa_server_url")) {
+                    try {
+                        var lanCtrl = new AbortController();
+                        var lanTimer = setTimeout(function () { lanCtrl.abort(); }, 1200);
+                        var lanRes = await originalFetch("http://10.209.191.184:3000/api/health", { signal: lanCtrl.signal });
+                        clearTimeout(lanTimer);
+                        if (lanRes.ok) {
+                            API_URL = "http://10.209.191.184:3000/api";
+                            API_MODE = "local";
+                            sessionStorage.setItem("akb_cached_api_url", API_URL);
+                            return API_URL;
+                        }
+                    } catch (_) { }
+                }
+
                 // If local backend is not running on this machine (e.g. client laptop running standalone index.html), fallback to Google Cloud Database
                 API_URL = CLOUD_GAS_URL;
                 API_MODE = "cloud";
@@ -9446,7 +9463,7 @@
                             try {
                                 var cloudHealth = CLOUD_GAS_URL + '?action=health';
                                 var ctrl = new AbortController();
-                                var t = setTimeout(function () { ctrl.abort(); }, 4000);
+                                var t = setTimeout(function () { ctrl.abort(); }, 8000);
                                 var res = await directFetch(cloudHealth, { signal: ctrl.signal });
                                 clearTimeout(t);
                                 if (res.ok) {
@@ -9492,8 +9509,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.6.1',
-            build: 161,
+            currentVersion: '1.6.3',
+            build: 163,
             hasUpdate: false,
             latestInfo: null,
 
@@ -9520,16 +9537,16 @@
                     }
                 } catch (_) { }
 
-                // 2. Auto-check GitHub for updates in background 2s after init and every 90s
+                // 2. Auto-check GitHub for updates in background 3s after init and periodically
                 setTimeout(function () {
                     UpdaterUI.checkForUpdates(false);
-                }, 2000);
+                }, 3000);
                 setInterval(function () {
                     if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
                         return;
                     }
                     UpdaterUI.checkForUpdates(false);
-                }, 90000);
+                }, 120000);
             },
 
             updateHeaderBadge: function () {
@@ -9585,10 +9602,33 @@
                         }
                         var applyBtn = document.getElementById('btn-apply-update');
                         if (applyBtn) applyBtn.style.display = 'inline-block';
+
+                        // Guard against infinite reload loops in the same session
+                        var updateSessionKey = 'akb_update_attempted_' + remoteBuild;
+                        if (sessionStorage.getItem(updateSessionKey)) {
+                            console.log('[Auto-Updater] Build ' + remoteBuild + ' already checked in this session.');
+                            return;
+                        }
+
+                        // On remote web static hosting (e.g. GitHub Pages), update in-memory state cleanly without desktop updater
+                        if (_isStaticHosting) {
+                            UpdaterUI.build = remoteBuild;
+                            UpdaterUI.currentVersion = remoteVer.version || UpdaterUI.currentVersion;
+                            UpdaterUI.updateHeaderBadge();
+                            sessionStorage.setItem(updateSessionKey, '1');
+                            if (statusEl) {
+                                statusEl.innerHTML = '<span style="color:#10b981;font-weight:700">✅ Web version synchronized with GitHub (Build ' + remoteBuild + ')</span>';
+                            }
+                            if (showToast) {
+                                U.toast("Web app synchronized with latest GitHub version!", "success");
+                            }
+                            return;
+                        }
+
                         if (showToast) {
                             U.toast("New update found on GitHub! Installing automatically...", "info");
                         }
-                        // Automatic silent background install
+                        sessionStorage.setItem(updateSessionKey, '1');
                         console.log('[Auto-Updater] Automatic background install initiated for Build ' + remoteBuild);
                         UpdaterUI.applyUpdate(false);
                     } else {
@@ -9660,7 +9700,7 @@
 
                     if (applied) {
                         if (statusEl) statusEl.innerHTML = '<span style="color:#10b981;font-weight:700">✨ Update installed successfully!</span>';
-                        UpdaterUI.showNotification(UpdaterUI.latestInfo || { version: '1.4.6' });
+                        UpdaterUI.showNotification(UpdaterUI.latestInfo || { version: '1.6.3' });
                     } else {
                         if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444">Could not apply update.</span>';
                     }
@@ -9683,7 +9723,11 @@
                     if (window.electronAPI && typeof window.electronAPI.reloadApp === 'function') {
                         window.electronAPI.reloadApp(true);
                     } else {
-                        location.href = location.origin + '/?_upd=' + Date.now();
+                        // Path-safe reload preserving full repository URL (never redirect to bare origin which causes 404 on GitHub Pages)
+                        var p = location.pathname || '/';
+                        var q = new URLSearchParams(location.search);
+                        q.set('_upd', Date.now());
+                        location.href = p + '?' + q.toString() + location.hash;
                     }
                 }
                 setTimeout(doHardReload, 1200);
