@@ -27,17 +27,5 @@
     "id": "rec_1791884185156",
     "action": "createReceiver",
     "_version": 1
-  },
-  {
-    "name": "YGHJN",
-    "phone": "8367047947",
-    "address": "YUGHJBNM",
-    "state": "ANDHRA PRADESH",
-    "gstin": "",
-    "statecode": "37",
-    "id": "rec_1792598663195",
-    "apiKey": "",
-    "action": "createReceiver",
-    "_version": 1
   }
 ]
