@@ -6,6 +6,8 @@
     "state": "Andhra Pradesh",
     "gstin": "",
     "statecode": "37",
-    "id": 1791790287103
+    "id": 1791790287103,
+    "action": "createConsignee",
+    "_version": 1
   }
 ]

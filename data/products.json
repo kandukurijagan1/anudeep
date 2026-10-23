@@ -1,10 +1,53 @@
 [
   {
+    "action": "createProduct",
+    "name": "White Khadi Shirt",
+    "description": "White Khadi Shirt",
+    "hsn": "5208",
+    "price": 650,
+    "calcType": "qty",
+    "id": "doc_1791728020361_957",
+    "_version": 1
+  },
+  {
     "name": "Fine Khadi Towel",
     "hsn": "6302",
     "price": 180,
     "calcType": "qty",
     "id": "prod_1791728511012",
-    "description": "Fine Khadi Towel"
+    "description": "Fine Khadi Towel",
+    "action": "createProduct",
+    "_version": 1
+  },
+  {
+    "name": "Test Silk Saree",
+    "hsn": "5007",
+    "rate": 1500,
+    "gstRate": 5,
+    "id": "prod_1791882637672",
+    "description": "Test Silk Saree",
+    "action": "createProduct",
+    "_version": 1
+  },
+  {
+    "name": "Test Silk Item",
+    "hsn": "5007",
+    "rate": 1500,
+    "unit": "MTR",
+    "id": "prod_1791884185091",
+    "description": "Test Silk Item",
+    "action": "createProduct",
+    "_version": 1
+  },
+  {
+    "name": "tyghbjnm",
+    "description": "tyghbjnm",
+    "hsn": "87654678yugh",
+    "price": 500,
+    "calcType": "qty",
+    "id": "prod_1792598697719",
+    "apiKey": "",
+    "action": "createProduct",
+    "_version": 1
   }
 ]
