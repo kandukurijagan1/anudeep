@@ -4046,7 +4046,8 @@
             if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app") && !location.origin.includes("netlify.app") && !location.origin.includes("pages.dev")) {
                 return (location.origin + '/api').replace(/\/+$/, '');
             }
-            return 'http://127.0.0.1:3000/api';
+            // If on Client machine accessing via localhost embedded server, file:, or disconnected, fallback to Host Workstation LAN
+            return 'http://10.209.191.184:3000/api';
         }
         var waApiBase = getWaApiUrl();
 
@@ -4071,7 +4072,7 @@
             if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app") && !location.origin.includes("netlify.app") && !location.origin.includes("pages.dev")) {
                 return (location.origin + '/api').replace(/\/+$/, '');
             }
-            return 'http://127.0.0.1:3000/api';
+            return 'http://10.209.191.184:3000/api';
         }
 
         function fetchWithTimeout(url, opts, timeoutMs) {
@@ -6844,7 +6845,25 @@
             },
 
             _saveViaBackendOrBlob: function (blob, safePdfName) {
-                // ⚡ TIER 2: Local Node Backend API writes to Downloads folder silently
+                // Direct browser download prompt / save (reliable on all browsers and client systems)
+                try {
+                    var blobUrl = URL.createObjectURL(blob);
+                    var dlLink = document.createElement('a');
+                    dlLink.href = blobUrl;
+                    dlLink.download = safePdfName;
+                    dlLink.style.display = 'none';
+                    document.body.appendChild(dlLink);
+                    dlLink.click();
+                    setTimeout(function () {
+                        if (dlLink.parentNode) document.body.removeChild(dlLink);
+                        URL.revokeObjectURL(blobUrl);
+                    }, 1500);
+                    U.toast("💾 " + safePdfName + " downloaded!", "success");
+                } catch (e) {
+                    console.warn("PDF direct download err:", e);
+                }
+
+                // Also forward to local backend save if available
                 (async function () {
                     try {
                         var fd = new FormData();
@@ -6853,35 +6872,8 @@
                         var waApi = (typeof waApiBase !== 'undefined') ? waApiBase : (location.origin + '/api');
                         var saveUrl = waApi.replace('/whatsapp', '') + '/savePdfLocally';
                         var _fetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
-                        var res = await _fetch(saveUrl, { method: 'POST', body: fd });
-                        if (res.ok) {
-                            var data = await res.json();
-                            if (data && data.success) {
-                                U.toast("💾 " + safePdfName + " auto-saved to Downloads folder!", "success");
-                                return;
-                            }
-                        }
-                    } catch (e) {
-                        console.warn("Backend local save notice:", e.message);
-                    }
-
-                    // ⚡ TIER 3: Browser anchor (intercepted by Electron will-download if in Electron)
-                    try {
-                        var blobUrl = URL.createObjectURL(blob);
-                        var dlLink = document.createElement('a');
-                        dlLink.href = blobUrl;
-                        dlLink.download = safePdfName;
-                        dlLink.style.display = 'none';
-                        document.body.appendChild(dlLink);
-                        dlLink.click();
-                        setTimeout(function () {
-                            if (dlLink.parentNode) document.body.removeChild(dlLink);
-                            URL.revokeObjectURL(blobUrl);
-                        }, 1000);
-                        U.toast("💾 " + safePdfName + " saved to Downloads folder!", "success");
-                    } catch (e) {
-                        console.warn("PDF direct download err:", e);
-                    }
+                        await _fetch(saveUrl, { method: 'POST', body: fd });
+                    } catch (_) { }
                 })();
             },
 

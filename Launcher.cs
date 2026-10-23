@@ -241,28 +241,7 @@ namespace AnudeepKhadiBandar
             bool lanResponding = false;
             if (!localResponding)
             {
-                lanResponding = IsUrlResponding("http://10.209.191.184:3000/api/health", 600);
-            }
-
-            if (!localResponding && !lanResponding)
-            {
-                string serverJs = FindServerJs();
-                string nodeExe = FindNodeExe();
-
-                if (!string.IsNullOrEmpty(nodeExe) && !string.IsNullOrEmpty(serverJs) && File.Exists(serverJs))
-                {
-                    StartNodeProcess(nodeExe, serverJs);
-
-                    for (int i = 0; i < 200; i++)
-                    {
-                        Thread.Sleep(100);
-                        if (IsUrlResponding("http://127.0.0.1:3000/api/health", 200))
-                        {
-                            localResponding = true;
-                            break;
-                        }
-                    }
-                }
+                lanResponding = IsUrlResponding("http://10.209.191.184:3000/api/health", 800);
             }
 
             if (localResponding)
@@ -275,10 +254,36 @@ namespace AnudeepKhadiBandar
             }
             else
             {
-                // Fallback to embedded web server so the app runs smoothly even without Node.js installed
-                int port = GetFreePort(3005);
-                StartEmbeddedServer(port);
-                activeUrl = "http://localhost:" + port + "/index.html?mode=dedicated_app";
+                // Try starting local node if files exist on this machine
+                string serverJs = FindServerJs();
+                string nodeExe = FindNodeExe();
+
+                if (!string.IsNullOrEmpty(nodeExe) && !string.IsNullOrEmpty(serverJs) && File.Exists(serverJs))
+                {
+                    StartNodeProcess(nodeExe, serverJs);
+
+                    for (int i = 0; i < 50; i++)
+                    {
+                        Thread.Sleep(100);
+                        if (IsUrlResponding("http://127.0.0.1:3000/api/health", 200))
+                        {
+                            localResponding = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (localResponding)
+                {
+                    activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
+                }
+                else
+                {
+                    // Fallback to embedded web server so the app runs smoothly even without Node.js installed
+                    int port = GetFreePort(3005);
+                    StartEmbeddedServer(port);
+                    activeUrl = "http://localhost:" + port + "/index.html?mode=dedicated_app";
+                }
             }
         }
 
