@@ -9755,8 +9755,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.8.0',
-            build: 180,
+            currentVersion: '1.8.1',
+            build: 181,
             hasUpdate: false,
             latestInfo: null,
 
@@ -10068,8 +10068,8 @@
                     }
                 }
 
-                // STEP 1: If on static hosting or client device, pull master ledger directly from GitHub first
-                if (_isStaticHosting || API_MODE === 'cloud') {
+                // STEP 1: Fallback only if Supabase Cloud was unavailable
+                if (!bootstrapDone && (_isStaticHosting || API_MODE === 'cloud')) {
                     try {
                         // 1. Permanent Tombstone Deletion Sync
                         var delRes = await fetch(GITHUB_BASE + '/data/deleted_invoices.json?_t=' + Date.now());
@@ -10218,81 +10218,42 @@
                             await OM.process();
                         }
 
-                        // 2. On static hosting / cloud, sync tombstones & invoices from GitHub master ledger & Cloud GAS
-                        if (_isStaticHosting || (API_URL && API_URL.includes('script.google.com'))) {
-                            var delChanged = false;
+                        // 2. High-Speed Supabase Cloud Sync Engine (Primary Source of Truth)
+                        if (sbClient) {
                             try {
-                                var delUrl = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/deleted_invoices.json?_t=' + Date.now();
-                                var delRes = await fetchWithTimeout(delUrl, { cache: 'no-store' }, 2500);
-                                if (delRes.ok) {
-                                    var delList = await delRes.json();
-                                    if (Array.isArray(delList)) {
-                                        var curDeleted = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]').filter(function (d) { return String(d).length > 5; });
-                                        delList.forEach(function (d) {
-                                            var s = String(d);
-                                            if (s.length > 5 && !curDeleted.includes(s)) { curDeleted.push(s); delChanged = true; }
+                                var sbInvsRes = await sbClient.from('invoices').select('*').order('invoiceNo', { ascending: false });
+                                if (sbInvsRes.data && Array.isArray(sbInvsRes.data) && sbInvsRes.data.length > 0) {
+                                    var sbSig = sbInvsRes.data.length + ':' + (sbInvsRes.data[0] ? (sbInvsRes.data[0].id || sbInvsRes.data[0].invoiceNo) : '') + ':' + (sbInvsRes.data[sbInvsRes.data.length - 1] ? (sbInvsRes.data[sbInvsRes.data.length - 1].id || sbInvsRes.data[sbInvsRes.data.length - 1].invoiceNo) : '');
+                                    if (App._lastGhSig !== sbSig) {
+                                        App._lastGhSig = sbSig;
+                                        var normalizedInvs = sbInvsRes.data.map(function(row) {
+                                            return row.data ? Object.assign({}, row.data, row) : row;
                                         });
-                                        localStorage.setItem('akb_deleted_invoices', JSON.stringify(curDeleted));
+                                        IM.applyInvoices(normalizedInvs);
+                                        if (typeof DM !== 'undefined' && DM.render) DM.render();
                                     }
+                                    App.updateSyncStatus('synced');
+                                    _serverOffline = false;
                                 }
-                            } catch (_) { }
 
-                            // 2a. Primary check: Master ledger on GitHub
-                            try {
-                                var ghUrl = 'https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json?_t=' + Date.now();
-                                var ghRes = await fetchWithTimeout(ghUrl, { cache: 'no-store' }, 2500);
-                                if (ghRes.ok) {
-                                    var ghInvs = await ghRes.json();
-                                    if (Array.isArray(ghInvs)) {
-                                        var ghSig = ghInvs.length + ':' + (ghInvs[0] ? (ghInvs[0].id || ghInvs[0].invoiceNo) : '') + ':' + (ghInvs[ghInvs.length - 1] ? (ghInvs[ghInvs.length - 1].id || ghInvs[ghInvs.length - 1].invoiceNo) : '');
-                                        if (delChanged || App._lastGhSig !== ghSig) {
-                                            App._lastGhSig = ghSig;
-                                            IM.applyInvoices(ghInvs);
-                                            if (typeof DM !== 'undefined' && DM.render) DM.render();
-                                        }
-                                        App.updateSyncStatus('synced');
-                                        _serverOffline = false;
-                                    }
+                                // Periodic sync for products & parties (every 5 cycles = 10s)
+                                if (App._syncCycleCount % 5 === 0) {
+                                    sbClient.from('products').select('*').then(function(pr) {
+                                        if (pr.data && Array.isArray(pr.data)) PDM.applyProducts(pr.data);
+                                    });
+                                    sbClient.from('receivers').select('*').then(function(rr) {
+                                        if (rr.data && Array.isArray(rr.data)) PM.applyParties('receiver', rr.data);
+                                    });
+                                    sbClient.from('consignees').select('*').then(function(cr) {
+                                        if (cr.data && Array.isArray(cr.data)) PM.applyParties('consignee', cr.data);
+                                    });
                                 }
-                            } catch (_) { }
-
-                            // 2b. Secondary Live Cloud GAS Check (Every 4 cycles = 8s) to catch live mobile invoices before GitHub commits
-                            if (App._syncCycleCount % 4 === 0) {
-                                try {
-                                    var gasUrl = CLOUD_GAS_URL + '?action=getInvoices&_t=' + Date.now();
-                                    var gasRes = await fetchWithTimeout(gasUrl, { cache: 'no-store' }, 4000);
-                                    if (gasRes.ok) {
-                                        var gasData = await gasRes.json();
-                                        var gasInvs = Array.isArray(gasData) ? gasData : (gasData && gasData.invoices ? gasData.invoices : null);
-                                        if (Array.isArray(gasInvs) && gasInvs.length > 0) {
-                                            IM.applyInvoices(gasInvs);
-                                            if (typeof DM !== 'undefined' && DM.render) DM.render();
-                                            App.updateSyncStatus('synced');
-                                            _serverOffline = false;
-                                        }
-                                    }
-                                } catch (_) { }
+                            } catch (sbPollErr) {
+                                console.warn('[Supabase-Sync] Poll note:', sbPollErr.message);
                             }
-
-                            // 2c. Check products & parties periodically (every 5 cycles = 10 seconds)
-                            if (App._syncCycleCount % 5 === 0) {
-                                try {
-                                    var pRes = await fetchWithTimeout('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/products.json?_t=' + Date.now(), { cache: 'no-store' }, 2500);
-                                    if (pRes.ok) { var pData = await pRes.json(); if (Array.isArray(pData)) PDM.applyProducts(pData); }
-                                } catch (_) { }
-                                try {
-                                    var rRes = await fetchWithTimeout('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/receivers.json?_t=' + Date.now(), { cache: 'no-store' }, 2500);
-                                    if (rRes.ok) { var rData = await rRes.json(); if (Array.isArray(rData)) PM.applyParties('receiver', rData); }
-                                } catch (_) { }
-                                try {
-                                    var cRes = await fetchWithTimeout('https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/consignees.json?_t=' + Date.now(), { cache: 'no-store' }, 2500);
-                                    if (cRes.ok) { var cData = await cRes.json(); if (Array.isArray(cData)) PM.applyParties('consignee', cData); }
-                                } catch (_) { }
-                            }
-                            return;
                         }
 
-                        // 3. Ultra-lightweight check for Local Node / LAN mode (takes < 2ms)
+                        // // 3. Ultra-lightweight check for Local Node / LAN mode (takes < 2ms)
                         var baseApi = (API_URL || location.origin + '/api');
                         var verUrl = baseApi + '/invoices/version?_t=' + Date.now();
                         var isChanged = true;

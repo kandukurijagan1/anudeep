@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.8.0",
-  "build": 180,
-  "commit": "bfae15deb106ed7af1f30e2238f7f6be2c13a99c",
+  "version": "1.8.1",
+  "build": 181,
+  "commit": "dfd3251e3257bc34e7a83475435fd0c3cc8690d4",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
   "description": "feat(auto-reflect): complete service worker purge and disable-cache browser launch flags to force instant update reflection (Build 177)",
-  "releaseNotes": "High-Speed Cloud Database Engine: Sub-30ms direct Supabase communication across all entities (Invoices, Products, Receivers, Consignees, Settings)"
+  "releaseNotes": "Unified Single Source of Truth: Web and Desktop strictly synchronized to Supabase Cloud Database"
 }

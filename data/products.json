@@ -38,16 +38,5 @@
     "description": "Test Silk Item",
     "action": "createProduct",
     "_version": 1
-  },
-  {
-    "name": "tyghbjnm",
-    "description": "tyghbjnm",
-    "hsn": "87654678yugh",
-    "price": 500,
-    "calcType": "qty",
-    "id": "prod_1792598697719",
-    "apiKey": "",
-    "action": "createProduct",
-    "_version": 1
   }
 ]
