@@ -22,6 +22,13 @@ del /F /Q "%APPDATA%\AnudeepKhadiBandar\wwebjs_chrome.pid" >nul 2>&1
 :: Note: .wwebjs_auth and whatsapp_session.json are intentionally PRESERVED so WhatsApp stays linked across restarts!
 
 echo.
+echo 2.1 Wiping client browser cache in POS_Profile (Edge/Chrome cache)...
+rd /S /Q "%LOCALAPPDATA%\AnudeepKhadiBandar\POS_Profile\Default\Cache" >nul 2>&1
+rd /S /Q "%LOCALAPPDATA%\AnudeepKhadiBandar\POS_Profile\Default\Code Cache" >nul 2>&1
+rd /S /Q "%LOCALAPPDATA%\AnudeepKhadiBandar\POS_Profile\Default\Service Worker" >nul 2>&1
+rd /S /Q "%LOCALAPPDATA%\AnudeepKhadiBandar\POS_Profile\Default\GPUCache" >nul 2>&1
+
+echo.
 echo 3. Syncing latest server code and WhatsApp web cache to AppData...
 copy /Y "%~dp0server.js" "%APPDATA%\AnudeepKhadiBandar\server.js" >nul 2>&1
 copy /Y "%~dp0index.html" "%APPDATA%\AnudeepKhadiBandar\index.html" >nul 2>&1

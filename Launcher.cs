@@ -51,15 +51,14 @@ namespace AnudeepKhadiBandar
                 try
                 {
                     InitializeSystemTray();
+
+                    // 1. Run cloud sync synchronously BEFORE launching browser window (with quick 3s timeout)
+                    // so client machines always get latest build and files from GitHub before window appears
+                    try { TrySilentCloudSync(); } catch { }
+
                     EnsureBackendRunning();
                     LaunchDedicatedBrowserWindow(activeUrl);
                     StartWatchdog();
-
-                    // Run cloud sync asynchronously in background without blocking app startup
-                    new Thread(() =>
-                    {
-                        try { TrySilentCloudSync(); } catch { }
-                    }) { IsBackground = true }.Start();
 
                     Application.Run();
                 }
@@ -369,7 +368,8 @@ namespace AnudeepKhadiBandar
                 string args = string.Format(
                     "--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=1400,850 --start-maximized " +
                     "--disable-features=Translate,OptimizationHints --disable-extensions " +
-                    "--enable-gpu-rasterization --disable-background-timer-throttling --no-first-run",
+                    "--enable-gpu-rasterization --disable-background-timer-throttling --no-first-run " +
+                    "--disk-cache-size=1 --media-cache-size=1",
                     url,
                     profileDir
                 );
