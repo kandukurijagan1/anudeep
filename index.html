@@ -6656,8 +6656,30 @@
                 var invNo = U.pi(inv.invoiceNo);
                 var textMsg = SM.formatWhatsAppText(inv);
 
-                // Detect if running on remote HTTPS static hosting (e.g. GitHub Pages) without direct localhost access:
-                var isWebCloud = _isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'));
+                // Supabase Cloud Relay for Remote / Client machines:
+                // When on a client workstation or phone, saving the invoice to Supabase automatically
+                // triggers the Host WhatsApp bot to deliver the receipt in the background!
+                if (sbClient) {
+                    try {
+                        sbClient.from('invoices').upsert({
+                            id: String(inv.id || ('inv_' + inv.invoiceNo)),
+                            invoiceNo: parseInt(inv.invoiceNo, 10),
+                            date: inv.date || '',
+                            receiver: inv.receiver || {},
+                            consignee: inv.consignee || {},
+                            items: inv.items || [],
+                            taxableAmount: Number(inv.taxableAmount || inv.subtotal || 0),
+                            cgstAmount: Number(inv.cgstAmount || 0),
+                            sgstAmount: Number(inv.sgstAmount || 0),
+                            igstAmount: Number(inv.igstAmount || 0),
+                            totalAmount: Number(inv.totalAmount || inv.grandTotal || 0),
+                            customerPhone: cleanPhone,
+                            data: inv
+                        }, { onConflict: 'id' }).then(function() {
+                            console.log('⚡ [Supabase] Invoice #' + invNo + ' synchronized to Supabase Cloud for WhatsApp auto-delivery');
+                        }).catch(function() {});
+                    } catch (_) {}
+                }
                 if (isWebCloud) {
                     // 1. Asynchronously forward invoice to Cloud GAS so host workstation bot delivers it automatically
                     if (typeof CLOUD_GAS_URL !== 'undefined') {

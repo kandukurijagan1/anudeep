@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.7.2",
-  "build": 172,
+  "version": "1.7.3",
+  "build": 173,
   "commit": "latest",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(supabase-complete): full direct Supabase cloud priority bootstrap and real-time syncing (Build 172)"
+  "description": "feat(supabase-whatsapp): cloud real-time WhatsApp auto-dispatch between client machines and host bot (Build 173)"
 }

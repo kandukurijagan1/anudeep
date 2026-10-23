@@ -319,6 +319,29 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: false }
 });
 
+// Real-Time Supabase WebSocket Listener: When ANY invoice is saved on Client/Mobile, immediately dispatch WhatsApp!
+try {
+  supabase.channel('supabase_whatsapp_dispatcher')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'invoices' }, async (payload) => {
+      try {
+        const inv = payload.new ? (payload.new.data || payload.new) : null;
+        if (inv) {
+          console.log(`⚡ [Supabase-Realtime] Detected new invoice #${inv.invoiceNo || inv.id}. Auto-dispatching WhatsApp...`);
+          await autoDispatchBots(inv);
+        }
+      } catch (dispErr) {
+        console.warn('[Supabase-Realtime] Dispatch error:', dispErr.message);
+      }
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('⚡ [Supabase-Realtime] Store WhatsApp Bot subscribed to live Supabase cloud invoice stream.');
+      }
+    });
+} catch (e) {
+  console.warn('[Supabase-Realtime] Initialization note:', e.message);
+}
+
 // Asynchronously forward database changes to Supabase Cloud Database (< 50ms)
 async function forwardToSupabase(table, data, isUpsert = true) {
   try {
