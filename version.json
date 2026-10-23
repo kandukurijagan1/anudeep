@@ -1,10 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.6.8",
-  "build": 168,
+  "version": "1.6.9",
+  "build": 169,
   "commit": "latest",
   "releaseDate": "2026-10-23",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix: continuous products, parties, and invoices sync across cloud and client systems (Build 168)"
+  "description": "feat(native-autoupdate): 100% automatic internal cache wiping and self-updating directly inside AKB-Billing.exe without any scripts (Build 169)"
 }

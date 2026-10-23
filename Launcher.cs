@@ -138,9 +138,35 @@ namespace AnudeepKhadiBandar
                                 try
                                 {
                                     wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/" + tbl + "?_t=" + DateTime.UtcNow.Ticks, Path.Combine(dataDir, tbl));
+                                    if (Directory.Exists(Path.Combine(appDir, "data")))
+                                    {
+                                        try { File.Copy(Path.Combine(dataDir, tbl), Path.Combine(appDir, "data", tbl), true); } catch { }
+                                    }
                                 }
                                 catch { }
                             }
+
+                            // ⚡ AUTOMATIC INTERNAL CACHE FLUSH: Wipe browser cache seamlessly on update detection without requiring .bat or user effort
+                            try
+                            {
+                                string profileDir = Path.Combine(
+                                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                    "AnudeepKhadiBandar",
+                                    "POS_Profile",
+                                    "Default"
+                                );
+                                string[] cacheFolders = new string[] { "Cache", "Code Cache", "Service Worker", "GPUCache" };
+                                foreach (string cf in cacheFolders)
+                                {
+                                    string fullCp = Path.Combine(profileDir, cf);
+                                    if (Directory.Exists(fullCp))
+                                    {
+                                        try { Directory.Delete(fullCp, true); } catch { }
+                                    }
+                                }
+                            }
+                            catch { }
+
                             File.WriteAllText(localVerPath, remoteVerJson);
                         }
                     }
