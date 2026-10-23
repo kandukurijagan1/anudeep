@@ -2548,6 +2548,7 @@ app.post('/api/receivers', (req, res) => {
     else receivers.push(rec);
     writeJsonFile('receivers', receivers);
     forwardToGas('createReceiver', rec, rec.id);
+    broadcastRealtime('parties_updated', { receivers });
     res.json({ success: true, receiver: rec, data: rec });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2597,6 +2598,7 @@ app.post('/api/consignees', (req, res) => {
     else consignees.push(con);
     writeJsonFile('consignees', consignees);
     forwardToGas('createConsignee', con, con.id);
+    broadcastRealtime('parties_updated', { consignees });
     res.json({ success: true, consignee: con, data: con });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

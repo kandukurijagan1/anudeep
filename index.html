@@ -9282,6 +9282,24 @@
                         } catch (err) { }
                     });
 
+                    RTM.source.addEventListener('products_updated', function (e) {
+                        try {
+                            var parsed = JSON.parse(e.data);
+                            if (parsed && parsed.data && Array.isArray(parsed.data.products)) {
+                                RTM.handleEvent('products_updated', parsed.data, false);
+                            }
+                        } catch (err) { }
+                    });
+
+                    RTM.source.addEventListener('parties_updated', function (e) {
+                        try {
+                            var parsed = JSON.parse(e.data);
+                            if (parsed && parsed.data) {
+                                RTM.handleEvent('parties_updated', parsed.data, false);
+                            }
+                        } catch (err) { }
+                    });
+
                     RTM.source.addEventListener('whatsapp_status', function (e) {
                         try {
                             var parsed = JSON.parse(e.data);
@@ -9387,6 +9405,14 @@
                         IM._draw(IM._all);
                     }
                     DM.render();
+                } else if (type === 'products_updated') {
+                    if (data.products && Array.isArray(data.products)) {
+                        PDM.applyProducts(data.products);
+                        U.toast("⚡ Products updated in real-time", "info");
+                    }
+                } else if (type === 'parties_updated') {
+                    if (data.receivers && Array.isArray(data.receivers)) PM.applyParties('receiver', data.receivers);
+                    if (data.consignees && Array.isArray(data.consignees)) PM.applyParties('consignee', data.consignees);
                 } else if (type === 'whatsapp_status') {
                     _waStatusState = data;
                     var isConn = !!(data.connected || data.status === 'authenticated' || data.status === 'ready');
