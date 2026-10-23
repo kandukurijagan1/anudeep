@@ -6617,6 +6617,34 @@
                 var invNo = U.pi(inv.invoiceNo);
                 var textMsg = SM.formatWhatsAppText(inv);
 
+                // Detect if running on remote HTTPS static hosting (e.g. GitHub Pages) without direct localhost access:
+                var isWebCloud = _isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'));
+                if (isWebCloud) {
+                    // 1. Asynchronously forward invoice to Cloud GAS so host workstation picks it up
+                    if (typeof CLOUD_GAS_URL !== 'undefined') {
+                        try {
+                            fetch(CLOUD_GAS_URL + '?action=createInvoice', {
+                                method: 'POST',
+                                mode: 'no-cors',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(inv)
+                            }).catch(function () { });
+                        } catch (_) { }
+                    }
+
+                    // 2. Open pre-filled direct WhatsApp link so customer receives message immediately!
+                    U.toast("Opening WhatsApp chat for Invoice #" + invNo + "...", "info");
+                    var waDirectUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(textMsg);
+                    window.open(waDirectUrl, '_blank');
+
+                    // 3. Download PDF receipt so user has the file ready to attach
+                    SM.generatePdfBlob(inv, function (blob, pdfName) {
+                        if (blob) SM.downloadPdfBlob(blob, pdfName, inv);
+                    });
+                    return;
+                }
+
+                // Dedicated Desktop App / Localhost Engine:
                 // 1. Resolve WhatsApp API base URL and ensure backend engine is awake
                 if (window.electronAPI && window.electronAPI.ensureBackendRunning) {
                     window.electronAPI.ensureBackendRunning().catch(function () { });
@@ -8627,14 +8655,16 @@
                     }
                 });
 
-                // 🛡️ CRITICAL IMMORTALITY PRESERVATION:
-                // Never allow a remote sync tick to delete an invoice that was recently created or present locally!
+                // 🛡️ RECENT INVOICE RESILIENCE:
+                // Only preserve uncommitted local invoices created offline within the last 45 seconds
+                var now = Date.now();
                 var curLocal = (IM._all && IM._all.length) ? IM._all : (D.g("invoices") || []);
                 curLocal.forEach(function (locInv) {
                     if (!locInv) return;
                     var lid = String(locInv.id || locInv._id || '');
                     var lnum = parseInt(locInv.invoiceNo, 10);
-                    if (!deletedSet.has(lid) && !deletedSet.has(String(lnum))) {
+                    var isRecentUnsaved = (locInv._createdAt && (now - locInv._createdAt < 45000)) || (locInv._offlineUnsaved === true);
+                    if (isRecentUnsaved && !deletedSet.has(lid) && !deletedSet.has(String(lnum))) {
                         var exists = normalized.some(function (n) {
                             return (lid && String(n.id || n._id) === lid) || (lnum > 0 && parseInt(n.invoiceNo, 10) === lnum);
                         });
@@ -10237,10 +10267,14 @@
             return 'http://127.0.0.1:3000/api';
         }
 
-        function updateWhatsappSidebarDot(connected, isPending) {
+        function updateWhatsappSidebarDot(connected, isPending, isWebMode) {
             var dot = document.getElementById("wa-nav-dot");
             if (!dot) return;
-            if (connected) {
+            if (isWebMode) {
+                dot.style.background = "#3b82f6";
+                dot.style.boxShadow = "0 0 8px rgba(59,130,246,0.8)";
+                dot.title = "WhatsApp: Stationed on Workstation PC (Cloud Web Mode)";
+            } else if (connected) {
                 dot.style.background = "#10b981";
                 dot.style.boxShadow = "0 0 8px rgba(16,185,129,0.8)";
                 dot.title = "WhatsApp: Bot Connected & Ready";
@@ -10458,6 +10492,52 @@
                     '<a href="https://web.whatsapp.com" target="_blank" class="btn btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.85rem;"><i class="ph ph-arrow-square-out"></i> WhatsApp Web</a>' +
                     '<button class="btn btn-secondary" onclick="fetchWhatsappStatus(true)" style="font-size:0.85rem;"><i class="ph ph-arrows-clockwise"></i> Refresh</button>' +
                     '<button class="btn" style="background:#dc2626; color:#fff; border:none; font-weight:700; display:inline-flex; align-items:center; gap:6px; border-radius:6px; padding:7px 12px; font-size:0.85rem;" onclick="logoutWhatsapp()"><i class="ph ph-sign-out"></i> Unlink</button>' +
+                    '</div>' +
+                    '</div>';
+                return;
+            }
+
+            if (state === "web_mode" || (data && data.isWebMode)) {
+                var existingRoot = document.getElementById("wa-login-tabs-root");
+                if (existingRoot) existingRoot.remove();
+                updateWhatsappSidebarDot(true, false, true);
+                container.innerHTML =
+                    '<div style="text-align:center; padding:10px 0;">' +
+                    '<div style="display:inline-flex; align-items:center; gap:8px; background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; font-size:0.95rem; font-weight:700; padding:8px 18px; border-radius:30px; margin-bottom:14px;">' +
+                    '<i class="ph ph-cloud-check" style="font-size:1.3rem; color:#2563eb;"></i> Cloud Web Portal Active' +
+                    '</div>' +
+                    '<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; text-align:left; font-size:0.86rem; margin-bottom:14px; line-height:1.6;">' +
+                    '<div style="font-weight:700; color:#1e293b; margin-bottom:6px; font-size:0.95rem;">' +
+                    '<i class="ph ph-desktop" style="color:#2563eb;"></i> Host Workstation Bot' +
+                    '</div>' +
+                    '<div style="color:var(--tl); margin-bottom:10px;">' +
+                    'The automated background WhatsApp engine runs on your store\'s host computer (<span style="font-family:monospace; font-weight:700;">127.0.0.1:3000</span>) linked with phone <strong style="color:#059669;">+91 8367047947</strong>.' +
+                    '</div>' +
+                    '<div style="display:flex; flex-direction:column; gap:8px;">' +
+                    '<div style="display:flex; align-items:flex-start; gap:8px;">' +
+                    '<i class="ph ph-check-circle" style="color:#10b981; font-size:1.1rem; margin-top:2px;"></i>' +
+                    '<span><strong>Dedicated Desktop App:</strong> Delivers formatted bills & PDF attachments 100% automatically in background.</span>' +
+                    '</div>' +
+                    '<div style="display:flex; align-items:flex-start; gap:8px;">' +
+                    '<i class="ph ph-check-circle" style="color:#10b981; font-size:1.1rem; margin-top:2px;"></i>' +
+                    '<span><strong>Web Browser Mode:</strong> Click any green WhatsApp button to instantly open customer chat with pre-filled bill and download PDF.</span>' +
+                    '</div>' +
+                    '</div>' +
+                    '</div>' +
+                    '<div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:14px;">' +
+                    '<a href="http://127.0.0.1:3000/?mode=dedicated_app" class="btn btn-primary" style="background:#2563eb; border-color:#2563eb; padding:9px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">' +
+                    '<i class="ph ph-browsers"></i> Launch Workstation App' +
+                    '</a>' +
+                    '<a href="https://web.whatsapp.com" target="_blank" class="btn" style="background:#25D366; color:#fff; border-color:#25D366; padding:9px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">' +
+                    '<i class="ph ph-whatsapp-logo"></i> Open WhatsApp Web' +
+                    '</a>' +
+                    '</div>' +
+                    '<div style="background:#fff; border:1px solid #bbf7d0; border-radius:10px; padding:12px; text-align:left;">' +
+                    '<div style="font-size:0.82rem; font-weight:700; color:#166534; margin-bottom:6px;"><i class="ph ph-paper-plane-tilt"></i> Test Direct WhatsApp Chat:</div>' +
+                    '<div style="display:flex; gap:8px;">' +
+                    '<input type="text" id="wa-test-phone" value="8367047947" placeholder="10-digit number" style="flex:1; padding:7px 10px; font-size:0.85rem; border:1px solid var(--bd); border-radius:6px;" />' +
+                    '<button id="btn-wa-send-test" class="btn btn-primary" onclick="sendWhatsappTestMessage()" style="padding:7px 12px; font-size:0.85rem; white-space:nowrap; background:#25D366; border-color:#25D366;"><i class="ph ph-paper-plane"></i> Test Send</button>' +
+                    '</div>' +
                     '</div>' +
                     '</div>';
                 return;
@@ -10705,6 +10785,19 @@
             var phone = pEl ? pEl.value.trim() : "";
             var btn = document.getElementById("btn-wa-send-test");
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner"></i> Sending...'; }
+
+            var isWebCloud = _isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'));
+            if (isWebCloud) {
+                var cleanPhone = phone ? phone.replace(/\D/g, '') : "918367047947";
+                if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+                var testMsg = 'Test message from Anudeep Khadi Bandar. WhatsApp integration is active!';
+                var waDirectUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(testMsg);
+                window.open(waDirectUrl, '_blank');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-paper-plane"></i> Test Send'; }
+                U.toast("Opening direct WhatsApp test chat...", "success");
+                return;
+            }
+
             var controller = new AbortController();
             var timeoutId = setTimeout(function () { controller.abort(); }, 25000);
             try {
@@ -10826,16 +10919,17 @@
 
         async function fetchWhatsappStatus(showToast) {
             if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
-                _waStatusState = { connected: false, hostedOnServer: true };
-                updateWhatsappSidebarDot(false, false);
+                _waStatusState = { connected: true, hostedOnServer: true, isWebMode: true, user: { phone: '918367047947', name: 'Anudeep Khadi Bandar' } };
+                updateWhatsappSidebarDot(true, false, true);
                 var waBadge = document.getElementById("s-wa-badge");
                 var waBox = document.getElementById("s-wa-status-box");
                 if (waBadge && waBox) {
                     waBadge.style.background = "#eff6ff";
                     waBadge.style.color = "#1e40af";
                     waBadge.textContent = "WORKSTATION BOT";
-                    waBox.innerHTML = '<span style="color:#2563eb; font-weight:700;"><i class="ph ph-device-mobile"></i> WhatsApp Engine Stationed on Host PC</span><br><span style="color:var(--tl)">Customer receipts are dispatched via Host Workstation PC. You can configure a custom host IP in Settings if needed.</span>';
+                    waBox.innerHTML = '<span style="color:#2563eb; font-weight:700;"><i class="ph ph-device-mobile"></i> WhatsApp Engine Stationed on Host PC</span><br><span style="color:var(--tl)">Invoices generated on this web portal are synced to your billing computer (+918367047947) for delivery. Click any invoice WhatsApp icon to send instantly.</span>';
                 }
+                renderWhatsappModal("web_mode", _waStatusState);
                 return;
             }
 

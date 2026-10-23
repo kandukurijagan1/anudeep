@@ -348,6 +348,19 @@ function writeJsonFile(name, data) {
   }
 }
 
+let _gitPushTimer = null;
+function scheduleGitLedgerSync() {
+  if (_gitPushTimer) clearTimeout(_gitPushTimer);
+  _gitPushTimer = setTimeout(() => {
+    try {
+      const { exec } = require('child_process');
+      exec('git add data/invoices.json data/deleted_invoices.json data/settings.json && git commit -m "sync: automatic master ledger update" && git push origin main', (gErr) => {
+        if (!gErr) console.log('⚡ [Cloud-Ledger] Master ledger pushed to GitHub repository successfully.');
+      });
+    } catch (_) {}
+  }, 4000);
+}
+
 // Asynchronously forward database changes to Google Apps Script (Cloud Sheet)
 async function forwardToGas(action, payload = {}, id = '') {
   if (!fetch) return;
@@ -2041,16 +2054,17 @@ setInterval(async () => {
   try {
     let remoteInvoices = [];
 
-    // 1. Sync tombstones from GitHub
+    // 1. Sync tombstones from GitHub (strictly enforcing unique document IDs, never short numbers)
     try {
       const delRes = await fetch(`${RAW_BASE_URL}/data/deleted_invoices.json?_t=${Date.now()}`);
       if (delRes.ok) {
         const remoteDel = await delRes.json();
         if (Array.isArray(remoteDel)) {
-          const curDel = readJsonFile('deleted_invoices', []);
+          let curDel = readJsonFile('deleted_invoices', []).filter(d => String(d).length > 5);
           let delChanged = false;
           for (const d of remoteDel) {
-            if (!curDel.includes(String(d))) { curDel.push(String(d)); delChanged = true; }
+            const strD = String(d).trim();
+            if (strD.length > 5 && !curDel.includes(strD)) { curDel.push(strD); delChanged = true; }
           }
           if (delChanged) writeJsonFile('deleted_invoices', curDel);
         }
@@ -2336,6 +2350,7 @@ app.post('/api/invoices', (req, res) => {
 
     // Broadcast real-time update
     broadcastRealtime('invoice_created', { invoice: inv });
+    scheduleGitLedgerSync();
 
     console.log(`✅ [Database] Saved invoice #${inv.invoiceNo || inv.id} locally and dispatched.`);
     res.json({ success: true, invoice: inv, data: inv });
@@ -2357,12 +2372,14 @@ app.put('/api/invoices/:id', (req, res) => {
       _invoicesVersion = Date.now();
       forwardToGas('updateInvoice', invoices[index], id);
       broadcastRealtime('invoice_updated', { invoice: invoices[index] });
+      scheduleGitLedgerSync();
       res.json({ success: true, invoice: invoices[index], data: invoices[index] });
     } else {
       invoices.unshift(inv);
       writeJsonFile('invoices', invoices);
       _invoicesVersion = Date.now();
       forwardToGas('createInvoice', inv, id);
+      scheduleGitLedgerSync();
       res.json({ success: true, invoice: inv, data: inv });
     }
   } catch (err) {
@@ -2382,13 +2399,15 @@ app.delete('/api/invoices/:id', (req, res) => {
     _invoicesVersion = Date.now();
 
     // Persist deletion to tombstone list by unique ID so sync never resurrects it
-    const deletedList = readJsonFile('deleted_invoices', []);
+    let deletedList = readJsonFile('deleted_invoices', []);
     if (id && String(id).length > 5 && !deletedList.includes(String(id))) deletedList.push(String(id));
     if (target && target.id && String(target.id).length > 5 && !deletedList.includes(String(target.id))) deletedList.push(String(target.id));
+    deletedList = deletedList.filter(d => String(d).length > 5);
     writeJsonFile('deleted_invoices', deletedList);
 
     forwardToGas('deleteInvoice', {}, id);
     broadcastRealtime('invoice_deleted', { id, invoiceNo: invNo });
+    scheduleGitLedgerSync();
     res.json({ success: true, id, invoiceNo: invNo });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2599,6 +2618,7 @@ app.put('/api/settings', requireAuth, (req, res) => {
 
     writeJsonFile('settings', updated);
     forwardToGas('updateSettings', updated);
+    scheduleGitLedgerSync();
     res.json({ success: true, settings: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
