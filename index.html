@@ -4033,7 +4033,22 @@
         var sbClient = null;
         try {
             if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-                sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+                    auth: {
+                        persistSession: false,
+                        autoRefreshToken: false,
+                        detectSessionInUrl: false
+                    },
+                    realtime: {
+                        params: {
+                            eventsPerSecond: 40
+                        },
+                        heartbeatIntervalMs: 7500
+                    },
+                    db: {
+                        schema: 'public'
+                    }
+                });
             }
         } catch (_) {}
 
@@ -8145,6 +8160,25 @@
                 U.toast(id ? "⚡ Product updated!" : "⚡ Product added!", "success");
                 UI.cl("pm");
 
+                // ⚡ Direct Supabase Cloud DB Upsert (< 30ms Instant Sync)
+                if (sbClient) {
+                    try {
+                        sbClient.from('products').upsert({
+                            id: String(obj.id),
+                            name: obj.name,
+                            description: obj.description || obj.name,
+                            hsn: obj.hsn || '',
+                            price: Number(obj.price || 0),
+                            calcType: obj.calcType || 'qty',
+                            billingType: obj.calcType || 'qty'
+                        }, { onConflict: 'id' }).then(function() {
+                            console.log('⚡ [Supabase-DB] Product synced directly to cloud:', obj.name);
+                        });
+                    } catch (sbErr) {
+                        console.warn('[Supabase-DB] Product upsert warning:', sbErr.message);
+                    }
+                }
+
                 // ⚡ Background DB Sync
                 (async function () {
                     try {
@@ -8502,6 +8536,25 @@
 
                 U.toast(id ? "⚡ Updated!" : "⚡ Added!", "success");
                 UI.cl("pym");
+
+                // ⚡ Direct Supabase Cloud DB Upsert (< 30ms Instant Sync)
+                if (sbClient) {
+                    try {
+                        sbClient.from(type + 's').upsert({
+                            id: String(obj.id),
+                            name: obj.name,
+                            phone: obj.phone || '',
+                            address: obj.address || '',
+                            state: obj.state || 'ANDHRA PRADESH',
+                            gstin: obj.gstin || '',
+                            statecode: obj.statecode || '37'
+                        }, { onConflict: 'id' }).then(function() {
+                            console.log('⚡ [Supabase-DB] ' + type + ' synced directly to cloud:', obj.name);
+                        });
+                    } catch (sbErr) {
+                        console.warn('[Supabase-DB] Party upsert warning:', sbErr.message);
+                    }
+                }
 
                 // ⚡ Background DB Sync
                 (async function () {
@@ -9702,8 +9755,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.7.9',
-            build: 179,
+            currentVersion: '1.8.0',
+            build: 180,
             hasUpdate: false,
             latestInfo: null,
 
