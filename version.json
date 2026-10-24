@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.8.5",
-  "build": 185,
-  "commit": "ed93f52bd4ead3c292bf8f4924f9e4231a9a914c",
+  "version": "1.8.6",
+  "build": 186,
+  "commit": "HEAD",
   "releaseDate": "2026-10-24",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(mobile-pdf): mobile More sheet with Parties+Reports, compressed PDF, fixed A4 render layout",
-  "releaseNotes": "1. Mobile bottom nav: Parties tab + More sheet for Products/Reports/Settings. 2. PDF compressed ~60% (scale 1.5, JPEG 0.72, jsPDF compress). 3. PDF render fixed to 794px A4 width off-screen. 4. Remote WhatsApp PDF relay support."
+  "description": "fix(sync-whatsapp): prevent newly generated invoices from disappearing on sync and route WhatsApp share via Supabase bot relay",
+  "releaseNotes": "1. Direct instant Supabase upsert inside BM.save so new invoices exist in cloud before 2s poll. 2. Extended local invoice resilience from 45s to 300s. 3. Deduplicate by unique ID instead of invoice number to protect new records. 4. Sanitized deletion tombstones so new invoices are never blocked. 5. Routed manual WhatsApp sharing through Supabase bot trigger instead of opening manual chat."
 }

@@ -7068,12 +7068,38 @@
                     }
 
                     if (isManualAction) {
-                        // User explicitly clicked "Send WhatsApp" in table/share modal -> open direct WhatsApp chat
-                        U.toast("Opening WhatsApp chat for Invoice #" + invNo + "...", "info");
-                        var waDirectUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(textMsg);
-                        window.open(waDirectUrl, '_blank');
+                        // User explicitly clicked "Send WhatsApp" in table/share modal
+                        // If Supabase is active, trigger host bot via Supabase; otherwise offer direct link
+                        if (sbClient) {
+                            U.toast("⚡ Triggering host bot via Cloud to auto-deliver Invoice #" + invNo + "...", "info");
+                            sbClient.from('invoices').upsert({
+                                id: String(inv.id || ('inv_' + inv.invoiceNo)),
+                                invoiceNo: parseInt(inv.invoiceNo, 10),
+                                date: inv.date || '',
+                                receiver: inv.receiver || {},
+                                consignee: inv.consignee || {},
+                                items: inv.items || [],
+                                taxableAmount: Number(inv.taxableAmount || inv.subtotal || 0),
+                                cgstAmount: Number(inv.cgstAmount || 0),
+                                sgstAmount: Number(inv.sgstAmount || 0),
+                                igstAmount: Number(inv.igstAmount || 0),
+                                totalAmount: Number(inv.totalAmount || inv.grandTotal || 0),
+                                customerPhone: cleanPhone,
+                                data: inv,
+                                updated_at: new Date().toISOString()
+                            }, { onConflict: 'id' }).then(function() {
+                                U.toast("✅ Invoice #" + invNo + " queued to host WhatsApp bot!", "success");
+                            }).catch(function() {
+                                var waDirectUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(textMsg);
+                                window.open(waDirectUrl, '_blank');
+                            });
+                        } else {
+                            U.toast("Opening WhatsApp chat for Invoice #" + invNo + "...", "info");
+                            var waDirectUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(textMsg);
+                            window.open(waDirectUrl, '_blank');
+                        }
                     } else {
-                        // Automatic dispatch upon invoice creation -> host workstation bot delivers it cleanly in background
+                        // Automatic dispatch upon invoice creation -> host workstation bot delivers it cleanly in background via Supabase stream
                         U.toast("⚡ Invoice #" + invNo + " saved! Host Workstation Bot will auto-deliver WhatsApp receipt to " + cleanPhone, "success");
                     }
                     return;
@@ -8215,6 +8241,29 @@
                 curDeleted = curDeleted.filter(function (d) { return d !== idToClear && d !== numToClear && d !== U.pi(inv.invoiceNo); });
                 localStorage.setItem('akb_deleted_invoices', JSON.stringify(curDeleted));
 
+                // ⚡ Direct Instant Supabase Cloud Upsert (< 50ms)
+                if (sbClient) {
+                    try {
+                        sbClient.from('invoices').upsert({
+                            id: String(inv.id || ('inv_' + inv.invoiceNo)),
+                            invoiceNo: parseInt(inv.invoiceNo, 10),
+                            date: inv.date || '',
+                            receiver: inv.receiver || {},
+                            consignee: inv.consignee || {},
+                            items: inv.items || [],
+                            taxableAmount: Number(inv.taxableAmount || 0),
+                            cgstAmount: Number(inv.cgstAmount || 0),
+                            sgstAmount: Number(inv.sgstAmount || 0),
+                            igstAmount: Number(inv.igstAmount || 0),
+                            totalAmount: Number(inv.totalAmount || 0),
+                            customerPhone: custPhone || '',
+                            data: inv
+                        }, { onConflict: 'id' }).then(function() {
+                            console.log('⚡ [Supabase] Invoice #' + inv.invoiceNo + ' upserted directly on save');
+                        }).catch(function(e) { console.warn('Supabase direct upsert notice:', e.message); });
+                    } catch (_) {}
+                }
+
                 // ⚡ STEP 1: ZERO-LATENCY OPTIMISTIC UI COMMIT (< 2ms)
                 var invs = D.g("invoices") || [];
                 if (BM.editId) {
@@ -9155,16 +9204,17 @@
 
                 var offlineQueue = (typeof OM !== 'undefined' ? OM.q() : (D.g("offline_queue") || []));
 
-                // Permanent deletion filter: exclude any invoice deleted locally or via tombstone
+                // Permanent deletion filter: exclude any invoice deleted locally or via tombstone (only matching long unique IDs)
                 var deletedList = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
+                deletedList = deletedList.filter(function (d) { return String(d).length > 5; });
+                localStorage.setItem('akb_deleted_invoices', JSON.stringify(deletedList));
                 var deletedSet = new Set(deletedList.map(String));
                 var queuedDeletedIds = offlineQueue.filter(function (t) { return t.type === 'invoice_delete'; }).map(function (t) { return String(t.id); });
-                queuedDeletedIds.forEach(function (d) { deletedSet.add(d); });
+                queuedDeletedIds.forEach(function (d) { if (String(d).length > 5) deletedSet.add(String(d)); });
 
                 normalized = normalized.filter(function (inv) {
                     var iid = String(inv.id || inv._id || '');
-                    var inum = String(inv.invoiceNo || '');
-                    return (!iid || !deletedSet.has(iid)) && (!inum || !deletedSet.has(inum));
+                    return !iid || !deletedSet.has(iid);
                 });
 
                 var offlineInvs = offlineQueue.filter(function (t) { return t.type === 'invoice_save'; }).map(function (t) { return t.inv; });
@@ -9175,17 +9225,19 @@
                 });
 
                 // 🛡️ RECENT INVOICE RESILIENCE:
-                // Only preserve uncommitted local invoices created offline within the last 45 seconds
+                // Preserve recently created local invoices (within last 5 minutes) so they are never wiped by sync
                 var now = Date.now();
                 var curLocal = (IM._all && IM._all.length) ? IM._all : (D.g("invoices") || []);
                 curLocal.forEach(function (locInv) {
                     if (!locInv) return;
                     var lid = String(locInv.id || locInv._id || '');
                     var lnum = parseInt(locInv.invoiceNo, 10);
-                    var isRecentUnsaved = (locInv._createdAt && (now - locInv._createdAt < 45000)) || (locInv._offlineUnsaved === true);
-                    if (isRecentUnsaved && !deletedSet.has(lid) && !deletedSet.has(String(lnum))) {
+                    var isRecent = (locInv._createdAt && (now - locInv._createdAt < 300000)) || 
+                                   (locInv.id && (now - Number(locInv.id) < 300000)) || 
+                                   (locInv._offlineUnsaved === true);
+                    if (isRecent && !deletedSet.has(lid) && !deletedSet.has(String(lnum))) {
                         var exists = normalized.some(function (n) {
-                            return (lid && String(n.id || n._id) === lid) || (lnum > 0 && parseInt(n.invoiceNo, 10) === lnum);
+                            return (lid && String(n.id || n._id) === lid);
                         });
                         if (!exists) {
                             normalized.unshift(locInv);
@@ -9193,27 +9245,17 @@
                     }
                 });
 
-                // Deduplicate by invoice number: if multiple invoices share the same invoiceNo, preserve the one with full party details
-                var byInvoiceNo = new Map();
+                // Deduplicate by unique ID first, then by invoice number ONLY if both have the same ID or both are confirmed server records
+                var byId = new Map();
                 normalized.forEach(function (inv) {
-                    var numKey = parseInt(inv.invoiceNo, 10);
-                    if (!isNaN(numKey) && numKey > 0) {
-                        if (!byInvoiceNo.has(numKey)) {
-                            byInvoiceNo.set(numKey, inv);
-                        } else {
-                            var cur = byInvoiceNo.get(numKey);
-                            var curScore = (cur.receiver && cur.receiver.name ? 2 : 0) + (cur.items && cur.items.length ? 1 : 0);
-                            var newScore = (inv.receiver && inv.receiver.name ? 2 : 0) + (inv.items && inv.items.length ? 1 : 0);
-                            if (newScore > curScore) {
-                                byInvoiceNo.set(numKey, inv);
-                            }
-                        }
-                    } else {
-                        var strKey = String(inv.id || inv._id || Math.random());
-                        byInvoiceNo.set(strKey, inv);
+                    var strKey = String(inv.id || inv._id || '');
+                    if (strKey && !byId.has(strKey)) {
+                        byId.set(strKey, inv);
+                    } else if (!strKey) {
+                        byId.set(String(Math.random()), inv);
                     }
                 });
-                normalized = Array.from(byInvoiceNo.values());
+                normalized = Array.from(byId.values());
 
                 IM._all = normalized;
                 D.s('invoices', IM._all);
@@ -9379,14 +9421,16 @@
                     return;
                 }
 
-                // 1. Record in permanent tombstone by unique ID AND invoice number so sync never restores this deleted instance
+                // 1. Record in permanent tombstone by unique ID (only IDs > 5 chars, NEVER pure invoice numbers)
                 var target = (IM._all || []).find(function (i) { return String(i.id) === idStr || String(i._id) === idStr || String(i.invoiceNo) === idStr; });
                 var deletedList = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
-                if (idStr && !deletedList.includes(idStr)) deletedList.push(idStr);
-                if (target) {
-                    if (target.id && !deletedList.includes(String(target.id))) deletedList.push(String(target.id));
-                    if (target.invoiceNo && !deletedList.includes(String(target.invoiceNo))) deletedList.push(String(target.invoiceNo));
+                if (idStr && idStr.length > 5 && !deletedList.includes(idStr)) deletedList.push(idStr);
+                if (target && target.id) {
+                    var targetIdStr = String(target.id || target._id);
+                    if (targetIdStr.length > 5 && !deletedList.includes(targetIdStr)) deletedList.push(targetIdStr);
                 }
+                // Purge any accidental short invoice numbers from tombstones
+                deletedList = deletedList.filter(function (d) { return String(d).length > 5; });
                 localStorage.setItem('akb_deleted_invoices', JSON.stringify(deletedList));
 
                 // 2. Optimistically delete from state & localStorage immediately (< 1ms)
