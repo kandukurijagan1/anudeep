@@ -533,6 +533,32 @@ function getDefaultSettings() {
 // ⚡ REAL-TIME ENGINE (SERVER-SENT EVENTS - SSE)
 // ==========================================
 const sseClients = new Set();
+const whatsappDeliveryLogs = [];
+
+function recordWhatsappDelivery(entry) {
+  try {
+    whatsappDeliveryLogs.unshift(Object.assign({
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      timestamp: new Date().toISOString()
+    }, entry));
+    if (whatsappDeliveryLogs.length > 50) whatsappDeliveryLogs.pop();
+    // Persist last 50 logs to disk
+    try {
+      fs.writeFileSync(path.join(AKB_DIR, 'whatsapp_delivery_logs.json'), JSON.stringify(whatsappDeliveryLogs.slice(0, 50)), 'utf8');
+    } catch (_) {}
+  } catch (_) {}
+}
+
+// Load persisted delivery logs on startup if available
+try {
+  const savedLogsPath = path.join(AKB_DIR, 'whatsapp_delivery_logs.json');
+  if (fs.existsSync(savedLogsPath)) {
+    const raw = JSON.parse(fs.readFileSync(savedLogsPath, 'utf8'));
+    if (Array.isArray(raw)) {
+      whatsappDeliveryLogs.push(...raw.slice(0, 50));
+    }
+  }
+} catch (_) {}
 
 function broadcastRealtime(eventType, payload) {
   const data = JSON.stringify({ type: eventType, data: payload, timestamp: Date.now() });
@@ -2982,6 +3008,11 @@ app.get('/api/whatsapp/status', async (req, res) => {
   });
 });
 
+// Endpoint to retrieve recent WhatsApp delivery audit logs
+app.get('/api/whatsapp/delivery-logs', (req, res) => {
+  res.json({ success: true, count: whatsappDeliveryLogs.length, logs: whatsappDeliveryLogs });
+});
+
 // Explicit endpoint to trigger immediate auto-connection
 app.post('/api/whatsapp/auto-connect', async (req, res) => {
   if (isWhatsappConnected) {
@@ -3976,7 +4007,37 @@ async function autoDispatchBots(inv) {
           }
         }
       }
-      broadcastRealtime('whatsapp_dispatched', { invoiceNo: invNo, recipients: recipientPhones });
+      recordWhatsappDelivery({
+        invoiceNo: invNo,
+        customerName: custName,
+        customerPhone: custPhone,
+        recipients: recipientPhones,
+        hasPdf: !!pdfMedia,
+        totalAmount: totalAmt,
+        status: 'delivered'
+      });
+      broadcastRealtime('whatsapp_dispatched', {
+        invoiceNo: invNo,
+        recipients: recipientPhones,
+        customerName: custName,
+        hasPdf: !!pdfMedia,
+        timestamp: new Date().toISOString()
+      });
+      // Also update delivery log in Supabase settings so remote mobile web clients see it instantly
+      if (typeof supabase !== 'undefined' && supabase) {
+        try {
+          supabase.from('settings').update({
+            lastWhatsappDelivery: {
+              invoiceNo: invNo,
+              customerName: custName,
+              customerPhone: custPhone,
+              recipients: recipientPhones,
+              hasPdf: !!pdfMedia,
+              timestamp: new Date().toISOString()
+            }
+          }).eq('id', 'app_settings').then(() => {}).catch(() => {});
+        } catch (_) {}
+      }
     } else {
       console.log(`[Auto-WhatsApp] Bot not connected. Invoice #${invNo} stored. Link WhatsApp in UI to enable auto-send.`);
     }

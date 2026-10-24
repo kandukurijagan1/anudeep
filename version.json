@@ -1,10 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.9.3",
-  "build": 193,
+  "version": "1.9.4",
+  "build": 194,
   "releaseDate": "2026-10-24",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(whatsapp): automated official A4 Tax Invoice PDF document attachment dispatch",
-  "releaseNotes": "1. Fixed automated WhatsApp dispatch: Now generates and delivers the official A4 Tax Invoice PDF document attachment directly into customer and store chats instead of plain text only. 2. Headless Chrome server-side rendering embeds logos, bale items, and GST breakdown with zero user prompt. 3. Real-time Supabase cloud webhook triggers instant PDF delivery."
+  "description": "feat(whatsapp): advanced delivery audit logs, real-time status badges, and interactive one-click dispatch",
+  "releaseNotes": "1. Advanced WhatsApp Delivery Badges in Invoice History table displaying live delivery confirmation (Tax PDF / Text) per invoice. 2. Real-time audit history log in WhatsApp Manager showing timestamped dispatch status. 3. Interactive loading spinner on table WhatsApp button with instant user feedback. 4. Persistent server delivery log endpoint and Supabase live relay sync.",
+  "commit": ""
 }

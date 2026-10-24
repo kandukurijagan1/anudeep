@@ -7443,7 +7443,7 @@
                 });
             },
 
-            shareInvoiceWhatsapp: function (invId) {
+            shareInvoiceWhatsapp: function (invId, triggerBtn) {
                 var target = String(invId || '').trim();
                 var inv = (IM._all || []).find(function (i) { return String(i.id) === target || String(i._id) === target || String(i.invoiceNo) === target; });
                 if (!inv) {
@@ -7453,6 +7453,15 @@
                 if (!inv) {
                     U.toast("Invoice not found", "error");
                     return;
+                }
+                if (triggerBtn) {
+                    var origHtml = triggerBtn.innerHTML;
+                    triggerBtn.innerHTML = '<i class="ph ph-spinner ph-spin" style="color:#25D366;"></i>';
+                    triggerBtn.disabled = true;
+                    setTimeout(function() {
+                        triggerBtn.innerHTML = origHtml;
+                        triggerBtn.disabled = false;
+                    }, 2500);
                 }
                 SM.currentInv = inv;
                 SM.autoSendWhatsapp(inv, null, true);
@@ -9506,10 +9515,20 @@
 
                 var pageSlice = list.slice(start, end);
                 var h = "";
+                var waDispatches = {};
+                try { waDispatches = JSON.parse(localStorage.getItem('akb_wa_dispatches') || '{}'); } catch (_) {}
+
                 pageSlice.forEach(function (inv) {
                     var totalQty = 0; if (inv.items) inv.items.forEach(function (it) { totalQty += (it.qty || 0) });
                     var invKey = String(inv.id || inv._id || inv.invoiceNo || '');
-                    h += '<tr><td><a href="#" onclick="SM.open(\'' + invKey + '\'); return false;" style="color:var(--tg);text-decoration:none;font-weight:700">#' + U.pi(inv.invoiceNo) + '</a></td><td>' + U.fd(inv.date) + '</td><td>' + (inv.receiver ? U.esc(inv.receiver.name) : "-") + '</td><td>' + (inv.items ? inv.items.length : 0) + '</td><td class="tr" style="font-weight:600">' + U.fm(inv.totalAmount) + '</td><td class="text-right"><button class="btn-icon" onclick="SM.downloadPdf(\'' + invKey + '\')" title="Download PDF" style="color:#e11d48"><i class="ph ph-file-pdf"></i></button> <button class="btn-icon" onclick="SM.shareInvoiceWhatsapp(\'' + invKey + '\')" title="Share via WhatsApp" style="color:#25D366;font-size:1.15rem"><i class="ph ph-whatsapp-logo"></i></button> <button class="btn-icon" onclick="BM.editInvoice(\'' + invKey + '\')" title="Edit"><i class="ph ph-pencil-simple"></i></button> <button class="btn-icon" onclick="SM.printInvoice(\'' + invKey + '\')" title="Print"><i class="ph ph-printer"></i></button> <button class="btn-icon" onclick="SM.open(\'' + invKey + '\')" title="Share"><i class="ph ph-share-network"></i></button> <button class="btn-icon" onclick="IM.del(\'' + invKey + '\')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td></tr>';
+                    var numKey = String(inv.invoiceNo || '').replace(/^0+/, '');
+                    var waInfo = waDispatches[numKey] || waDispatches[invKey] || (inv.whatsappSent ? { at: inv.whatsappSentAt, hasPdf: true } : null);
+                    var waBadgeHtml = '';
+                    if (waInfo) {
+                        waBadgeHtml = '<span class="badge" title="Delivered via WhatsApp Bot (' + (waInfo.hasPdf !== false ? 'Tax PDF' : 'Text') + ')" style="display:inline-flex; align-items:center; gap:3px; background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; font-size:0.68rem; padding:2px 6px; border-radius:10px; margin-left:6px; vertical-align:middle; font-weight:700;"><i class="ph-bold ph-check-circle" style="color:#10b981;"></i> WhatsApp</span>';
+                    }
+
+                    h += '<tr><td><a href="#" onclick="SM.open(\'' + invKey + '\'); return false;" style="color:var(--tg);text-decoration:none;font-weight:700">#' + U.pi(inv.invoiceNo) + '</a>' + waBadgeHtml + '</td><td>' + U.fd(inv.date) + '</td><td>' + (inv.receiver ? U.esc(inv.receiver.name) : "-") + '</td><td>' + (inv.items ? inv.items.length : 0) + '</td><td class="tr" style="font-weight:600">' + U.fm(inv.totalAmount) + '</td><td class="text-right"><button class="btn-icon" onclick="SM.downloadPdf(\'' + invKey + '\')" title="Download PDF" style="color:#e11d48"><i class="ph ph-file-pdf"></i></button> <button class="btn-icon" onclick="SM.shareInvoiceWhatsapp(\'' + invKey + '\', this)" title="Deliver Tax Invoice PDF via WhatsApp Bot" style="color:#25D366;font-size:1.15rem"><i class="ph ph-whatsapp-logo"></i></button> <button class="btn-icon" onclick="BM.editInvoice(\'' + invKey + '\')" title="Edit"><i class="ph ph-pencil-simple"></i></button> <button class="btn-icon" onclick="SM.printInvoice(\'' + invKey + '\')" title="Print"><i class="ph ph-printer"></i></button> <button class="btn-icon" onclick="SM.open(\'' + invKey + '\')" title="Share"><i class="ph ph-share-network"></i></button> <button class="btn-icon" onclick="IM.del(\'' + invKey + '\')" title="Delete" style="color:var(--dg)"><i class="ph ph-trash"></i></button></td></tr>';
                 });
                 tb.innerHTML = h;
             },
@@ -10051,6 +10070,15 @@
                         } catch (err) { }
                     });
 
+                    RTM.source.addEventListener('whatsapp_dispatched', function (e) {
+                        try {
+                            var parsed = JSON.parse(e.data);
+                            if (parsed && parsed.data) {
+                                RTM.handleEvent('whatsapp_dispatched', parsed.data, false);
+                            }
+                        } catch (err) { }
+                    });
+
                     RTM.source.addEventListener('ping', function () {
                         RTM.connected = true;
                         RTM.updateBadge('connected');
@@ -10193,6 +10221,25 @@
                     if (typeof updateWhatsappSidebarDot === 'function') {
                         updateWhatsappSidebarDot(isConn, !isConn && (data.status === 'initializing' || (!!data.qr && data.status !== 'connecting_saved')));
                     }
+                } else if (type === 'whatsapp_dispatched') {
+                    var disNo = data.invoiceNo ? String(data.invoiceNo).replace(/^0+/, '') : '';
+                    if (disNo) {
+                        try {
+                            var dispMap = JSON.parse(localStorage.getItem('akb_wa_dispatches') || '{}');
+                            dispMap[disNo] = {
+                                at: data.timestamp || new Date().toISOString(),
+                                hasPdf: data.hasPdf !== false,
+                                recipients: data.recipients || []
+                            };
+                            localStorage.setItem('akb_wa_dispatches', JSON.stringify(dispMap));
+                        } catch (_) {}
+                        // Refresh history table view if active so badge appears
+                        if (typeof IM !== 'undefined' && typeof IM._draw === 'function') {
+                            IM._draw();
+                        }
+                    }
+                    var recipStr = (data.recipients && data.recipients.length) ? (' to ' + data.recipients[0]) : '';
+                    U.toast("✅ WhatsApp: Invoice #" + (data.invoiceNo || disNo) + " Tax PDF delivered" + recipStr + "!", "success");
                 } else if (type === 'app_updated') {
                     RTM.playChime();
                     if (typeof UpdaterUI !== 'undefined' && UpdaterUI.showNotification) {
@@ -11341,6 +11388,15 @@
                     '<button id="btn-wa-send-test" class="btn btn-primary" onclick="sendWhatsappTestMessage()" style="padding:7px 12px; font-size:0.85rem; white-space:nowrap; background:#25D366; border-color:#25D366;"><i class="ph ph-paper-plane"></i> Test Send</button>' +
                     '</div>' +
                     '</div>' +
+                    '<div id="wa-delivery-history-container" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:14px; text-align:left;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+                    '<span style="font-size:0.82rem; font-weight:700; color:#334155;"><i class="ph ph-clock-counter-clockwise"></i> Recent WhatsApp Deliveries</span>' +
+                    '<button class="btn btn-secondary" onclick="loadWhatsappDeliveryLogs()" style="font-size:0.72rem; padding:2px 8px;"><i class="ph ph-arrows-clockwise"></i></button>' +
+                    '</div>' +
+                    '<div id="wa-delivery-history-list" style="font-size:0.78rem; color:var(--tl); max-height:130px; overflow-y:auto;">' +
+                    'Loading delivery audit logs...' +
+                    '</div>' +
+                    '</div>' +
                     '<div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:12px 14px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; text-align:left;">' +
                     '<div>' +
                     '<div style="font-weight:700; font-size:0.86rem; color:#9a3412;"><i class="ph ph-phone-call"></i> Want to use a different WhatsApp number?</div>' +
@@ -11354,6 +11410,7 @@
                     '<button class="btn" style="background:#dc2626; color:#fff; border:none; font-weight:700; display:inline-flex; align-items:center; gap:6px; border-radius:6px; padding:7px 12px; font-size:0.85rem;" onclick="logoutWhatsapp()"><i class="ph ph-sign-out"></i> Unlink</button>' +
                     '</div>' +
                     '</div>';
+                setTimeout(loadWhatsappDeliveryLogs, 50);
                 return;
             }
 
@@ -11948,6 +12005,7 @@
             }
 
             fetchWhatsappStatus(false);
+            loadWhatsappDeliveryLogs();
             if (_waPollInterval) clearInterval(_waPollInterval);
             var _waPollDelay = 1000;
             function waPollTick() {
@@ -11979,6 +12037,74 @@
             if (_waPollInterval) {
                 clearTimeout(_waPollInterval);
                 _waPollInterval = null;
+            }
+        }
+
+        async function loadWhatsappDeliveryLogs() {
+            var container = document.getElementById("wa-delivery-history-list");
+            if (!container) return;
+
+            // 1. Try local cache from localStorage first
+            var localLogs = [];
+            try {
+                var dispMap = JSON.parse(localStorage.getItem('akb_wa_dispatches') || '{}');
+                Object.keys(dispMap).forEach(function(k) {
+                    localLogs.push({
+                        invoiceNo: k,
+                        timestamp: dispMap[k].at,
+                        hasPdf: dispMap[k].hasPdf !== false,
+                        recipients: dispMap[k].recipients || []
+                    });
+                });
+            } catch (_) {}
+
+            // 2. Fetch latest logs from backend or Supabase
+            try {
+                var waApi = (typeof getWaApiUrl === 'function') ? getWaApiUrl() : 'http://127.0.0.1:3000/api';
+                var r = await fetch(waApi + '/whatsapp/delivery-logs', { cache: 'no-store' });
+                var d = await r.json();
+                if (d && d.success && Array.isArray(d.logs) && d.logs.length > 0) {
+                    renderDeliveryLogs(d.logs);
+                    return;
+                }
+            } catch (_) {
+                // If local backend is unreachable (e.g. mobile web), check Supabase settings
+                if (sbClient) {
+                    try {
+                        var stRes = await sbClient.from('settings').select('lastWhatsappDelivery').eq('id', 'app_settings').single();
+                        if (stRes && stRes.data && stRes.data.lastWhatsappDelivery) {
+                            localLogs.unshift(stRes.data.lastWhatsappDelivery);
+                        }
+                    } catch (_) {}
+                }
+            }
+
+            if (localLogs.length > 0) {
+                localLogs.sort(function(a, b) { return new Date(b.timestamp || 0) - new Date(a.timestamp || 0); });
+                renderDeliveryLogs(localLogs.slice(0, 8));
+            } else {
+                container.innerHTML = '<div style="padding:6px 0; color:var(--tl); font-style:italic;">No automated WhatsApp dispatches recorded yet in this session.</div>';
+            }
+
+            function renderDeliveryLogs(logs) {
+                var h = '<div style="display:flex; flex-direction:column; gap:6px;">';
+                logs.slice(0, 8).forEach(function(l) {
+                    var dt = l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                    var phone = (l.recipients && l.recipients[0]) ? l.recipients[0].replace('@c.us', '') : (l.customerPhone || '');
+                    h += '<div style="display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:5px 8px;">' +
+                         '<div style="display:flex; align-items:center; gap:6px;">' +
+                         '<span style="font-weight:700; color:var(--fg);">Invoice #' + (l.invoiceNo || '') + '</span>' +
+                         (l.hasPdf !== false ? '<span style="background:#fee2e2; color:#b91c1c; font-size:0.68rem; font-weight:700; padding:1px 4px; border-radius:4px;">PDF</span>' : '<span style="background:#f1f5f9; color:#475569; font-size:0.68rem; font-weight:700; padding:1px 4px; border-radius:4px;">TEXT</span>') +
+                         (phone ? '<span style="color:var(--tl); font-size:0.75rem;">(' + phone + ')</span>' : '') +
+                         '</div>' +
+                         '<div style="display:flex; align-items:center; gap:6px;">' +
+                         '<span style="color:#059669; font-weight:700; font-size:0.75rem;"><i class="ph-bold ph-check"></i> Delivered</span>' +
+                         (dt ? '<span style="color:var(--tl); font-size:0.72rem;">' + dt + '</span>' : '') +
+                         '</div>' +
+                         '</div>';
+                });
+                h += '</div>';
+                container.innerHTML = h;
             }
         }
 
