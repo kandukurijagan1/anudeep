@@ -1959,7 +1959,7 @@ async function checkRemoteUpdates() {
 }
 
 async function downloadAndApplyUpdate(remoteVer) {
-  const filesToUpdate = ['index.html', 'sw.js', 'manifest.json', 'version.json'];
+  const filesToUpdate = ['index.html', 'sw.js', 'manifest.json', 'version.json', 'server.js'];
   const updatedFiles = [];
 
   // Ensure AppData directory exists
@@ -3532,6 +3532,200 @@ app.post('/api/testTelegram', async (req, res) => {
   }
 });
 
+// ⚡ Helper: Base64 asset embedder for standalone headless PDF rendering
+function getBase64Image(filename) {
+  try {
+    const fullPath = path.join(__dirname, filename);
+    if (fs.existsSync(fullPath)) {
+      const mime = filename.endsWith('.png') ? 'image/png' : 'image/jpeg';
+      return 'data:' + mime + ';base64,' + fs.readFileSync(fullPath).toString('base64');
+    }
+  } catch (e) {}
+  return '';
+}
+
+function escPdf(s) {
+  if (s === undefined || s === null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fmPdf(v) {
+  const n = parseFloat(v);
+  return isNaN(n) ? '0.00' : n.toFixed(2);
+}
+
+function fdPdf(d) {
+  if (!d) return '';
+  try {
+    const p = String(d).split('-');
+    if (p.length === 3) return p[2] + '/' + p[1] + '/' + p[0];
+  } catch (_) {}
+  return String(d);
+}
+
+function numToWordsPdf(n) {
+  const num = parseFloat(n);
+  if (isNaN(num) || num <= 0) return 'Zero Rupees Only';
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  function w(v) {
+    if (isNaN(v) || v <= 0) return '';
+    if (v < 20) return ones[v] || '';
+    if (v < 100) return tens[Math.floor(v / 10)] + (v % 10 ? ' ' + ones[v % 10] : '');
+    if (v < 1000) return ones[Math.floor(v / 100)] + ' Hundred' + (v % 100 ? ' and ' + w(v % 100) : '');
+    if (v < 100000) return w(Math.floor(v / 1000)) + ' Thousand' + (v % 1000 ? ' ' + w(v % 1000) : '');
+    if (v < 10000000) return w(Math.floor(v / 100000)) + ' Lakh' + (v % 100000 ? ' ' + w(v % 100000) : '');
+    return w(Math.floor(v / 10000000)) + ' Crore' + (v % 10000000 ? ' ' + w(v % 10000000) : '');
+  }
+  const rupees = Math.floor(num), paise = Math.round((num - rupees) * 100);
+  let s = w(rupees) + ' Rupees Only';
+  if (paise > 0) s += ' and ' + w(paise) + ' Paise';
+  return s;
+}
+
+// ⚡ Headless PDF generation for Tax Invoice
+function generateInvoiceHtml(inv) {
+  const logoB64 = getBase64Image('logo.jpeg');
+  const leftGodB64 = getBase64Image('left-god.jpg');
+  const rightGodB64 = getBase64Image('right-god.jpg');
+
+  const SN = 'ANUDEEP KHADI BANDAR';
+  const SA1 = 'D.No. 17-10-8, Opp. Sri Venkateswara Swamy Temple';
+  const SA2 = 'Potti Sreeramulu Street, Main Road, TENALI - 522 201';
+  const SG = '37BTMPS9234C1ZA';
+  const SPH = '9441753678, 9390361151';
+  const BN = 'AXIS BANK LTD, TENALI';
+  const BA = '914020009962721';
+  const BI = 'UTIB0000556';
+
+  const isWithinAP = isInsideAndhraPradesh(inv);
+  const isInter = (inv.isInterState !== undefined && inv.isInterState !== null) ? inv.isInterState : !isWithinAP;
+
+  let mcHtml = '';
+  if (inv.items && inv.items.length) {
+    inv.items.forEach((it, i) => {
+      const isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
+      const qtyDisplay = isCloth ? (it.qty > 0 ? it.qty : '-') : (it.qty || 0);
+      const metersDisplay = isCloth ? (Number(it.meters || 0) + '.' + String(it.cms || 0).padStart(2, '0')) : '-';
+      mcHtml += '<tr>' +
+        '<td style="text-align:center; border:1px solid #1a237e; padding:4px;">' + escPdf(String(it.baleNo || (i + 1))) + '</td>' +
+        '<td style="text-align:left; border:1px solid #1a237e; padding:4px;">' + escPdf(it.description || '') + '</td>' +
+        '<td style="text-align:center; border:1px solid #1a237e; padding:4px;">' + escPdf(it.hsn || '') + '</td>' +
+        '<td style="text-align:center; border:1px solid #1a237e; padding:4px;">' + qtyDisplay + '</td>' +
+        '<td style="text-align:center; border:1px solid #1a237e; padding:4px;">' + metersDisplay + '</td>' +
+        '<td style="text-align:right; border:1px solid #1a237e; padding:4px;">' + fmPdf(it.rate) + '</td>' +
+        '<td style="text-align:right; border:1px solid #1a237e; padding:4px; font-weight:bold;">' + fmPdf(it.amount) + '</td>' +
+      '</tr>';
+    });
+  }
+
+  let cgstAmt = 0, sgstAmt = 0, igstAmt = 0;
+  if (isInter) {
+    igstAmt = (inv.igstAmount !== undefined && inv.igstAmount !== null) ? Number(inv.igstAmount) : Number(((Number(inv.taxableAmount || 0) * 5) / 100).toFixed(2));
+  } else {
+    cgstAmt = (inv.cgstAmount !== undefined && inv.cgstAmount !== null) ? Number(inv.cgstAmount) : Number(((Number(inv.taxableAmount || 0) * 2.5) / 100).toFixed(2));
+    sgstAmt = (inv.sgstAmount !== undefined && inv.sgstAmount !== null) ? Number(inv.sgstAmount) : Number(((Number(inv.taxableAmount || 0) * 2.5) / 100).toFixed(2));
+  }
+  const totalGst = isInter ? igstAmt : (cgstAmt + sgstAmt);
+  const rawGT = Number(inv.taxableAmount || 0) + totalGst;
+  const roVal = (inv.roundOff !== undefined && inv.roundOff !== null) ? Number(inv.roundOff) : (Math.round(rawGT) - rawGT);
+  const roStr = (roVal >= 0 ? '+ ₹' : '- ₹') + Math.abs(roVal).toFixed(2);
+
+  const cgstValStr = isInter ? '₹0.00' : fmPdf(cgstAmt);
+  const cgstColor = isInter ? '#666' : '#000';
+  const sgstValStr = isInter ? '₹0.00' : fmPdf(sgstAmt);
+  const sgstColor = isInter ? '#666' : '#000';
+  const igstValStr = isInter ? fmPdf(igstAmt) : '₹0.00';
+  const igstColor = isInter ? '#000' : '#666';
+
+  const taxRows =
+    '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; font-weight:bold;"><span>Total Amount before Tax</span><span style="color:#000;">' + fmPdf(inv.taxableAmount) + '</span></div>' +
+    '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; color:' + cgstColor + ';"><span>Add : CGST @ 2.5%</span><span style="color:' + cgstColor + ';">' + cgstValStr + '</span></div>' +
+    '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; color:' + sgstColor + ';"><span>Add : SGST @ 2.5%</span><span style="color:' + sgstColor + ';">' + sgstValStr + '</span></div>' +
+    '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px; color:' + igstColor + ';"><span>Add : IGST @ 5.0%</span><span style="color:' + igstColor + ';">' + igstValStr + '</span></div>' +
+    '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1a237e; padding:3px 8px;"><span>Round OFF</span><span style="color:#000;">' + roStr + '</span></div>';
+
+  const posStr = String(inv.placeOfSupply || '').trim();
+  const invTopState = (inv.state !== undefined && inv.state !== null) ? String(inv.state).trim() : 'TENALI';
+
+  const rSt = (inv.receiver && inv.receiver.state) ? inv.receiver.state : '';
+  const cSt = (inv.consignee && inv.consignee.state) ? inv.consignee.state : '';
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><style>@page { size: A4 portrait; margin: 4mm 6mm; } * { box-sizing: border-box; } body { margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 8.5pt; color: #1a237e; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .inv-paper { position: relative; width: 100%; border: 2px solid #1a237e; } table { border-collapse: collapse; }</style></head><body>' +
+    '<div class="inv-paper">' +
+      '<table style="width:100%; font-size:9pt; font-weight:bold; border-bottom:2px solid #1a237e;"><tr>' +
+        '<td style="padding:4px 10px; width:33%; text-align:left; vertical-align:middle;">GSTIN: ' + SG + '</td>' +
+        '<td style="padding:4px 10px; width:34%; text-align:center; vertical-align:middle;"><div style="border:2px solid #1a237e; color:#1a237e; background:#fff; padding:4px 16px; display:inline-block; border-radius:4px; line-height:1.2; font-size:12pt; font-weight:900;">TAX INVOICE<br><span style="font-size:7.5pt; font-weight:bold;">CASH / CREDIT</span></div></td>' +
+        '<td style="padding:4px 10px; width:33%; text-align:right; vertical-align:middle;">' + (logoB64 ? '<img src="' + logoB64 + '" style="max-height:65px; max-width:180px; object-fit:contain; vertical-align:middle;">' : '') + '</td>' +
+      '</tr></table>' +
+      '<table style="width:100%; margin:4px 0;"><tr>' +
+        '<td style="width:90px; text-align:center; vertical-align:middle; padding-left:8px;">' + (leftGodB64 ? '<img src="' + leftGodB64 + '" style="width:80px; height:80px; object-fit:cover; border:1px solid #1a237e; display:block; margin:0 auto;">' : '') + '</td>' +
+        '<td style="text-align:center; vertical-align:middle;"><h1 style="margin:0; font-size:22pt; font-family:serif; font-weight:bold; color:#1a237e;">' + SN + '</h1><div style="font-size:8pt; font-weight:bold; margin-top:2px; color:#000; line-height:1.3;">' + SA1 + '<br>' + SA2 + '<br>Cell : ' + SPH + '</div></td>' +
+        '<td style="width:90px; text-align:center; vertical-align:middle; padding-right:8px;">' + (rightGodB64 ? '<img src="' + rightGodB64 + '" style="width:80px; height:80px; object-fit:cover; border:1px solid #1a237e; display:block; margin:0 auto;">' : '') + '</td>' +
+      '</tr></table>' +
+      '<table style="width:100%; border-top:2px solid #1a237e; border-bottom:2px solid #1a237e; font-size:8pt; font-weight:bold; table-layout:fixed;"><tr>' +
+        '<td style="width:50%; border-right:2px solid #1a237e; padding:3px 6px; vertical-align:top;"><table style="width:100%; table-layout:fixed; font-size:8pt;"><colgroup><col style="width:85px;"><col style="width:10px;"><col></colgroup>' +
+          '<tr><td style="padding:1px 0;">Invoice No.</td><td style="text-align:center;">:</td><td style="color:#b30000; font-size:12pt; font-weight:900;">' + escPdf(String(inv.invoiceNo || '')) + '</td></tr>' +
+          '<tr><td style="padding:1px 0;">Invoice Date</td><td style="text-align:center;">:</td><td style="color:#000; font-weight:normal;">' + fdPdf(inv.date) + '</td></tr>' +
+          '<tr><td style="padding:1px 0;">State</td><td style="text-align:center;">:</td><td style="color:#000; font-weight:normal;">' + escPdf(invTopState) + '</td></tr>' +
+        '</table></td>' +
+        '<td style="width:50%; padding:3px 6px; vertical-align:top;"><table style="width:100%; table-layout:fixed; font-size:7.5pt;">' +
+          '<tr><td style="width:100px; font-weight:bold;">Transportation Mode</td><td style="width:8px;">:</td><td colspan="4" style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e;">' + escPdf(inv.transportMode || '') + '&nbsp;</td></tr>' +
+          '<tr><td style="font-weight:bold;">L.R. / Docket No.</td><td>:</td><td style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e;">' + escPdf(inv.lrNo || '') + '&nbsp;</td><td style="text-align:right; font-weight:bold;">Date:</td><td colspan="2" style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e;">' + fdPdf(inv.transportDate) + '&nbsp;</td></tr>' +
+          '<tr><td style="font-weight:bold;">Date of Supply</td><td>:</td><td style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e;">' + fdPdf(inv.supplyDate) + '&nbsp;</td><td style="text-align:right; font-weight:bold;">Bundles:</td><td colspan="2" style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e;">' + escPdf(String(inv.bundles || '')) + '&nbsp;</td></tr>' +
+          '<tr><td style="font-weight:bold;">Place of Supply</td><td>:</td><td style="color:#000; font-weight:normal; border-bottom:1px solid #1a237e;">' + escPdf(posStr) + '&nbsp;</td><td style="text-align:right; font-weight:bold;">State Code:</td><td colspan="2" style="color:#000; font-weight:900; border-bottom:1px solid #1a237e;">' + escPdf(String(inv.stateCode || '')) + '&nbsp;</td></tr>' +
+        '</table></td>' +
+      '</tr></table>' +
+      '<table style="width:100%; border-bottom:2px solid #1a237e; font-size:8pt; font-weight:bold; table-layout:fixed;"><tr>' +
+        '<td style="width:50%; border-right:2px solid #1a237e; vertical-align:top;"><div style="text-align:center; font-weight:bold; border-bottom:1px solid #1a237e; padding:3px;">Details of Receiver | Billed to :</div><div style="padding:3px 6px;"><table style="width:100%; font-size:8pt;">' +
+          '<tr><td style="width:50px;">Name</td><td style="width:8px;">:</td><td colspan="4" style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf;">' + escPdf(inv.receiver ? inv.receiver.name : '') + '&nbsp;</td></tr>' +
+          '<tr><td>Address</td><td>:</td><td colspan="4" style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf;">' + escPdf(inv.receiver ? inv.receiver.address : '') + '&nbsp;</td></tr>' +
+          '<tr><td>GSTIN</td><td>:</td><td colspan="4" style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf;">' + escPdf(inv.receiver && inv.receiver.gstin ? inv.receiver.gstin : '') + '&nbsp;</td></tr>' +
+          '<tr><td>State</td><td>:</td><td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf;">' + escPdf(rSt) + '</td><td style="width:65px; text-align:center; border:1px solid #1a237e;">State Code</td><td style="width:25px; text-align:center; border:1px solid #1a237e; border-left:none; color:#000; font-weight:900;">' + escPdf(inv.receiver ? inv.receiver.stateCode : '') + '</td></tr>' +
+        '</table></div></td>' +
+        '<td style="width:50%; vertical-align:top;"><div style="text-align:center; font-weight:bold; border-bottom:1px solid #1a237e; padding:3px;">Details of Consignee | Shipped to :</div><div style="padding:3px 6px;"><table style="width:100%; font-size:8pt;">' +
+          '<tr><td style="width:50px;">Name</td><td style="width:8px;">:</td><td colspan="4" style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf;">' + escPdf(inv.consignee ? inv.consignee.name : '') + '&nbsp;</td></tr>' +
+          '<tr><td>Address</td><td>:</td><td colspan="4" style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf;">' + escPdf(inv.consignee ? inv.consignee.address : '') + '&nbsp;</td></tr>' +
+          '<tr><td>GSTIN</td><td>:</td><td colspan="4" style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf;">' + escPdf(inv.consignee && inv.consignee.gstin ? inv.consignee.gstin : '') + '&nbsp;</td></tr>' +
+          '<tr><td>State</td><td>:</td><td style="color:#000; font-weight:normal; border-bottom:1px solid #a0aabf;">' + escPdf(cSt) + '</td><td style="width:65px; text-align:center; border:1px solid #1a237e;">State Code</td><td style="width:25px; text-align:center; border:1px solid #1a237e; border-left:none; color:#000; font-weight:900;">' + escPdf(inv.consignee ? inv.consignee.stateCode : '') + '</td></tr>' +
+        '</table></div></td>' +
+      '</tr></table>' +
+      '<table style="width:100%; font-size:8pt; font-weight:bold;"><thead style="background:#f4f4f4;"><tr>' +
+        '<th style="border:1px solid #1a237e; padding:3px; width:55px;">Bale No</th><th style="border:1px solid #1a237e; padding:3px; text-align:left;">Description of Goods</th><th style="border:1px solid #1a237e; padding:3px; width:75px;">HSN CODE</th><th style="border:1px solid #1a237e; padding:3px; width:40px;">Qty</th><th style="border:1px solid #1a237e; padding:3px; width:70px;">MTS.CMS</th><th style="border:1px solid #1a237e; padding:3px; text-align:right; width:65px;">Rate</th><th style="border:1px solid #1a237e; padding:3px; text-align:right; width:80px;">Amount</th>' +
+      '</tr></thead><tbody style="color:#000; font-weight:normal;">' + mcHtml + '</tbody></table>' +
+      '<div style="border-top:1px solid #1a237e; border-bottom:1px solid #1a237e; min-height:70px;"><div style="float:right; width:50%; border-left:1px solid #1a237e; font-size:8.5pt;">' + taxRows + '<div style="display:flex; justify-content:space-between; border-top:2px solid #1a237e; padding:4px 8px; font-weight:bold; font-size:11pt; background:#e8e8e8;"><span>Total Amount After Tax</span><span style="color:#000;">' + fmPdf(inv.totalAmount) + '</span></div></div><div style="clear:both;"></div></div>' +
+      '<div style="padding:4px 8px; font-size:8pt; font-weight:bold;">Amount in Words: <span style="color:#000; font-weight:normal;">' + numToWordsPdf(inv.totalAmount) + '</span></div>' +
+      '<div style="border-top:1px solid #1a237e; padding:4px 8px; font-size:8pt; line-height:1.5; font-weight:bold; color:#000;"><span style="color:#1a237e;">BANK DETAILS :</span> ' + BN + '<br><span style="color:#1a237e;">A/c. No.&nbsp;&nbsp;&nbsp;&nbsp;:</span> ' + BA + '<br><span style="color:#1a237e;">IFS Code&nbsp;&nbsp;:</span> ' + BI + '</div>' +
+      '<div style="border-top:1px solid #1a237e; padding:4px 8px; font-size:7.5pt; line-height:1.4; color:#000; position:relative;"><div style="text-align:center; font-weight:bold; text-decoration:underline; font-size:8pt;">TERMS &amp; CONDITIONS</div>1.&nbsp; Goods once sold cannot be taken back or exchanged<br>2.&nbsp; SUBJECT TO TENALI JURISDICTION<div style="position:absolute; bottom:3px; right:8px; font-size:7.5pt; font-weight:bold; color:#333;">E &amp; OE</div></div>' +
+      '<div style="border-top:1px solid #1a237e; display:flex; font-size:8pt; font-weight:bold; color:#000; height:70px;"><div style="width:50%; display:flex; flex-direction:column; justify-content:space-between; align-items:center; height:100%; padding:6px 0;"><div>&nbsp;</div><div>Buyer Signature</div></div><div style="width:50%; display:flex; flex-direction:column; justify-content:space-between; align-items:center; height:100%; padding:6px 0;"><div>For ' + SN + '</div><div style="font-weight:normal; font-size:7.5pt; color:#444;">Authorised Signatory</div></div></div>' +
+    '</div></body></html>';
+}
+
+// ⚡ Headless PDF Buffer Creator with Chrome
+async function createInvoicePdfBuffer(inv) {
+  const puppeteer = require('puppeteer');
+  const chromePath = findChromeExecutable();
+  const html = generateInvoiceHtml(inv);
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    executablePath: chromePath,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+  });
+  const page = await browser.newPage();
+  await page.setContent(html, { waitUntil: 'load' });
+  const pdfBuf = await page.pdf({
+    format: 'A4',
+    printBackground: true,
+    margin: { top: '4mm', bottom: '4mm', left: '6mm', right: '6mm' }
+  });
+  await browser.close();
+  return Buffer.from(pdfBuf);
+}
+
 // ⚡ Helper: Robust Inside Andhra Pradesh (Intra-State) Detector
 function isInsideAndhraPradesh(inv) {
   if (!inv) return true;
@@ -3725,14 +3919,46 @@ async function autoDispatchBots(inv) {
         `Tenali, Andhra Pradesh\n` +
         `🙏 Thank you for your purchase!`;
 
+      // ⚡ GENERATE OFFICIAL TAX INVOICE PDF BUFFER
+      let pdfMedia = null;
+      try {
+        console.log(`[Auto-WhatsApp] Compiling official A4 Tax Invoice PDF for #${invNo}...`);
+        const pdfBuffer = await createInvoicePdfBuffer(inv);
+        if (pdfBuffer && pdfBuffer.length > 1000) {
+          const { MessageMedia } = require('whatsapp-web.js');
+          const realPdfBuf = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+          const base64Data = realPdfBuf.toString('base64');
+          pdfMedia = new MessageMedia('application/pdf', base64Data, `Invoice_${invNo}.pdf`);
+          console.log(`[Auto-WhatsApp] PDF compiled successfully (${realPdfBuf.length} bytes, base64 length: ${base64Data.length}).`);
+        }
+      } catch (pdfErr) {
+        console.warn(`[Auto-WhatsApp] PDF generation warning (will dispatch text breakdown):`, pdfErr.message);
+      }
+
       for (let phone of recipientPhones) {
         const targetChatId = await resolveChatId(client, phone);
         if (targetChatId) {
           try {
-            await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 15000);
-            console.log(`[Auto-WhatsApp] Dispatched invoice #${invNo} text to ${targetChatId}`);
+            if (pdfMedia) {
+              // ⚡ Deliver the actual PDF document attachment with text summary caption
+              await sendWhatsappMessageWithTimeout(client, targetChatId, pdfMedia, {
+                caption: waText,
+                sendMediaAsDocument: true
+              }, 35000);
+              console.log(`[Auto-WhatsApp] ✅ Dispatched invoice #${invNo} PDF document with summary to ${targetChatId}`);
+            } else {
+              // Fallback to text message if PDF engine encountered an issue
+              await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 15000);
+              console.log(`[Auto-WhatsApp] Dispatched invoice #${invNo} text to ${targetChatId}`);
+            }
           } catch (waErr) {
             console.warn(`[Auto-WhatsApp] Send to ${targetChatId} warning:`, waErr.message);
+            if (pdfMedia) {
+              try {
+                await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 15000);
+                console.log(`[Auto-WhatsApp] Fallback text dispatched to ${targetChatId}`);
+              } catch (_) {}
+            }
           }
         }
       }
