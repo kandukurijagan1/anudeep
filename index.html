@@ -7560,9 +7560,14 @@
                     if (!this.currentInv) return;
                     var html = SM.generatePrintHTML(this.currentInv);
                     document.getElementById("bill-preview-body").innerHTML = html;
-                    // Make sure preview has background #fff for accurate representation
                     var paper = document.getElementById("bill-preview-body").querySelector('.inv-paper');
-                    if (paper) paper.style.boxShadow = '0 10px 25px rgba(0,0,0,0.1)';
+                    if (paper) {
+                        paper.style.boxShadow = '0 10px 25px rgba(0,0,0,0.1)';
+                        // On small mobile viewports, set min-width so table columns never crush together
+                        if (window.innerWidth < 768) {
+                            paper.style.minWidth = '720px';
+                        }
+                    }
                 },
 
                 print: function () {

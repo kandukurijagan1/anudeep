@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.8.7",
-  "build": 187,
+  "version": "1.8.8",
+  "build": 188,
   "commit": "HEAD",
   "releaseDate": "2026-10-24",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(advanced-realtime): hardened real-time event listeners and unique ID matching to guarantee zero invoice loss",
-  "releaseNotes": "1. Aligned real-time event bus (invoice_created/updated/deleted) with strict unique ID matching. 2. Sanitized real-time deletion listener to prevent short invoice numbers from blacklisting new bills. 3. Zero-delay Supabase cloud persistence."
+  "description": "feat(advanced-core): synchronous cloud commit, horizontal mobile bill preview scrolling, and zero-loss ledger sync",
+  "releaseNotes": "1. BM.save now awaits synchronous Supabase Cloud upsert before clearing forms or running background sync. 2. Added horizontal scrolling and min-width to mobile Bill Preview modal so columns never crush together. 3. Zero-loss ledger sync."
 }
