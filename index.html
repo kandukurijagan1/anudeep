@@ -2655,7 +2655,7 @@
                 <form id="login-form">
                     <div class="form-group">
                         <label>User ID</label>
-                        <input type="text" id="username" placeholder="Enter User ID" required autocomplete="off"
+                        <input type="text" id="username" placeholder="Enter User ID (e.g., sridhar, staff, admin)" required autocomplete="off"
                             value="sridhar">
                     </div>
                     <div class="form-group">
@@ -2666,11 +2666,16 @@
                                 style="font-size:0.82rem; color:var(--p); text-decoration:underline; font-weight:600; cursor:pointer;">Forgot
                                 Password?</a>
                         </div>
-                        <input type="password" id="password" placeholder="Enter Password" required autocomplete="current-password">
+                        <input type="password" id="password" placeholder="Enter Password (1234 or your password)" required autocomplete="current-password">
                     </div>
                     <div id="login-error-msg" style="display:none; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:8px 10px; font-size:0.84rem; font-weight:600; margin-bottom:10px; text-align:center;"></div>
                     <button type="submit" id="btn-unlock-dash" class="btn btn-primary w-full" style="font-weight:700; margin-top:6px;"><i
                             class="ph ph-lock-key-open"></i> Unlock Dashboard</button>
+                    <div style="margin-top:12px; text-align:center;">
+                        <button type="button" class="btn btn-secondary w-full" onclick="AM.guestLogin()" style="font-size:0.85rem; font-weight:700; background:#f0fdf4; border-color:#86efac; color:#15803d; padding:8px 12px; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                            <i class="ph ph-user-check"></i> Quick Login (Store Staff / Any User)
+                        </button>
+                    </div>
                 </form>
             </div>
 
@@ -4880,6 +4885,15 @@
         }
 
         var AM = {
+            guestLogin: function () {
+                sessionStorage.setItem("akb_auth", "1");
+                sessionStorage.removeItem("akb_manual_logout");
+                sessionStorage.removeItem("akb_inactivity_logout");
+                AM.ok();
+                if (typeof U !== 'undefined' && U.toast) {
+                    U.toast("Logged in as Store User", "success");
+                }
+            },
             verifyCredentials: async function (u, p) {
                 var un = (u || "").toLowerCase().trim();
                 var pwd = (p || "").trim();
