@@ -11249,7 +11249,7 @@
             if (location.origin && location.origin.startsWith("http") && !location.origin.includes("github.io") && !location.origin.includes("vercel.app")) {
                 return (location.origin + '/api').replace(/\/+$/, '');
             }
-            return 'http://127.0.0.1:3000/api';
+            return 'https://anudeep-ljhq.onrender.com/api';
         }
 
         function updateWhatsappSidebarDot(connected, isPending, isWebMode) {
@@ -11951,7 +11951,8 @@
                 }
             }
 
-            if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
+            var isDedicatedCloudApp = (location.hostname && (location.hostname.includes("onrender.com") || location.hostname.includes("railway.app")));
+            if ((_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) && !isDedicatedCloudApp) {
                 // If we have connected state, apply connected status directly!
                 if (_waStatusState && _waStatusState.connected) {
                     applyWhatsappStatusState(_waStatusState);
@@ -12177,7 +12178,8 @@
 
         // Continuous background self-healing monitor for WhatsApp
         setInterval(function () {
-            if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
+            var isDedicatedCloudApp = (location.hostname && (location.hostname.includes("onrender.com") || location.hostname.includes("railway.app")));
+            if ((_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) && !isDedicatedCloudApp) {
                 // On static hosting, periodically verify status via Supabase cloud settings
                 if (sbClient) {
                     fetchWhatsappStatus(false);
@@ -12191,7 +12193,8 @@
 
         // Realtime Event Stream listener (instant status update when phone links)
         (function initRealtimeWhatsAppStream() {
-            if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
+            var isDedicatedCloudApp = (location.hostname && (location.hostname.includes("onrender.com") || location.hostname.includes("railway.app")));
+            if ((_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) && !isDedicatedCloudApp) {
                 return; // Do not open EventSource to loopback on public HTTPS
             }
             try {
