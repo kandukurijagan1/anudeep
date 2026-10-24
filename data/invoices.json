@@ -35,6 +35,45 @@
     "igstAmount": 0,
     "roundOff": -0.5,
     "totalAmount": 3937,
+    "id": "inv_1792812687740",
+    "_id": "inv_1792812687740"
+  },
+  {
+    "invoiceNo": 9991,
+    "date": "2026-10-24",
+    "customerPhone": "918367047947",
+    "receiver": {
+      "name": "Anudeep Official WhatsApp Test",
+      "phone": "918367047947",
+      "address": "Tenali Main Road, AP",
+      "gstin": "37BTMPS9234C1ZA",
+      "stateCode": "37"
+    },
+    "consignee": {
+      "name": "Anudeep Official WhatsApp Test",
+      "phone": "918367047947",
+      "address": "Tenali Main Road, AP",
+      "gstin": "37BTMPS9234C1ZA",
+      "stateCode": "37"
+    },
+    "items": [
+      {
+        "baleNo": 1,
+        "description": "Superfine Cotton Khadi Cloth",
+        "hsn": "5208",
+        "qty": 1,
+        "meters": 25,
+        "cms": 0,
+        "rate": 150,
+        "amount": 3750
+      }
+    ],
+    "taxableAmount": 3750,
+    "cgstAmount": 93.75,
+    "sgstAmount": 93.75,
+    "igstAmount": 0,
+    "roundOff": -0.5,
+    "totalAmount": 3937,
     "id": "inv_1792812569300",
     "_id": "inv_1792812569300"
   },
