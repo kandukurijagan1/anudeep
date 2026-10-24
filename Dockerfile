@@ -1,54 +1,35 @@
-FROM node:20-bullseye-slim
-# Install system dependencies & Chromium for Puppeteer / WhatsApp Web
-RUN apt-get update && apt-get install -y \
+FROM node:20-bookworm-slim
+
+# Install latest Chromium and modern dependencies for headless Puppeteer / WhatsApp Web
+RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     fonts-liberation \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libc6 \
-    libcairo2 \
-    libcups2 \
-    libdbus-1-3 \
-    libexpat1 \
-    libfontconfig1 \
-    libgbm1 \
-    libgcc1 \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libnspr4 \
+    ca-certificates \
     libnss3 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libstdc++6 \
-    libx11-6 \
+    libatk-bridge2.0-0 \
     libx11-xcb1 \
     libxcb1 \
     libxcomposite1 \
     libxcursor1 \
     libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxi6 \
     libxrandr2 \
-    libxrender1 \
-    libxss1 \
-    libxtst6 \
-    ca-certificates \
-    fonts-ipafont-gothic \
-    fonts-wqy-zenhei \
-    fonts-thai-tlwg \
-    fonts-kacst \
-    fonts-freefont-ttf \
-    --no-install-recommends \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
+
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     NODE_ENV=production \
     PORT=3000
+
 WORKDIR /app
+
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci --omit=dev
+
 COPY . .
+
 EXPOSE 3000
+
 CMD ["node", "server.js"]
