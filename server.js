@@ -31,7 +31,14 @@ const PORT = parseInt(process.env.PORT, 10) || 3000;
 // Disable TLS verification to resolve corporate/local firewall certificate blocks
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-// Global resilience handlers to prevent unexpected background exits
+let wwebjsBrowserPid = null;
+
+try {
+  if (typeof globalThis.WebSocket === 'undefined') {
+    globalThis.WebSocket = require('ws');
+  }
+} catch (_) {}
+
 process.on('uncaughtException', (err) => {
   console.error('[Process] Uncaught Exception:', err.message);
 });

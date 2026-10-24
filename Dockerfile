@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 # Install latest Chromium and modern dependencies for headless Puppeteer / WhatsApp Web
 RUN apt-get update && apt-get install -y --no-install-recommends \
