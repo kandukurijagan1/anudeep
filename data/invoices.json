@@ -38,6 +38,48 @@
     "igstAmount": 162.5,
     "roundOff": 0.5,
     "totalAmount": 3413,
+    "id": "inv_1792839269453",
+    "_id": "inv_1792839269453"
+  },
+  {
+    "invoiceNo": 2,
+    "date": "2026-10-24",
+    "customerPhone": "8367047947",
+    "receiver": {
+      "name": "JAGAN",
+      "phone": "8367047947",
+      "address": "VPM",
+      "gstin": "2154884548",
+      "stateCode": "21",
+      "state": "ODISHA"
+    },
+    "consignee": {
+      "name": "JAGAN",
+      "phone": "8367047947",
+      "address": "VPM",
+      "gstin": "4554848454",
+      "stateCode": "33",
+      "state": "TAMIL NADU"
+    },
+    "items": [
+      {
+        "baleNo": "1",
+        "description": "WHITE KHADI SHIRT",
+        "hsn": "5208",
+        "qty": 5,
+        "meters": 0,
+        "cms": 0,
+        "calcType": "qty",
+        "rate": 650,
+        "amount": 3250
+      }
+    ],
+    "taxableAmount": 3250,
+    "cgstAmount": 0,
+    "sgstAmount": 0,
+    "igstAmount": 162.5,
+    "roundOff": 0.5,
+    "totalAmount": 3413,
     "id": "inv_1792838930525",
     "_id": "inv_1792838930525"
   },
