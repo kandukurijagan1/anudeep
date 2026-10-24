@@ -91,6 +91,7 @@ function isAllowedClientOrigin(origin) {
   if (!origin || origin === 'null' || origin.startsWith('file:') || origin.startsWith('vscode-webview:')) return true;
   if (ALLOWED_ORIGINS.has(origin)) return true;
   if (origin.includes('127.0.0.1') || origin.includes('localhost')) return true;
+  if (origin.includes('onrender.com') || origin.includes('railway.app') || origin.includes('github.io')) return true;
   if (origin.includes('192.168.') || origin.includes('10.') || /^https?:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(origin)) return true;
   return false;
 }
@@ -99,6 +100,7 @@ function isAllowedClientReferer(referer) {
   if (!referer) return true;
   if (referer.startsWith(`http://127.0.0.1:${PORT}`) || referer.startsWith(`http://localhost:${PORT}`)) return true;
   if (referer.startsWith('https://kandukurijagan1.github.io') || referer.startsWith('file:')) return true;
+  if (referer.includes('onrender.com') || referer.includes('railway.app')) return true;
   if (referer.includes('192.168.') || referer.includes('10.') || /^https?:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(referer)) return true;
   return false;
 }
