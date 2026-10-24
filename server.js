@@ -31,7 +31,8 @@ const PORT = parseInt(process.env.PORT, 10) || 3000;
 // Disable TLS verification to resolve corporate/local firewall certificate blocks
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-let wwebjsBrowserPid = null;
+// Global resilience handlers to prevent unexpected background exits
+var wwebjsBrowserPid = null;
 
 try {
   if (typeof globalThis.WebSocket === 'undefined') {
@@ -655,8 +656,6 @@ function findChromeExecutable() {
   }
   return undefined;
 }
-
-let wwebjsBrowserPid = null;
 
 function getCachedWebVersionInfo() {
   const candidateDirs = [
