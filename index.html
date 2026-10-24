@@ -11209,7 +11209,7 @@
                 qrCont.innerHTML =
                     '<div style="font-size:0.86rem; font-weight:700; color:#15803d; margin-bottom:8px;"><i class="ph ph-camera"></i> Point your WhatsApp Camera at this QR Code:</div>' +
                     '<div style="display:inline-block; padding:8px; background:#fff; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.08); margin-bottom:8px;">' +
-                    '<img src="' + qrUrl + '" style="width:250px; height:250px; object-fit:contain; display:block; border-radius:6px; image-rendering:pixelated;" alt="WhatsApp Login QR Code" />' +
+                    '<img src="' + qrUrl + '" style="width:250px; height:250px; object-fit:contain; display:block; border-radius:6px; image-rendering:pixelated;" alt="WhatsApp Login QR Code" onerror="this.onerror=null; refreshWhatsappQR();" />' +
                     '</div>' +
                     '<div style="display:flex; justify-content:center; gap:8px; margin-bottom:10px;">' +
                     '<button type="button" id="btn-refresh-qr" onclick="refreshWhatsappQR()" class="btn btn-secondary" style="font-size:0.8rem; padding:6px 14px; font-weight:700; color:#15803d; border-color:#86efac; background:#f0fdf4; display:inline-flex; align-items:center; gap:5px;">' +
@@ -11217,11 +11217,13 @@
                     '</button>' +
                     '</div>';
             } else {
+                var isRestoring = (_waStatusState && (_waStatusState.hasSavedSession || _waStatusState.status === 'connecting_saved'));
+                var phoneText = (_waStatusState && _waStatusState.user && _waStatusState.user.phone) ? _waStatusState.user.phone : '918367047947';
                 qrCont.innerHTML =
-                    (data && data.hasSavedSession ?
+                    (isRestoring ?
                     '<div class="spinner" style="width:32px; height:32px; border:3px solid #e2e8f0; border-top:3px solid #25D366; border-radius:50%; margin:0 auto 12px; animation:spin 0.8s linear infinite;"></div>' +
                     '<div style="font-weight:700; font-size:0.95rem; color:#059669;"><i class="ph ph-shield-check"></i> Reconnecting to Linked WhatsApp...</div>' +
-                    '<div style="font-size:0.8rem; color:var(--tl); margin-top:4px;">Restoring session for +' + U.esc((data.user && data.user.phone) || '918367047947') + '. No QR scan or pairing needed.</div>' +
+                    '<div style="font-size:0.8rem; color:var(--tl); margin-top:4px;">Restoring session for +' + U.esc(phoneText) + '. No QR scan or pairing needed.</div>' +
                     '<div style="margin-top:12px;">' +
                     '<button type="button" class="btn btn-secondary" onclick="resetWhatsappSession()" style="font-size:0.78rem; padding:6px 12px; color:#b91c1c; border-color:#fca5a5; background:#fef2f2; font-weight:700;">' +
                     '<i class="ph ph-arrows-counter-clockwise"></i> Reset / Switch to Different Number' +
@@ -11501,7 +11503,7 @@
                 (data && data.qr ?
                     '<div style="font-size:0.86rem; font-weight:700; color:#15803d; margin-bottom:8px;"><i class="ph ph-camera"></i> Point your WhatsApp Camera at this QR Code:</div>' +
                     '<div style="display:inline-block; padding:8px; background:#fff; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.08); margin-bottom:8px;">' +
-                    '<img src="' + data.qr + '" style="width:250px; height:250px; object-fit:contain; display:block; border-radius:6px; image-rendering:pixelated;" alt="WhatsApp Login QR Code" />' +
+                    '<img src="' + data.qr + '" style="width:250px; height:250px; object-fit:contain; display:block; border-radius:6px; image-rendering:pixelated;" alt="WhatsApp Login QR Code" onerror="this.onerror=null; refreshWhatsappQR();" />' +
                     '</div>' +
                     '<div style="display:flex; justify-content:center; gap:8px; margin-bottom:10px;">' +
                     '<button type="button" id="btn-refresh-qr" onclick="refreshWhatsappQR()" class="btn btn-secondary" style="font-size:0.8rem; padding:6px 14px; font-weight:700; color:#15803d; border-color:#86efac; background:#f0fdf4; display:inline-flex; align-items:center; gap:5px;">' +

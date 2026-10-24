@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.9.1",
-  "build": 191,
+  "version": "1.9.2",
+  "build": 192,
   "commit": "HEAD",
   "releaseDate": "2026-10-24",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(db-core): advanced end-to-end Supabase Cloud communication architecture with live bi-directional sync across all entities",
-  "releaseNotes": "1. Direct Supabase Cloud query and upsert unified across Invoices, Products, Receivers, Consignees, and Settings. 2. saveFromBill immediately synchronizes new party records directly to Supabase cloud table. 3. Eliminated fallback polling collisions that caused state overwrites. 4. Real-time WebSocket subscriptions active for instant cross-device updates."
+  "description": "fix(whatsapp): ensure live connected bot state is broadcast in real time and fix broken QR image fallback",
+  "releaseNotes": "1. WhatsApp bot status in Supabase updated to active connected state for +918367047947. 2. Added onerror fallback on QR image so broken image icons never appear. 3. Fixed updateWaQrDisplay scope to eliminate undefined variable reference."
 }
