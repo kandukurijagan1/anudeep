@@ -2922,19 +2922,24 @@
                 var _safeFetch = (typeof originalFetch !== 'undefined' ? originalFetch : window.fetch).bind(window);
                 try {
                     var ctrl = new AbortController();
-                    var tm = setTimeout(function () { ctrl.abort(); }, 7000);
+                    var tm = setTimeout(function () { ctrl.abort(); }, 12000);
                     var res = await _safeFetch(base + '/api/auth/forgot-password', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contact: cleanEmail }),
+                        body: JSON.stringify({ contact: cleanEmail, email: cleanEmail }),
                         signal: ctrl.signal
                     });
                     clearTimeout(tm);
-                    var data = await res.json();
-                    if (data && data.success) {
-                        otpSent = true;
-                    } else if (data && data.error) {
-                        serverError = data.error;
+                    if (res.ok) {
+                        var data = await res.json();
+                        if (data && data.success) {
+                            otpSent = true;
+                        } else if (data && data.error) {
+                            serverError = data.error;
+                        }
+                    } else {
+                        var errData = await res.json().catch(function() { return {}; });
+                        serverError = errData.error || 'Server error sending OTP';
                     }
                 } catch (e) {
                     console.warn('[FP] Local server request skipped or failed:', e.message);
