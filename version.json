@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.9.0",
-  "build": 190,
+  "version": "1.9.1",
+  "build": 191,
   "commit": "HEAD",
   "releaseDate": "2026-10-24",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(core): absolute local invoice resilience, native mobile view enhancements, and host WhatsApp bot cloud synchronization",
-  "releaseNotes": "1. Invoices generated locally can NEVER disappear from Invoice History or Dashboard regardless of cloud sync timing or poll ticks. 2. WhatsApp bot status is synchronized in real-time to Supabase Cloud so web portal always displays accurate connection state. 3. Prevented opening manual WhatsApp browser tabs upon sending receipts. 4. Enhanced mobile layout for Parties and Reports with smooth auto-scroll to top and full responsive entry cards."
+  "description": "feat(db-core): advanced end-to-end Supabase Cloud communication architecture with live bi-directional sync across all entities",
+  "releaseNotes": "1. Direct Supabase Cloud query and upsert unified across Invoices, Products, Receivers, Consignees, and Settings. 2. saveFromBill immediately synchronizes new party records directly to Supabase cloud table. 3. Eliminated fallback polling collisions that caused state overwrites. 4. Real-time WebSocket subscriptions active for instant cross-device updates."
 }

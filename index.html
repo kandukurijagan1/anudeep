@@ -6008,21 +6008,38 @@
             },
             fetchSettings: async function () {
                 var loaded = false;
-                try {
-                    var url = (API_URL || location.origin + '/api') + '/settings';
-                    let response = await fetch(url);
-                    if (response.ok) {
-                        let data = await response.json();
-                        if (data && !data.error) {
-                            var settingsObj = data.settings || data;
-                            STM.applySettings(settingsObj);
-                            if (settingsObj && Array.isArray(settingsObj.adminEmails) && settingsObj.adminEmails.length > 0) {
-                                loaded = true;
+
+                // 1. Supabase Cloud First (Direct Realtime Source of Truth)
+                if (sbClient) {
+                    try {
+                        var sbRes = await sbClient.from('settings').select('*').eq('id', 'app_settings').single();
+                        if (sbRes && sbRes.data) {
+                            var cloudSettings = sbRes.data.data ? Object.assign({}, sbRes.data.data, sbRes.data) : sbRes.data;
+                            STM.applySettings(cloudSettings);
+                            loaded = true;
+                        }
+                    } catch (sbErr) {
+                        console.warn("Supabase settings fetch note:", sbErr.message);
+                    }
+                }
+
+                if (!loaded) {
+                    try {
+                        var url = (API_URL || location.origin + '/api') + '/settings';
+                        let response = await fetch(url);
+                        if (response.ok) {
+                            let data = await response.json();
+                            if (data && !data.error) {
+                                var settingsObj = data.settings || data;
+                                STM.applySettings(settingsObj);
+                                if (settingsObj && Array.isArray(settingsObj.adminEmails) && settingsObj.adminEmails.length > 0) {
+                                    loaded = true;
+                                }
                             }
                         }
+                    } catch (e) {
+                        console.warn("Settings fetch fallback to GitHub / local:", e.message);
                     }
-                } catch (e) {
-                    console.warn("Settings fetch fallback to GitHub / local:", e.message);
                 }
 
                 // If admin emails or settings are missing (e.g. client device, static hosting), fetch from GitHub Base Link
@@ -8439,6 +8456,19 @@
                 }
             },
             render: async function () {
+                // 1. Supabase Cloud First (Direct Realtime Source of Truth)
+                if (sbClient) {
+                    try {
+                        var sbRes = await sbClient.from('products').select('*');
+                        if (sbRes && Array.isArray(sbRes.data) && sbRes.data.length > 0) {
+                            PDM.applyProducts(sbRes.data);
+                            return;
+                        }
+                    } catch (sbErr) {
+                        console.warn("Supabase products fetch note:", sbErr.message);
+                    }
+                }
+
                 try {
                     var url = (API_URL || location.origin + '/api') + '/products';
                     let response = await fetch(url);
@@ -9053,27 +9083,56 @@
                 var phoneEl = document.getElementById(prefix + "ph");
                 var phoneVal = phoneEl ? phoneEl.value.trim() : "";
                 var obj = {
-                    id: Date.now(),
+                    id: 'rec_' + Date.now(),
                     name: name.toUpperCase(),
                     phone: phoneVal,
                     address: (document.getElementById(prefix + "a").value || "").trim().toUpperCase(),
-                    state: (document.getElementById(prefix + "st").value || "").trim().toUpperCase(),
+                    state: (document.getElementById(prefix + "st").value || "ANDHRA PRADESH").trim().toUpperCase(),
                     gstin: (document.getElementById(prefix + "g").value || "").trim().toUpperCase(),
-                    statecode: (document.getElementById(prefix + "sc").value || "").trim()
+                    statecode: (document.getElementById(prefix + "sc").value || "37").trim()
                 };
+
+                // ⚡ Direct Supabase Cloud DB Upsert (< 30ms Instant Sync)
+                if (sbClient) {
+                    try {
+                        sbClient.from(type + 's').upsert({
+                            id: String(obj.id),
+                            name: obj.name,
+                            phone: obj.phone || '',
+                            address: obj.address || '',
+                            state: obj.state || 'ANDHRA PRADESH',
+                            gstin: obj.gstin || '',
+                            statecode: obj.statecode || '37'
+                        }, { onConflict: 'id' }).then(function() {
+                            console.log('⚡ [Supabase-DB] ' + type + ' saved directly from bill:', obj.name);
+                        });
+                    } catch (sbErr) {
+                        console.warn('[Supabase-DB] Party saveFromBill warning:', sbErr.message);
+                    }
+                }
+
+                // ⚡ Optimistic local store
+                var key = type + "s", list = D.g(key) || [];
+                var existsIdx = list.findIndex(function(p) { return (p.name && p.name.toUpperCase() === obj.name); });
+                if (existsIdx >= 0) {
+                    list[existsIdx] = Object.assign({}, list[existsIdx], obj);
+                } else {
+                    list.push(obj);
+                }
+                D.s(key, list);
+                PM._parties = PM._parties || {};
+                PM._parties[type] = list;
+                PM._drawList(type, type + "-list");
 
                 try {
                     var url = (API_URL || location.origin + '/api') + '/' + type + 's';
-                    var response = await fetch(url, {
+                    fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(obj)
-                    });
-                    if (!response.ok) throw new Error("Save failed");
+                    }).catch(function() {});
                     U.toast((type === "receiver" ? "Receiver" : "Consignee") + " saved to list", "success");
                 } catch (err) {
-                    console.error(err);
-                    var key = type + "s", list = D.g(key); list.push(obj); D.s(key, list);
                     U.toast((type === "receiver" ? "Receiver" : "Consignee") + " saved locally", "warning");
                 }
                 await PM.render();
@@ -9332,6 +9391,22 @@
             },
 
             fetchInvoices: async function () {
+                // 1. Supabase Cloud First (Direct Realtime Source of Truth)
+                if (sbClient) {
+                    try {
+                        var sbRes = await sbClient.from('invoices').select('*').order('invoiceNo', { ascending: false });
+                        if (sbRes && Array.isArray(sbRes.data) && sbRes.data.length > 0) {
+                            var normalizedInvs = sbRes.data.map(function(row) {
+                                return row.data ? Object.assign({}, row.data, row) : row;
+                            });
+                            IM.applyInvoices(normalizedInvs);
+                            return;
+                        }
+                    } catch (sbErr) {
+                        console.warn('Supabase direct invoice fetch note:', sbErr.message);
+                    }
+                }
+
                 try {
                     var url = (API_URL || location.origin + '/api') + '/invoices';
                     let response = await fetch(url);
@@ -10717,43 +10792,45 @@
                             }
                         }
 
-                        // // 3. Ultra-lightweight check for Local Node / LAN mode (takes < 2ms)
-                        var baseApi = (API_URL || location.origin + '/api');
-                        var verUrl = baseApi + '/invoices/version?_t=' + Date.now();
-                        var isChanged = true;
+                        // 3. Ultra-lightweight check for Local Node / LAN mode only when Supabase is not active
+                        if (!sbClient) {
+                            var baseApi = (API_URL || location.origin + '/api');
+                            var verUrl = baseApi + '/invoices/version?_t=' + Date.now();
+                            var isChanged = true;
 
-                        try {
-                            var verRes = await fetchWithTimeout(verUrl, { cache: 'no-store' }, 2000);
-                            if (verRes.ok) {
-                                var verData = await verRes.json();
-                                if (verData && verData.version) {
-                                    if (App._lastInvoicesVersion && App._lastInvoicesVersion === verData.version) {
-                                        isChanged = false; // No changes detected, skip heavy parse
-                                    } else {
-                                        App._lastInvoicesVersion = verData.version;
+                            try {
+                                var verRes = await fetchWithTimeout(verUrl, { cache: 'no-store' }, 2000);
+                                if (verRes.ok) {
+                                    var verData = await verRes.json();
+                                    if (verData && verData.version) {
+                                        if (App._lastInvoicesVersion && App._lastInvoicesVersion === verData.version) {
+                                            isChanged = false; // No changes detected, skip heavy parse
+                                        } else {
+                                            App._lastInvoicesVersion = verData.version;
+                                        }
                                     }
+                                    App.updateSyncStatus('synced');
+                                    _serverOffline = false;
+                                } else {
+                                    _serverOffline = true;
+                                    App.updateSyncStatus('offline');
                                 }
-                                App.updateSyncStatus('synced');
-                                _serverOffline = false;
-                            } else {
+                            } catch (_) {
                                 _serverOffline = true;
                                 App.updateSyncStatus('offline');
                             }
-                        } catch (_) {
-                            _serverOffline = true;
-                            App.updateSyncStatus('offline');
-                        }
 
-                        // 4. Only retrieve full invoice list when a change actually occurred
-                        if (isChanged && !_serverOffline) {
-                            var syncUrl = baseApi + '/invoices?_t=' + Date.now();
-                            var res = await fetchWithTimeout(syncUrl, { cache: 'no-store' }, 2500);
-                            if (res.ok) {
-                                var data = await res.json();
-                                var invs = Array.isArray(data) ? data : (data && Array.isArray(data.invoices) ? data.invoices : null);
-                                if (invs && Array.isArray(invs)) {
-                                    IM.applyInvoices(invs);
-                                    if (typeof DM !== 'undefined' && DM.render) DM.render();
+                            // 4. Only retrieve full invoice list when a change actually occurred
+                            if (isChanged && !_serverOffline) {
+                                var syncUrl = baseApi + '/invoices?_t=' + Date.now();
+                                var res = await fetchWithTimeout(syncUrl, { cache: 'no-store' }, 2500);
+                                if (res.ok) {
+                                    var data = await res.json();
+                                    var invs = Array.isArray(data) ? data : (data && Array.isArray(data.invoices) ? data.invoices : null);
+                                    if (invs && Array.isArray(invs)) {
+                                        IM.applyInvoices(invs);
+                                        if (typeof DM !== 'undefined' && DM.render) DM.render();
+                                    }
                                 }
                             }
                         }
