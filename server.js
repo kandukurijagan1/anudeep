@@ -530,6 +530,16 @@ function broadcastRealtime(eventType, payload) {
       sseClients.delete(client);
     }
   }
+
+  // ⚡ Sync WhatsApp status state in real-time to Supabase Cloud so website users always see true bot status
+  if (eventType === 'whatsapp_status' && typeof supabase !== 'undefined' && supabase) {
+    try {
+      const waState = Object.assign({}, payload, {
+        updatedAt: new Date().toISOString()
+      });
+      supabase.from('settings').update({ whatsapp: waState }).eq('id', 'app_settings').then(() => {}).catch(() => {});
+    } catch (_) {}
+  }
 }
 
 // ==========================================

@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.8.9",
-  "build": 189,
+  "version": "1.9.0",
+  "build": 190,
   "commit": "HEAD",
   "releaseDate": "2026-10-24",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix(ledger-sync): set Supabase as exclusive primary source for IM.fetchInvoices, isolate secondary REST sync, and sync master repository ledger",
-  "releaseNotes": "1. IM.fetchInvoices now queries Supabase Cloud directly first to prevent outdated GAS from clearing newly generated bills. 2. Continuous 2-second poller skips secondary REST call when Supabase is active. 3. Synchronized GitHub master ledger with Supabase records."
+  "description": "feat(core): absolute local invoice resilience, native mobile view enhancements, and host WhatsApp bot cloud synchronization",
+  "releaseNotes": "1. Invoices generated locally can NEVER disappear from Invoice History or Dashboard regardless of cloud sync timing or poll ticks. 2. WhatsApp bot status is synchronized in real-time to Supabase Cloud so web portal always displays accurate connection state. 3. Prevented opening manual WhatsApp browser tabs upon sending receipts. 4. Enhanced mobile layout for Parties and Reports with smooth auto-scroll to top and full responsive entry cards."
 }

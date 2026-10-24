@@ -9,23 +9,5 @@
     "id": 1791790269536,
     "action": "createReceiver",
     "_version": 1
-  },
-  {
-    "name": "Test Receiver Co",
-    "phone": "9999999999",
-    "gstin": "37AAAAA0000A1Z5",
-    "state": "Andhra Pradesh",
-    "stateCode": "37",
-    "id": "rec_1791882637713",
-    "action": "createReceiver",
-    "_version": 1
-  },
-  {
-    "name": "Test Customer Khadi",
-    "phone": "9848011223",
-    "stateCode": "37",
-    "id": "rec_1791884185156",
-    "action": "createReceiver",
-    "_version": 1
   }
 ]

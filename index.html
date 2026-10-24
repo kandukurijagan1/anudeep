@@ -2303,6 +2303,25 @@
                 grid-template-columns: 1fr !important;
             }
 
+            /* Responsive Parties & Reports Sections */
+            #parties-view .party-grid,
+            #reports-view .flex {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.85rem !important;
+            }
+
+            #parties-view .party-entry {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 0.5rem !important;
+                padding: 0.75rem !important;
+            }
+
+            #parties-view .party-entry > div:last-child {
+                align-self: flex-end !important;
+            }
+
             /* Mobile Modals */
             .modal {
                 width: 95% !important;
@@ -5827,7 +5846,11 @@
                 if (sessionStorage.getItem('akb_auth') !== '1' || document.body.classList.contains('is-locked')) return;
                 document.querySelectorAll(".content-section").forEach(function (s) { s.classList.remove("active") });
                 var targetEl = document.getElementById(id);
-                if (targetEl) targetEl.classList.add("active");
+                if (targetEl) {
+                    targetEl.classList.add("active");
+                    // Scroll to top of window when switching views on mobile
+                    window.scrollTo(0, 0);
+                }
                 document.querySelectorAll(".nav-item").forEach(function (n) {
                     if (n.getAttribute("data-target") === id) n.classList.add("active");
                     else n.classList.remove("active");
@@ -5851,6 +5874,10 @@
                 if (typeof MobileMore !== 'undefined' && MobileMore._open && !isMoreView) {
                     MobileMore.close();
                 }
+
+                // Close sidebar drawer if open
+                var sbEl = document.getElementById("sidebar");
+                if (sbEl) sbEl.classList.remove("active");
 
                 var mSticky = document.getElementById("mobile-sticky-summary");
                 if (mSticky) {
@@ -7069,7 +7096,7 @@
 
                     if (isManualAction) {
                         // User explicitly clicked "Send WhatsApp" in table/share modal
-                        // If Supabase is active, trigger host bot via Supabase; otherwise offer direct link
+                        // If Supabase is active, trigger host bot via Supabase; NEVER open manual WhatsApp tab!
                         if (sbClient) {
                             U.toast("⚡ Triggering host bot via Cloud to auto-deliver Invoice #" + invNo + "...", "info");
                             sbClient.from('invoices').upsert({
@@ -7088,15 +7115,12 @@
                                 data: inv,
                                 updated_at: new Date().toISOString()
                             }, { onConflict: 'id' }).then(function() {
-                                U.toast("✅ Invoice #" + invNo + " queued to host WhatsApp bot!", "success");
-                            }).catch(function() {
-                                var waDirectUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(textMsg);
-                                window.open(waDirectUrl, '_blank');
+                                U.toast("✅ Invoice #" + invNo + " delivered to WhatsApp bot stream!", "success");
+                            }).catch(function(err) {
+                                U.toast("⚠️ Could not queue to WhatsApp bot: " + (err ? err.message : 'Network error'), "warning");
                             });
                         } else {
-                            U.toast("Opening WhatsApp chat for Invoice #" + invNo + "...", "info");
-                            var waDirectUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(textMsg);
-                            window.open(waDirectUrl, '_blank');
+                            U.toast("⚠️ Host WhatsApp bot connection pending. Please check WhatsApp status in menu.", "warning");
                         }
                     } else {
                         // Automatic dispatch upon invoice creation -> host workstation bot delivers it cleanly in background via Supabase stream
@@ -8196,6 +8220,8 @@
 
                 var inv = {
                     id: BM.editId ? BM.editId : Date.now(),
+                    _createdAt: Date.now(),
+                    _localOnly: true,
                     invoiceNo: invNo,
                     date: document.getElementById("b-date").value || U.td(),
                     state: document.getElementById("b-state") ? document.getElementById("b-state").value.trim().toUpperCase() : "TENALI",
@@ -9229,24 +9255,19 @@
                     }
                 });
 
-                // 🛡️ RECENT INVOICE RESILIENCE:
-                // Preserve recently created local invoices (within last 5 minutes) so they are never wiped by sync
-                var now = Date.now();
+                // 🛡️ PERMANENT LOCAL INVOICE RESILIENCE:
+                // Never drop any local invoice that exists in curLocal unless it is explicitly marked deleted in deletedSet!
                 var curLocal = (IM._all && IM._all.length) ? IM._all : (D.g("invoices") || []);
                 curLocal.forEach(function (locInv) {
                     if (!locInv) return;
                     var lid = String(locInv.id || locInv._id || '');
-                    var lnum = parseInt(locInv.invoiceNo, 10);
-                    var isRecent = (locInv._createdAt && (now - locInv._createdAt < 300000)) || 
-                                   (locInv.id && (now - Number(locInv.id) < 300000)) || 
-                                   (locInv._offlineUnsaved === true);
-                    if (isRecent && !deletedSet.has(lid) && !deletedSet.has(String(lnum))) {
-                        var exists = normalized.some(function (n) {
-                            return (lid && String(n.id || n._id) === lid);
-                        });
-                        if (!exists) {
-                            normalized.unshift(locInv);
-                        }
+                    if (!lid) return;
+                    if (deletedSet.has(lid)) return;
+                    var alreadyInNormalized = normalized.some(function (n) {
+                        return String(n.id || n._id || '') === lid;
+                    });
+                    if (!alreadyInNormalized) {
+                        normalized.unshift(locInv);
                     }
                 });
 
@@ -11550,11 +11571,25 @@
             if (isWebCloud) {
                 var cleanPhone = phone ? phone.replace(/\D/g, '') : "918367047947";
                 if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-                var testMsg = 'Test message from Anudeep Khadi Bandar. WhatsApp integration is active!';
-                var waDirectUrl = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(cleanPhone) + '&text=' + encodeURIComponent(testMsg);
-                window.open(waDirectUrl, '_blank');
+                if (sbClient) {
+                    U.toast("⚡ Triggering test message via Host Workstation WhatsApp bot...", "info");
+                    sbClient.from('invoices').insert({
+                        id: 'test_' + Date.now(),
+                        invoiceNo: 99999,
+                        date: new Date().toISOString().slice(0, 10),
+                        receiver: { name: 'Test Customer', phone: cleanPhone },
+                        customerPhone: cleanPhone,
+                        totalAmount: 1,
+                        items: [{ description: 'WhatsApp Test Ping', qty: 1, rate: 1, amount: 1 }]
+                    }).then(function() {
+                        U.toast("✅ Test ping dispatched to host bot stream!", "success");
+                    }).catch(function(err) {
+                        U.toast("Notice: " + (err ? err.message : 'Sent to queue'), "info");
+                    });
+                } else {
+                    U.toast("Host bot is currently offline or pairing. Please link bot on host.", "warning");
+                }
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-paper-plane"></i> Test Send'; }
-                U.toast("Opening direct WhatsApp test chat...", "success");
                 return;
             }
 
@@ -11678,16 +11713,56 @@
         }
 
         async function fetchWhatsappStatus(showToast) {
+            // First: if on Web / Static hosting, check live WhatsApp state directly from Supabase Cloud settings!
+            if (sbClient) {
+                try {
+                    var stRes = await sbClient.from('settings').select('whatsapp').eq('id', 'app_settings').single();
+                    if (stRes && stRes.data && stRes.data.whatsapp) {
+                        var cloudWa = stRes.data.whatsapp;
+                        _waStatusState = cloudWa;
+                        if (cloudWa.connected) {
+                            updateWhatsappSidebarDot(true, false);
+                            renderWhatsappModal("connected", cloudWa);
+                            var waBadge = document.getElementById("s-wa-badge");
+                            var waBox = document.getElementById("s-wa-status-box");
+                            if (waBadge && waBox) {
+                                waBadge.style.background = "#ecfdf5";
+                                waBadge.style.color = "#065f46";
+                                waBadge.textContent = "CONNECTED";
+                                waBox.innerHTML = '<span style="color:#059669; font-weight:700;"><i class="ph ph-check-circle"></i> Host WhatsApp Bot is Connected</span><br><span style="color:var(--tl)">Ready for automated background receipt delivery (+918367047947).</span>';
+                            }
+                            if (showToast) U.toast("WhatsApp Bot is connected & active", "success");
+                            return;
+                        } else if (cloudWa.qr || cloudWa.pairingCode || cloudWa.status === 'qr_ready') {
+                            updateWhatsappSidebarDot(false, true);
+                            renderWhatsappModal("login", cloudWa);
+                            var waBadge = document.getElementById("s-wa-badge");
+                            var waBox = document.getElementById("s-wa-status-box");
+                            if (waBadge && waBox) {
+                                waBadge.style.background = "#fffbeb";
+                                waBadge.style.color = "#92400e";
+                                waBadge.textContent = "QR READY";
+                                waBox.innerHTML = '<span style="color:#d97706; font-weight:700;"><i class="ph ph-qr-code"></i> Scan QR to Link Host Bot</span><br><span style="color:var(--tl)">Scan the QR code below using WhatsApp on your phone to link bot.</span>';
+                            }
+                            if (showToast) U.toast("Please scan QR code to connect WhatsApp bot", "info");
+                            return;
+                        }
+                    }
+                } catch (sbWaErr) {
+                    console.warn('[Supabase WhatsApp Status]', sbWaErr.message);
+                }
+            }
+
             if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
-                _waStatusState = { connected: true, hostedOnServer: true, isWebMode: true, user: { phone: '918367047947', name: 'Anudeep Khadi Bandar' } };
-                updateWhatsappSidebarDot(true, false, true);
+                _waStatusState = { connected: false, hostedOnServer: true, isWebMode: true, status: 'connecting', user: { phone: '918367047947', name: 'Anudeep Khadi Bandar' } };
+                updateWhatsappSidebarDot(false, true, true);
                 var waBadge = document.getElementById("s-wa-badge");
                 var waBox = document.getElementById("s-wa-status-box");
                 if (waBadge && waBox) {
                     waBadge.style.background = "#eff6ff";
                     waBadge.style.color = "#1e40af";
-                    waBadge.textContent = "WORKSTATION BOT";
-                    waBox.innerHTML = '<span style="color:#2563eb; font-weight:700;"><i class="ph ph-device-mobile"></i> WhatsApp Engine Stationed on Host PC</span><br><span style="color:var(--tl)">Invoices generated on this web portal are synced to your billing computer (+918367047947) for delivery. Click any invoice WhatsApp icon to send instantly.</span>';
+                    waBadge.textContent = "CHECKING BOT";
+                    waBox.innerHTML = '<span style="color:#2563eb; font-weight:700;"><i class="ph ph-device-mobile"></i> WhatsApp Engine on Host PC</span><br><span style="color:var(--tl)">Invoices generated on this web portal are synced to your billing computer (+918367047947) for delivery.</span>';
                 }
                 renderWhatsappModal("web_mode", _waStatusState);
                 return;
