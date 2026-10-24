@@ -1,5 +1,100 @@
 [
   {
+    "id": "test_upsert_1792845966619",
+    "data": null,
+    "date": "2026-10-24",
+    "items": null,
+    "receiver": null,
+    "roundOff": 0,
+    "consignee": null,
+    "invoiceNo": 9999,
+    "cgstAmount": 0,
+    "created_at": "2026-10-24T12:46:06.037136+00:00",
+    "igstAmount": 0,
+    "sgstAmount": 0,
+    "updated_at": "2026-10-24T12:46:06.037136+00:00",
+    "totalAmount": 0,
+    "isInterState": false,
+    "customerPhone": "918367047947",
+    "rawGrandTotal": 0,
+    "taxableAmount": 0
+  },
+  {
+    "date": "2026-10-24",
+    "items": [
+      {
+        "qty": 1,
+        "rate": 100,
+        "amount": 100,
+        "baleNo": "1",
+        "description": "TEST ITEM"
+      }
+    ],
+    "receiver": {
+      "name": "Live User Verification",
+      "phone": "918367047947"
+    },
+    "invoiceNo": 8888,
+    "totalAmount": 105,
+    "customerPhone": "918367047947",
+    "taxableAmount": 100
+  },
+  {
+    "id": 1792844875708,
+    "date": "2026-10-24",
+    "lrNo": "374747",
+    "items": [
+      {
+        "cms": 0,
+        "hsn": "5208",
+        "qty": 5,
+        "rate": 650,
+        "amount": 3250,
+        "baleNo": "1",
+        "meters": 5,
+        "calcType": "meters",
+        "description": "WHITE KHADI SHIRT",
+        "totalMeters": 5
+      }
+    ],
+    "state": "ANDHRA PRADESH",
+    "bundles": "5",
+    "receiver": {
+      "name": "JAGAN",
+      "gstin": "2154884548",
+      "phone": "8367047947",
+      "state": "ODISHA",
+      "address": "VPM",
+      "stateCode": "21"
+    },
+    "roundOff": 0.5,
+    "consignee": {
+      "name": "JAGAN",
+      "gstin": "4554848454",
+      "phone": "8367047947",
+      "state": "ANDHRA PRADESH",
+      "address": "VPM",
+      "stateCode": "37"
+    },
+    "invoiceNo": 20,
+    "stateCode": "37",
+    "_createdAt": 1792844875708,
+    "_localOnly": true,
+    "cgstAmount": 81.25,
+    "igstAmount": 0,
+    "sgstAmount": 81.25,
+    "supplyDate": "2026-10-24",
+    "totalAmount": 3413,
+    "isInterState": false,
+    "customerPhone": "8367047947",
+    "placeOfSupply": "TENALI",
+    "rawGrandTotal": 3412.5,
+    "reverseCharge": "No",
+    "taxableAmount": 3250,
+    "transportDate": "2026-10-24",
+    "transportMode": "TRAIN"
+  },
+  {
     "id": 1792840001396,
     "date": "2026-10-24",
     "lrNo": "RTCF",
@@ -106,45 +201,6 @@
     "taxableAmount": 3250,
     "transportDate": "2026-10-24",
     "transportMode": "BUS"
-  },
-  {
-    "invoiceNo": 9991,
-    "date": "2026-10-24",
-    "customerPhone": "918367047947",
-    "receiver": {
-      "name": "Anudeep Official WhatsApp Test",
-      "phone": "918367047947",
-      "address": "Tenali Main Road, AP",
-      "gstin": "37BTMPS9234C1ZA",
-      "stateCode": "37"
-    },
-    "consignee": {
-      "name": "Anudeep Official WhatsApp Test",
-      "phone": "918367047947",
-      "address": "Tenali Main Road, AP",
-      "gstin": "37BTMPS9234C1ZA",
-      "stateCode": "37"
-    },
-    "items": [
-      {
-        "baleNo": 1,
-        "description": "Superfine Cotton Khadi Cloth",
-        "hsn": "5208",
-        "qty": 1,
-        "meters": 25,
-        "cms": 0,
-        "rate": 150,
-        "amount": 3750
-      }
-    ],
-    "taxableAmount": 3750,
-    "cgstAmount": 93.75,
-    "sgstAmount": 93.75,
-    "igstAmount": 0,
-    "roundOff": -0.5,
-    "totalAmount": 3937,
-    "id": "inv_1792812687740",
-    "_id": "inv_1792812687740"
   },
   {
     "invoiceNo": 9991,
