@@ -3764,25 +3764,68 @@ function generateInvoiceHtml(inv) {
     '</div></body></html>';
 }
 
-// ⚡ Headless PDF Buffer Creator with Chrome
-async function createInvoicePdfBuffer(inv) {
+// ⚡ High-Speed Headless PDF Buffer Creator with Shared Browser Worker
+let _sharedPdfBrowser = null;
+let _sharedPdfBrowserLock = false;
+
+async function getSharedPdfBrowser() {
   const puppeteer = require('puppeteer');
   const chromePath = findChromeExecutable();
-  const html = generateInvoiceHtml(inv);
-  const browser = await puppeteer.launch({
+  if (_sharedPdfBrowser && _sharedPdfBrowser.isConnected && _sharedPdfBrowser.isConnected()) {
+    return _sharedPdfBrowser;
+  }
+  _sharedPdfBrowser = await puppeteer.launch({
     headless: 'new',
     executablePath: chromePath,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-gpu',
+      '--disable-dev-shm-usage',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process'
+    ]
   });
-  const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: 'load' });
-  const pdfBuf = await page.pdf({
-    format: 'A4',
-    printBackground: true,
-    margin: { top: '4mm', bottom: '4mm', left: '6mm', right: '6mm' }
-  });
-  await browser.close();
-  return Buffer.from(pdfBuf);
+  return _sharedPdfBrowser;
+}
+
+async function createInvoicePdfBuffer(inv) {
+  const html = generateInvoiceHtml(inv);
+  let page = null;
+  try {
+    const browser = await getSharedPdfBrowser();
+    page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'load' });
+    const pdfBuf = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '4mm', bottom: '4mm', left: '6mm', right: '6mm' }
+    });
+    return Buffer.from(pdfBuf);
+  } catch (err) {
+    console.warn('[PDF-Engine] Shared worker warning, spawning isolated instance:', err.message);
+    const puppeteer = require('puppeteer');
+    const chromePath = findChromeExecutable();
+    const fallbackBrowser = await puppeteer.launch({
+      headless: 'new',
+      executablePath: chromePath,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+    });
+    const fallbackPage = await fallbackBrowser.newPage();
+    await fallbackPage.setContent(html, { waitUntil: 'load' });
+    const pdfBuf = await fallbackPage.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '4mm', bottom: '4mm', left: '6mm', right: '6mm' }
+    });
+    await fallbackBrowser.close().catch(() => {});
+    return Buffer.from(pdfBuf);
+  } finally {
+    if (page && !page.isClosed()) {
+      await page.close().catch(() => {});
+    }
+  }
 }
 
 // ⚡ Helper: Robust Inside Andhra Pradesh (Intra-State) Detector
@@ -3994,32 +4037,41 @@ async function autoDispatchBots(inv) {
         console.warn(`[Auto-WhatsApp] PDF generation warning (will dispatch text breakdown):`, pdfErr.message);
       }
 
-      for (let phone of recipientPhones) {
+      // ⚡ High-Speed Concurrent Dispatch: Send to Customer first with priority, then broadcast to store backups concurrently
+      const dispatchToPhone = async (phone) => {
         const targetChatId = await resolveChatId(client, phone);
-        if (targetChatId) {
-          try {
-            if (pdfMedia) {
-              // ⚡ Deliver the actual PDF document attachment with text summary caption
-              await sendWhatsappMessageWithTimeout(client, targetChatId, pdfMedia, {
-                caption: waText,
-                sendMediaAsDocument: true
-              }, 35000);
-              console.log(`[Auto-WhatsApp] ✅ Dispatched invoice #${invNo} PDF document with summary to ${targetChatId}`);
-            } else {
-              // Fallback to text message if PDF engine encountered an issue
-              await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 15000);
-              console.log(`[Auto-WhatsApp] Dispatched invoice #${invNo} text to ${targetChatId}`);
-            }
-          } catch (waErr) {
-            console.warn(`[Auto-WhatsApp] Send to ${targetChatId} warning:`, waErr.message);
-            if (pdfMedia) {
-              try {
-                await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 15000);
-                console.log(`[Auto-WhatsApp] Fallback text dispatched to ${targetChatId}`);
-              } catch (_) {}
-            }
+        if (!targetChatId) return;
+        try {
+          if (pdfMedia) {
+            await sendWhatsappMessageWithTimeout(client, targetChatId, pdfMedia, {
+              caption: waText,
+              sendMediaAsDocument: true
+            }, 30000);
+            console.log(`[Auto-WhatsApp] ✅ Dispatched invoice #${invNo} PDF document with summary to ${targetChatId}`);
+          } else {
+            await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 12000);
+            console.log(`[Auto-WhatsApp] Dispatched invoice #${invNo} text to ${targetChatId}`);
+          }
+        } catch (waErr) {
+          console.warn(`[Auto-WhatsApp] Send to ${targetChatId} warning:`, waErr.message);
+          if (pdfMedia) {
+            try {
+              await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 12000);
+              console.log(`[Auto-WhatsApp] Fallback text dispatched to ${targetChatId}`);
+            } catch (_) {}
           }
         }
+      };
+
+      // 1. Dispatch to Customer Phone immediately (0ms delay)
+      if (custPhone) {
+        await dispatchToPhone(custPhone);
+      }
+
+      // 2. Dispatch to Store Backup numbers concurrently in background
+      const otherRecipients = recipientPhones.filter(p => p !== custPhone);
+      if (otherRecipients.length > 0) {
+        Promise.allSettled(otherRecipients.map(p => dispatchToPhone(p))).catch(() => {});
       }
       recordWhatsappDelivery({
         invoiceNo: invNo,
