@@ -320,53 +320,67 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 // Real-Time Supabase WebSocket Listener: When ANY invoice is saved on Client/Mobile, immediately dispatch WhatsApp!
+const _dispatchedEvents = new Map();
+
 try {
   supabase.channel('supabase_whatsapp_dispatcher')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'invoices' }, async (payload) => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, async (payload) => {
       try {
-        const inv = payload.new ? (payload.new.data || payload.new) : null;
-        if (inv) {
-          console.log(`⚡ [Supabase-Realtime] Detected new invoice #${inv.invoiceNo || inv.id}. Auto-dispatching WhatsApp...`);
-          // Also sync to local json ledger so host stays 100% updated
-          let invoices = readJsonFile('invoices', []);
-          const exists = invoices.some(i => String(i.id || i._id) === String(inv.id) || String(i.invoiceNo) === String(inv.invoiceNo));
-          if (!exists) {
-            invoices.unshift(inv);
+        if (payload.eventType === 'DELETE') {
+          const delId = payload.old ? String(payload.old.id || payload.old.invoiceNo) : '';
+          if (delId) {
+            console.log(`⚡ [Supabase-Realtime] Detected deletion from website/cloud for invoice ID: ${delId}`);
+            let invoices = readJsonFile('invoices', []);
+            invoices = invoices.filter(i => String(i.id || i._id) !== delId && String(i.invoiceNo) !== delId);
             writeJsonFile('invoices', invoices);
             _invoicesVersion = Date.now();
-            broadcastRealtime('invoice_created', { invoice: inv });
+            
+            let deletedList = readJsonFile('deleted_invoices', []);
+            if (delId.length > 5 && !deletedList.includes(delId)) {
+              deletedList.push(delId);
+              writeJsonFile('deleted_invoices', deletedList);
+            }
+
+            broadcastRealtime('invoice_deleted', { id: delId });
           }
+          return;
+        }
+
+        // For INSERT and UPDATE (upsert from mobile or web client)
+        const inv = payload.new ? (payload.new.data || payload.new) : null;
+        if (inv) {
+          const invKey = String(inv.id || inv._id || inv.invoiceNo);
+          const now = Date.now();
+          const lastDisp = _dispatchedEvents.get(invKey) || 0;
+          if (now - lastDisp < 4000) {
+            // Debounce duplicate events within 4 seconds
+            return;
+          }
+          _dispatchedEvents.set(invKey, now);
+
+          console.log(`⚡ [Supabase-Realtime] Detected invoice #${inv.invoiceNo || inv.id} (${payload.eventType}). Auto-dispatching WhatsApp & Ledger sync...`);
+
+          // Sync to local json ledger so host stays 100% updated
+          let invoices = readJsonFile('invoices', []);
+          const existingIdx = invoices.findIndex(i => String(i.id || i._id) === String(inv.id) || String(i.invoiceNo) === String(inv.invoiceNo));
+          if (existingIdx >= 0) {
+            invoices[existingIdx] = inv;
+          } else {
+            invoices.unshift(inv);
+          }
+          writeJsonFile('invoices', invoices);
+          _invoicesVersion = Date.now();
+          broadcastRealtime('invoice_created', { invoice: inv });
+
           await autoDispatchBots(inv);
         }
       } catch (dispErr) {
         console.warn('[Supabase-Realtime] Dispatch error:', dispErr.message);
       }
     })
-    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'invoices' }, (payload) => {
-      try {
-        const delId = payload.old ? String(payload.old.id || payload.old.invoiceNo) : '';
-        if (delId) {
-          console.log(`⚡ [Supabase-Realtime] Detected deletion from website/cloud for invoice ID: ${delId}`);
-          let invoices = readJsonFile('invoices', []);
-          invoices = invoices.filter(i => String(i.id || i._id) !== delId && String(i.invoiceNo) !== delId);
-          writeJsonFile('invoices', invoices);
-          _invoicesVersion = Date.now();
-          
-          let deletedList = readJsonFile('deleted_invoices', []);
-          if (delId.length > 5 && !deletedList.includes(delId)) {
-            deletedList.push(delId);
-            writeJsonFile('deleted_invoices', deletedList);
-          }
-
-          broadcastRealtime('invoice_deleted', { id: delId });
-        }
-      } catch (delErr) {
-        console.warn('[Supabase-Realtime] Delete sync error:', delErr.message);
-      }
-    })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        console.log('⚡ [Supabase-Realtime] Store WhatsApp Bot subscribed to live Supabase cloud invoice stream (INSERT + DELETE).');
+        console.log('⚡ [Supabase-Realtime] Store WhatsApp Bot subscribed to live Supabase cloud invoice stream (ALL EVENTS: INSERT + UPDATE + DELETE).');
       }
     });
 } catch (e) {
