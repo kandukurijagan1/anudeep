@@ -1,102 +1,56 @@
 [
   {
-    "id": "1792779200305",
-    "invoiceNo": 1,
+    "id": 1792776138505,
     "date": "2026-10-23",
-    "receiver": {
-      "name": "JAGAN",
-      "gstin": "2154884548",
-      "phone": "8367047947",
-      "state": "ODISHA",
-      "address": "VPM",
-      "stateCode": "21"
-    },
-    "consignee": {
-      "name": "JAGAN",
-      "gstin": "4554848454",
-      "phone": "8367047947",
-      "state": "ANDHRA PRADESH",
-      "address": "VPM",
-      "stateCode": "45"
-    },
+    "lrNo": "",
     "items": [
       {
-        "cms": 5,
+        "cms": 88,
         "hsn": "5208",
-        "qty": 5,
+        "qty": 45,
         "rate": 650,
-        "amount": 36110782.5,
+        "amount": 37622,
         "baleNo": "1",
-        "meters": 55555,
+        "meters": 57,
         "calcType": "meters",
         "description": "WHITE KHADI SHIRT",
-        "totalMeters": 55555.05
+        "totalMeters": 57.88
       }
     ],
-    "taxableAmount": 36110782.5,
-    "cgstAmount": 902769.56,
-    "sgstAmount": 902769.56,
-    "igstAmount": 0,
-    "totalAmount": 37916322,
-    "customerPhone": "918367047947",
-    "rawGrandTotal": 0,
-    "roundOff": 0,
-    "isInterState": false,
-    "data": {
-      "id": 1792779200305,
-      "date": "2026-10-23",
-      "lrNo": "DHDVR",
-      "items": [
-        {
-          "cms": 5,
-          "hsn": "5208",
-          "qty": 5,
-          "rate": 650,
-          "amount": 36110782.5,
-          "baleNo": "1",
-          "meters": 55555,
-          "calcType": "meters",
-          "description": "WHITE KHADI SHIRT",
-          "totalMeters": 55555.05
-        }
-      ],
-      "state": "TENALI",
-      "bundles": "588",
-      "receiver": {
-        "name": "JAGAN",
-        "gstin": "2154884548",
-        "phone": "8367047947",
-        "state": "ODISHA",
-        "address": "VPM",
-        "stateCode": "21"
-      },
-      "roundOff": 0.38,
-      "consignee": {
-        "name": "JAGAN",
-        "gstin": "4554848454",
-        "phone": "8367047947",
-        "state": "ANDHRA PRADESH",
-        "address": "VPM",
-        "stateCode": "45"
-      },
-      "invoiceNo": 1,
-      "stateCode": "21",
-      "cgstAmount": 902769.56,
-      "igstAmount": 0,
-      "sgstAmount": 902769.56,
-      "supplyDate": "2026-10-23",
-      "totalAmount": 37916322,
-      "isInterState": false,
-      "customerPhone": "8367047947",
-      "placeOfSupply": "ODISHA",
-      "rawGrandTotal": 37916321.62,
-      "reverseCharge": "No",
-      "taxableAmount": 36110782.5,
-      "transportDate": "2026-10-23",
-      "transportMode": "EGFV"
+    "state": "ANDHRA PRADESH",
+    "bundles": "",
+    "receiver": {
+      "name": "UYGHJBN",
+      "gstin": "",
+      "phone": "8367047947",
+      "state": "ANDHRA PRADESH",
+      "address": "YUHJM",
+      "stateCode": "37"
     },
-    "created_at": "2026-10-23T18:13:21.175763+00:00",
-    "updated_at": "2026-10-23T18:13:21.175763+00:00"
+    "roundOff": -0.1,
+    "consignee": {
+      "name": "",
+      "gstin": "",
+      "phone": "8367047947",
+      "state": "",
+      "address": "",
+      "stateCode": ""
+    },
+    "invoiceNo": 10,
+    "stateCode": "37",
+    "cgstAmount": 940.55,
+    "igstAmount": 0,
+    "sgstAmount": 940.55,
+    "supplyDate": "2026-10-23",
+    "totalAmount": 39503,
+    "isInterState": false,
+    "customerPhone": "8367047947",
+    "placeOfSupply": "TENALI",
+    "rawGrandTotal": 39503.1,
+    "reverseCharge": "No",
+    "taxableAmount": 37622,
+    "transportDate": "2026-10-23",
+    "transportMode": ""
   },
   {
     "id": "1792781369384",
@@ -196,5 +150,58 @@
     },
     "created_at": "2026-10-23T18:49:29.894995+00:00",
     "updated_at": "2026-10-23T18:49:29.894995+00:00"
+  },
+  {
+    "id": 1792779200305,
+    "date": "2026-10-23",
+    "lrNo": "DHDVR",
+    "items": [
+      {
+        "cms": 5,
+        "hsn": "5208",
+        "qty": 5,
+        "rate": 650,
+        "amount": 36110782.5,
+        "baleNo": "1",
+        "meters": 55555,
+        "calcType": "meters",
+        "description": "WHITE KHADI SHIRT",
+        "totalMeters": 55555.05
+      }
+    ],
+    "state": "TENALI",
+    "bundles": "588",
+    "receiver": {
+      "name": "JAGAN",
+      "gstin": "2154884548",
+      "phone": "8367047947",
+      "state": "ODISHA",
+      "address": "VPM",
+      "stateCode": "21"
+    },
+    "roundOff": 0.38,
+    "consignee": {
+      "name": "JAGAN",
+      "gstin": "4554848454",
+      "phone": "8367047947",
+      "state": "ANDHRA PRADESH",
+      "address": "VPM",
+      "stateCode": "45"
+    },
+    "invoiceNo": 1,
+    "stateCode": "21",
+    "cgstAmount": 902769.56,
+    "igstAmount": 0,
+    "sgstAmount": 902769.56,
+    "supplyDate": "2026-10-23",
+    "totalAmount": 37916322,
+    "isInterState": false,
+    "customerPhone": "8367047947",
+    "placeOfSupply": "ODISHA",
+    "rawGrandTotal": 37916321.62,
+    "reverseCharge": "No",
+    "taxableAmount": 36110782.5,
+    "transportDate": "2026-10-23",
+    "transportMode": "EGFV"
   }
 ]
