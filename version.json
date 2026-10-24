@@ -1,11 +1,10 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.9.2",
-  "build": 192,
-  "commit": "HEAD",
+  "version": "1.9.3",
+  "build": 193,
   "releaseDate": "2026-10-24",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix(whatsapp): ensure live connected bot state is broadcast in real time and fix broken QR image fallback",
-  "releaseNotes": "1. WhatsApp bot status in Supabase updated to active connected state for +918367047947. 2. Added onerror fallback on QR image so broken image icons never appear. 3. Fixed updateWaQrDisplay scope to eliminate undefined variable reference."
+  "description": "feat(whatsapp): automated official A4 Tax Invoice PDF document attachment dispatch",
+  "releaseNotes": "1. Fixed automated WhatsApp dispatch: Now generates and delivers the official A4 Tax Invoice PDF document attachment directly into customer and store chats instead of plain text only. 2. Headless Chrome server-side rendering embeds logos, bale items, and GST breakdown with zero user prompt. 3. Real-time Supabase cloud webhook triggers instant PDF delivery."
 }
