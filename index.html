@@ -10568,23 +10568,25 @@
                 }
 
                 try {
-                    // Fast batch request: retrieves settings, products, receivers, consignees, invoices in 1 single round-trip!
-                    var bootUrl = (API_URL || location.origin + '/api') + '/bootstrap';
-                    var res = await fetch(bootUrl);
-                    if (res.ok) {
-                        var data = await res.json();
-                        if (data && (data.invoices || data.products || data.settings)) {
-                            if (data.settings) STM.applySettings(data.settings);
-                            if (Array.isArray(data.products)) PDM.applyProducts(data.products);
-                            if (Array.isArray(data.receivers)) PM.applyParties('receiver', data.receivers);
-                            if (Array.isArray(data.consignees)) PM.applyParties('consignee', data.consignees);
-                            if (Array.isArray(data.invoices)) {
-                                IM.applyInvoices(data.invoices);
-                            }
+                    // Fast batch request: retrieves settings, products, receivers, consignees, invoices in 1 single round-trip! (Only if Supabase not already bootstrapped)
+                    if (!bootstrapDone) {
+                        var bootUrl = (API_URL || location.origin + '/api') + '/bootstrap';
+                        var res = await fetch(bootUrl);
+                        if (res.ok) {
+                            var data = await res.json();
+                            if (data && (data.invoices || data.products || data.settings)) {
+                                if (data.settings) STM.applySettings(data.settings);
+                                if (Array.isArray(data.products)) PDM.applyProducts(data.products);
+                                if (Array.isArray(data.receivers)) PM.applyParties('receiver', data.receivers);
+                                if (Array.isArray(data.consignees)) PM.applyParties('consignee', data.consignees);
+                                if (Array.isArray(data.invoices)) {
+                                    IM.applyInvoices(data.invoices);
+                                }
 
-                            BM.init();
-                            DM.render();
-                            bootstrapDone = true;
+                                BM.init();
+                                DM.render();
+                                bootstrapDone = true;
+                            }
                         }
                     }
                 } catch (e) {

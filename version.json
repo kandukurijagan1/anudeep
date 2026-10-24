@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.8.8",
-  "build": 188,
+  "version": "1.8.9",
+  "build": 189,
   "commit": "HEAD",
   "releaseDate": "2026-10-24",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(advanced-core): synchronous cloud commit, horizontal mobile bill preview scrolling, and zero-loss ledger sync",
-  "releaseNotes": "1. BM.save now awaits synchronous Supabase Cloud upsert before clearing forms or running background sync. 2. Added horizontal scrolling and min-width to mobile Bill Preview modal so columns never crush together. 3. Zero-loss ledger sync."
+  "description": "fix(ledger-sync): set Supabase as exclusive primary source for IM.fetchInvoices, isolate secondary REST sync, and sync master repository ledger",
+  "releaseNotes": "1. IM.fetchInvoices now queries Supabase Cloud directly first to prevent outdated GAS from clearing newly generated bills. 2. Continuous 2-second poller skips secondary REST call when Supabase is active. 3. Synchronized GitHub master ledger with Supabase records."
 }
