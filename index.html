@@ -9935,11 +9935,12 @@
                         })
                         .subscribe();
 
-                    // Settings Channel (Keeps next invoice number in sync across counters)
+                    // Settings Channel (Keeps next invoice number & WhatsApp bot state in sync across counters and mobile)
                     sbClient.channel('realtime_settings')
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, async function (payload) {
                             try {
-                                var stData = payload.new ? (payload.new.data || payload.new) : null;
+                                var stRow = payload.new || {};
+                                var stData = stRow.data || stRow;
                                 if (stData && stData.nextInvoiceNo) {
                                     var curSt = D.go('settings') || {};
                                     curSt.nextInvoiceNo = parseInt(stData.nextInvoiceNo, 10);
@@ -9947,6 +9948,17 @@
                                     var invnoEl = document.getElementById('b-invno');
                                     if (invnoEl && (!BM._userEditedInvNo || invnoEl.value === '')) {
                                         invnoEl.value = U.pi(curSt.nextInvoiceNo);
+                                    }
+                                }
+                                // Realtime WhatsApp live status relay via Supabase
+                                if (stRow.whatsapp) {
+                                    var waInfo = stRow.whatsapp;
+                                    _waStatusState = waInfo;
+                                    try {
+                                        localStorage.setItem('akb_wa_status', JSON.stringify(waInfo));
+                                    } catch (_) {}
+                                    if (typeof applyWhatsappStatusState === 'function') {
+                                        applyWhatsappStatusState(waInfo);
                                     }
                                 }
                             } catch (_) {}
@@ -10596,6 +10608,9 @@
                     PM.loadLocal();
                     IM.loadLocal();
                     DM.render();
+                    if (_waStatusState && typeof applyWhatsappStatusState === 'function') {
+                        applyWhatsappStatusState(_waStatusState);
+                    }
                 } catch (err) {
                     console.warn('Instant local render note:', err);
                 }
@@ -11160,8 +11175,59 @@
     </div>
     <script>
         var _waStatusState = null;
+        try {
+            var cachedWa = localStorage.getItem('akb_wa_status');
+            if (cachedWa) _waStatusState = JSON.parse(cachedWa);
+        } catch (_) {}
         var _waPollInterval = null;
         var _waActiveTab = 'qr';
+
+        function applyWhatsappStatusState(data) {
+            if (!data) return;
+            _waStatusState = data;
+            var isConn = !!(data.connected === true || data.status === 'authenticated' || data.status === 'ready');
+            var isPending = !isConn && (data.status === 'initializing' || data.status === 'connecting_saved' || !!(data.qr || data.pairingCode));
+
+            updateWhatsappSidebarDot(isConn, isPending);
+
+            var waBadge = document.getElementById("s-wa-badge");
+            var waBox = document.getElementById("s-wa-status-box");
+            if (waBadge && waBox) {
+                if (isConn) {
+                    waBadge.style.background = "#ecfdf5";
+                    waBadge.style.color = "#065f46";
+                    waBadge.textContent = "CONNECTED";
+                    var phoneLabel = (data.user && data.user.phone) ? (' (+' + data.user.phone + ')') : '';
+                    waBox.innerHTML = '<span style="color:#059669; font-weight:700;"><i class="ph ph-check-circle"></i> Host WhatsApp Bot is Connected' + phoneLabel + '</span><br><span style="color:var(--tl)">Ready for automated background receipt delivery to customers.</span>';
+                } else if (data.qr || data.pairingCode || data.status === 'qr_ready') {
+                    waBadge.style.background = "#fffbeb";
+                    waBadge.style.color = "#b45309";
+                    waBadge.textContent = "PAIRING READY";
+                    waBox.innerHTML = '<span style="color:#b45309; font-weight:700;"><i class="ph ph-warning"></i> Pairing Code / QR Ready</span><br><span style="color:var(--tl)">Click Open WhatsApp Manager to link via Phone Number or QR.</span>';
+                } else if (data.status === 'connecting_saved') {
+                    waBadge.style.background = "#eff6ff";
+                    waBadge.style.color = "#1e40af";
+                    waBadge.textContent = "RECONNECTING";
+                    waBox.innerHTML = '<span style="color:#2563eb; font-weight:700;"><i class="ph ph-arrows-clockwise"></i> Reconnecting Session...</span><br><span style="color:var(--tl)">Restoring WhatsApp bot credentials automatically.</span>';
+                } else {
+                    waBadge.style.background = "#f1f5f9";
+                    waBadge.style.color = "#64748b";
+                    waBadge.textContent = "NOT LINKED";
+                    waBox.innerHTML = '<span style="color:#64748b; font-weight:700;"><i class="ph ph-prohibit"></i> WhatsApp Bot Not Linked</span><br><span style="color:var(--tl)">Click Open WhatsApp Manager to connect.</span>';
+                }
+            }
+
+            var waModal = document.getElementById('whatsapp-modal');
+            if (waModal && waModal.classList.contains('active')) {
+                if (isConn) {
+                    renderWhatsappModal("connected", data);
+                } else if (data.status === 'connecting_saved' || (data.status === 'initializing' && data.hasSavedSession)) {
+                    renderWhatsappModal("loading", { message: "Reconnecting to linked WhatsApp account...", user: data.user });
+                } else if (data.qr || data.pairingCode) {
+                    renderWhatsappModal("login", data);
+                }
+            }
+        }
 
         function getWaApiUrl() {
             var custom = localStorage.getItem("akb_wa_server_url");
@@ -11849,37 +11915,19 @@
         }
 
         async function fetchWhatsappStatus(showToast) {
-            // First: if on Web / Static hosting, check live WhatsApp state directly from Supabase Cloud settings!
+            // First: Check live WhatsApp state directly from Supabase Cloud settings!
             if (sbClient) {
                 try {
                     var stRes = await sbClient.from('settings').select('whatsapp').eq('id', 'app_settings').single();
                     if (stRes && stRes.data && stRes.data.whatsapp) {
                         var cloudWa = stRes.data.whatsapp;
                         _waStatusState = cloudWa;
+                        try { localStorage.setItem('akb_wa_status', JSON.stringify(cloudWa)); } catch (_) {}
+                        applyWhatsappStatusState(cloudWa);
                         if (cloudWa.connected) {
-                            updateWhatsappSidebarDot(true, false);
-                            renderWhatsappModal("connected", cloudWa);
-                            var waBadge = document.getElementById("s-wa-badge");
-                            var waBox = document.getElementById("s-wa-status-box");
-                            if (waBadge && waBox) {
-                                waBadge.style.background = "#ecfdf5";
-                                waBadge.style.color = "#065f46";
-                                waBadge.textContent = "CONNECTED";
-                                waBox.innerHTML = '<span style="color:#059669; font-weight:700;"><i class="ph ph-check-circle"></i> Host WhatsApp Bot is Connected</span><br><span style="color:var(--tl)">Ready for automated background receipt delivery (+918367047947).</span>';
-                            }
                             if (showToast) U.toast("WhatsApp Bot is connected & active", "success");
                             return;
                         } else if (cloudWa.qr || cloudWa.pairingCode || cloudWa.status === 'qr_ready') {
-                            updateWhatsappSidebarDot(false, true);
-                            renderWhatsappModal("login", cloudWa);
-                            var waBadge = document.getElementById("s-wa-badge");
-                            var waBox = document.getElementById("s-wa-status-box");
-                            if (waBadge && waBox) {
-                                waBadge.style.background = "#fffbeb";
-                                waBadge.style.color = "#92400e";
-                                waBadge.textContent = "QR READY";
-                                waBox.innerHTML = '<span style="color:#d97706; font-weight:700;"><i class="ph ph-qr-code"></i> Scan QR to Link Host Bot</span><br><span style="color:var(--tl)">Scan the QR code below using WhatsApp on your phone to link bot.</span>';
-                            }
                             if (showToast) U.toast("Please scan QR code to connect WhatsApp bot", "info");
                             return;
                         }
@@ -11890,6 +11938,11 @@
             }
 
             if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
+                // If we have cached connected state, preserve it!
+                if (_waStatusState && _waStatusState.connected) {
+                    applyWhatsappStatusState(_waStatusState);
+                    return;
+                }
                 _waStatusState = { connected: false, hostedOnServer: true, isWebMode: true, status: 'connecting', user: { phone: '918367047947', name: 'Anudeep Khadi Bandar' } };
                 updateWhatsappSidebarDot(false, true, true);
                 var waBadge = document.getElementById("s-wa-badge");
@@ -11915,49 +11968,14 @@
                 waApiBase = endpoint.replace('/whatsapp/status', '');
                 var data = await res.json();
                 _waStatusState = data;
+                try { localStorage.setItem('akb_wa_status', JSON.stringify(data)); } catch (_) {}
                 _waOfflineCount = 0;
                 _serverFailCount = 0;
+                applyWhatsappStatusState(data);
                 if (data.connected || data.status === 'authenticated' || data.status === 'ready') {
-                    updateWhatsappSidebarDot(true, false);
-                    renderWhatsappModal("connected", data);
                     if (showToast) U.toast("WhatsApp Bot is connected & active", "success");
-                } else if (data.status === 'connecting_saved' || (data.status === 'initializing' && data.hasSavedSession) || (data.hasSavedSession && !data.qr)) {
-                    updateWhatsappSidebarDot(true, false);
-                    renderWhatsappModal("loading", { message: "Reconnecting to linked WhatsApp account...", user: data.user });
-                } else if (data.status === 'initializing') {
-                    updateWhatsappSidebarDot(false, true);
-                    renderWhatsappModal("loading", { message: "WhatsApp engine initializing in background..." });
-                } else if (data.status === 'loading') {
-                    updateWhatsappSidebarDot(true, false);
-                    renderWhatsappModal("loading", { message: data.message || "WhatsApp Linked! Syncing messages...", user: data.user });
                 } else if (data.qr || data.pairingCode) {
-                    updateWhatsappSidebarDot(false, true);
-                    renderWhatsappModal("login", data);
                     if (showToast) U.toast("Please scan QR code or enter pairing code to link WhatsApp", "info");
-                } else {
-                    updateWhatsappSidebarDot(false, false);
-                    renderWhatsappModal("login", data);
-                }
-
-                var waBadge = document.getElementById("s-wa-badge");
-                var waBox = document.getElementById("s-wa-status-box");
-                if (waBadge && waBox) {
-                    if (data.connected || data.status === 'authenticated' || data.status === 'ready') {
-                        waBadge.style.background = "#ecfdf5";
-                        waBadge.style.color = "#065f46";
-                        waBadge.textContent = "CONNECTED";
-                        waBox.innerHTML = '<span style="color:#059669; font-weight:700;"><i class="ph ph-check-circle"></i> WhatsApp Bot is Connected</span><br><span style="color:var(--tl)">Ready for automated background receipt delivery to customers.</span>';
-                    } else if (data.qr || data.pairingCode) {
-                        waBadge.style.background = "#fffbeb";
-                        waBadge.style.color = "#b45309";
-                        waBadge.textContent = "PAIRING READY";
-                        waBox.innerHTML = '<span style="color:#b45309; font-weight:700;"><i class="ph ph-warning"></i> Pairing Code / QR Ready</span><br><span style="color:var(--tl)">Click Open WhatsApp Manager to link via Phone Number or QR.</span>';
-                    } else {
-                        waBadge.style.background = "#f1f5f9";
-                        waBadge.style.color = "#64748b";
-                        waBadge.textContent = "NOT LINKED";
-                        waBox.innerHTML = '<span style="color:#64748b; font-weight:700;"><i class="ph ph-prohibit"></i> WhatsApp Bot Not Linked</span><br><span style="color:var(--tl)">Click Open WhatsApp Manager to connect.</span>';
-                    }
                 }
             } catch (err) {
                 _waOfflineCount++;
@@ -12141,7 +12159,11 @@
         // Continuous background self-healing monitor for WhatsApp
         setInterval(function () {
             if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
-                return; // Do not poll loopback on public HTTPS
+                // On static hosting, periodically verify status via Supabase cloud settings
+                if (sbClient) {
+                    fetchWhatsappStatus(false);
+                }
+                return;
             }
             if (!_waStatusState || !_waStatusState.connected) {
                 fetchWhatsappStatus(false);
@@ -12162,16 +12184,10 @@
                             var payload = JSON.parse(e.data);
                             var info = payload.data || payload;
                             _waStatusState = info;
-                            if (info.connected) {
-                                updateWhatsappSidebarDot(true, false);
-                                renderWhatsappModal("connected", info);
-                                if (info.message) U.toast("⚡ " + info.message, "success");
-                            } else if (info.status === 'connecting_saved') {
-                                updateWhatsappSidebarDot(true, false);
-                                renderWhatsappModal("loading", { message: info.message || "Reconnecting to linked WhatsApp account...", user: info.user });
-                            } else if (info.qr || info.pairingCode) {
-                                updateWhatsappSidebarDot(false, true);
-                                renderWhatsappModal("login", info);
+                            try { localStorage.setItem('akb_wa_status', JSON.stringify(info)); } catch (_) {}
+                            applyWhatsappStatusState(info);
+                            if (info.connected && info.message) {
+                                U.toast("⚡ " + info.message, "success");
                             }
                         } catch (_) {}
                     });

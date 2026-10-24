@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.9.4",
-  "build": 194,
+  "version": "1.9.5",
+  "build": 195,
   "releaseDate": "2026-10-24",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(whatsapp): advanced delivery audit logs, real-time status badges, and interactive one-click dispatch",
-  "releaseNotes": "1. Advanced WhatsApp Delivery Badges in Invoice History table displaying live delivery confirmation (Tax PDF / Text) per invoice. 2. Real-time audit history log in WhatsApp Manager showing timestamped dispatch status. 3. Interactive loading spinner on table WhatsApp button with instant user feedback. 4. Persistent server delivery log endpoint and Supabase live relay sync.",
+  "description": "fix(whatsapp): persistent multi-session connection state, instant reload restoration, and Supabase cloud relay syncing",
+  "releaseNotes": "1. Fixed WhatsApp disconnect on browser close & reopen: Caches connected state in localStorage and hydrates instantly on launch. 2. Real-time Supabase settings listener updates WhatsApp dot/status across remote and mobile devices without manual polling. 3. Periodic server keep-alive refreshes cloud connection timestamps. 4. Zero-loss session restoration guarantees bot remains always-connected.",
   "commit": ""
 }

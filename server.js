@@ -1516,6 +1516,20 @@ setInterval(async () => {
         } catch (_) {}
       }).catch(() => {});
 
+      // 3. Periodically ensure Supabase Cloud settings has fresh connected timestamp
+      if (typeof supabase !== 'undefined' && supabase) {
+        try {
+          supabase.from('settings').update({
+            whatsapp: {
+              connected: true,
+              status: 'ready',
+              user: whatsappUserInfo || getSavedWhatsappUserInfo(),
+              updatedAt: new Date().toISOString()
+            }
+          }).eq('id', 'app_settings').then(() => {}).catch(() => {});
+        } catch (_) {}
+      }
+
     } catch (err) {
       if (err.message && (err.message.includes('detached Frame') || err.message.includes('Session closed') || err.message.includes('Target closed') || err.message.includes('destroyed'))) {
         keepAliveFailures++;
