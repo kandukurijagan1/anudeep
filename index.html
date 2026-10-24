@@ -10002,10 +10002,10 @@
                 if (type === 'invoice_created') {
                     var inv = data.invoice;
                     if (!inv) return;
-                    var sid = String(inv.id || inv._id || inv.invoiceNo);
+                    var sid = String(inv.id || inv._id || '');
 
                     var curInvs = D.g("invoices") || [];
-                    var exists = curInvs.some(function (i) { return String(i.id) === sid || String(i._id) === sid || String(i.invoiceNo) === String(inv.invoiceNo); });
+                    var exists = curInvs.some(function (i) { return (sid && (String(i.id) === sid || String(i._id) === sid)); });
                     if (!exists) {
                         curInvs.unshift(inv);
                         D.s("invoices", curInvs);
@@ -10027,12 +10027,12 @@
                 } else if (type === 'invoice_updated') {
                     var inv = data.invoice;
                     if (!inv) return;
-                    var sid = String(inv.id || inv._id || inv.invoiceNo);
+                    var sid = String(inv.id || inv._id || '');
                     var curInvs = D.g("invoices") || [];
-                    curInvs = curInvs.map(function (i) { return (String(i.id) === sid || String(i._id) === sid || String(i.invoiceNo) === String(inv.invoiceNo)) ? inv : i; });
+                    curInvs = curInvs.map(function (i) { return (sid && (String(i.id) === sid || String(i._id) === sid)) ? inv : i; });
                     D.s("invoices", curInvs);
                     if (IM._all) {
-                        IM._all = IM._all.map(function (i) { return (String(i.id) === sid || String(i._id) === sid || String(i.invoiceNo) === String(inv.invoiceNo)) ? inv : i; });
+                        IM._all = IM._all.map(function (i) { return (sid && (String(i.id) === sid || String(i._id) === sid)) ? inv : i; });
                         IM._draw(IM._all);
                     }
                     DM.render();
@@ -10040,25 +10040,23 @@
                     var delId = String(data.id || '');
                     var delNum = data.invoiceNo ? String(data.invoiceNo) : '';
 
-                    // 1. Record in local permanent tombstone so it can NEVER be resurrected
+                    // 1. Record in local permanent tombstone by unique ID ONLY (length > 5, NEVER short invoice numbers)
                     var deletedList = JSON.parse(localStorage.getItem('akb_deleted_invoices') || '[]');
-                    if (delId && !deletedList.includes(delId)) deletedList.push(delId);
-                    if (delNum && !deletedList.includes(delNum)) deletedList.push(delNum);
+                    if (delId && delId.length > 5 && !deletedList.includes(delId)) deletedList.push(delId);
+                    deletedList = deletedList.filter(function (d) { return String(d).length > 5; });
                     localStorage.setItem('akb_deleted_invoices', JSON.stringify(deletedList));
 
-                    // 2. Filter from active ledger
+                    // 2. Filter from active ledger by unique ID
                     var curInvs = D.g("invoices") || [];
                     curInvs = curInvs.filter(function (i) { 
                         var iid = String(i.id || i._id || '');
-                        var inum = String(i.invoiceNo || '');
-                        return iid !== delId && inum !== delId && (!delNum || inum !== delNum); 
+                        return iid !== delId; 
                     });
                     D.s("invoices", curInvs);
                     if (IM._all) {
                         IM._all = IM._all.filter(function (i) { 
                             var iid = String(i.id || i._id || '');
-                            var inum = String(i.invoiceNo || '');
-                            return iid !== delId && inum !== delId && (!delNum || inum !== delNum); 
+                            return iid !== delId; 
                         });
                         IM.sortAndSyncNextNo();
                         var badge = document.getElementById('inv-count-badge');
