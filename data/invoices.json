@@ -1,87 +1,111 @@
 [
   {
-    "invoiceNo": 2,
+    "id": 1792840001396,
     "date": "2026-10-24",
-    "customerPhone": "8367047947",
-    "receiver": {
-      "name": "JAGAN",
-      "phone": "8367047947",
-      "address": "VPM",
-      "gstin": "2154884548",
-      "stateCode": "21",
-      "state": "ODISHA"
-    },
-    "consignee": {
-      "name": "JAGAN",
-      "phone": "8367047947",
-      "address": "VPM",
-      "gstin": "4554848454",
-      "stateCode": "33",
-      "state": "TAMIL NADU"
-    },
+    "lrNo": "RTCF",
     "items": [
       {
-        "baleNo": "1",
-        "description": "WHITE KHADI SHIRT",
+        "cms": 0,
         "hsn": "5208",
         "qty": 5,
-        "meters": 0,
-        "cms": 0,
-        "calcType": "qty",
         "rate": 650,
-        "amount": 3250
+        "amount": 3250,
+        "baleNo": "1",
+        "meters": 0,
+        "calcType": "qty",
+        "description": "WHITE KHADI SHIRT",
+        "totalMeters": 0
       }
     ],
-    "taxableAmount": 3250,
-    "cgstAmount": 0,
-    "sgstAmount": 0,
-    "igstAmount": 162.5,
+    "state": "TENALI",
+    "bundles": "5",
+    "receiver": {
+      "name": "JAGAN",
+      "gstin": "2154884548",
+      "phone": "8367047947",
+      "state": "ODISHA",
+      "address": "VPM",
+      "stateCode": "21"
+    },
     "roundOff": 0.5,
+    "consignee": {
+      "name": "JAGAN",
+      "gstin": "4554848454",
+      "phone": "8367047947",
+      "state": "ANDHRA PRADESH",
+      "address": "VPM",
+      "stateCode": "37"
+    },
+    "invoiceNo": 3,
+    "stateCode": "37",
+    "_createdAt": 1792840001396,
+    "_localOnly": true,
+    "cgstAmount": 81.25,
+    "igstAmount": 0,
+    "sgstAmount": 81.25,
+    "supplyDate": "2026-10-24",
     "totalAmount": 3413,
-    "id": "inv_1792839269453",
-    "_id": "inv_1792839269453"
+    "isInterState": false,
+    "customerPhone": "8367047947",
+    "placeOfSupply": "TENALI",
+    "rawGrandTotal": 3412.5,
+    "reverseCharge": "No",
+    "taxableAmount": 3250,
+    "transportDate": "2026-10-24",
+    "transportMode": "FIG"
   },
   {
-    "invoiceNo": 2,
+    "id": "1792818632117",
     "date": "2026-10-24",
-    "customerPhone": "8367047947",
-    "receiver": {
-      "name": "JAGAN",
-      "phone": "8367047947",
-      "address": "VPM",
-      "gstin": "2154884548",
-      "stateCode": "21",
-      "state": "ODISHA"
-    },
-    "consignee": {
-      "name": "JAGAN",
-      "phone": "8367047947",
-      "address": "VPM",
-      "gstin": "4554848454",
-      "stateCode": "33",
-      "state": "TAMIL NADU"
-    },
+    "lrNo": "58225",
     "items": [
       {
-        "baleNo": "1",
-        "description": "WHITE KHADI SHIRT",
+        "cms": 0,
         "hsn": "5208",
         "qty": 5,
-        "meters": 0,
-        "cms": 0,
-        "calcType": "qty",
         "rate": 650,
-        "amount": 3250
+        "amount": 3250,
+        "baleNo": "1",
+        "meters": 0,
+        "calcType": "qty",
+        "description": "WHITE KHADI SHIRT",
+        "totalMeters": 0
       }
     ],
-    "taxableAmount": 3250,
-    "cgstAmount": 0,
-    "sgstAmount": 0,
-    "igstAmount": 162.5,
+    "state": "TENALI",
+    "bundles": "5",
+    "receiver": {
+      "name": "JAGAN",
+      "gstin": "2154884548",
+      "phone": "8367047947",
+      "state": "ODISHA",
+      "address": "VPM",
+      "stateCode": "21"
+    },
     "roundOff": 0.5,
+    "consignee": {
+      "name": "JAGAN",
+      "gstin": "4554848454",
+      "phone": "8367047947",
+      "state": "TAMIL NADU",
+      "address": "VPM",
+      "stateCode": "33"
+    },
+    "invoiceNo": 2,
+    "stateCode": "37",
+    "cgstAmount": 0,
+    "igstAmount": 162.5,
+    "sgstAmount": 0,
+    "supplyDate": "2026-10-24",
     "totalAmount": 3413,
-    "id": "inv_1792838930525",
-    "_id": "inv_1792838930525"
+    "isInterState": true,
+    "customerPhone": "8367047947",
+    "placeOfSupply": "TENALI",
+    "rawGrandTotal": 3412.5,
+    "reverseCharge": "No",
+    "taxableAmount": 3250,
+    "transportDate": "2026-10-24",
+    "transportMode": "BUS"
   },
   {
     "invoiceNo": 9991,
