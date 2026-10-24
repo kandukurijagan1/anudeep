@@ -11938,9 +11938,10 @@
             }
 
             if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
-                // If we have cached connected state, preserve it!
+                // If we have connected state, apply connected status directly!
                 if (_waStatusState && _waStatusState.connected) {
                     applyWhatsappStatusState(_waStatusState);
+                    renderWhatsappModal("connected", _waStatusState);
                     return;
                 }
                 _waStatusState = { connected: false, hostedOnServer: true, isWebMode: true, status: 'connecting', user: { phone: '918367047947', name: 'Anudeep Khadi Bandar' } };
@@ -12012,7 +12013,11 @@
                 modal.style.removeProperty('display');
                 modal.classList.add('active');
             }
-            renderWhatsappModal("loading", { message: "Connecting to WhatsApp..." });
+            if (_waStatusState && _waStatusState.connected) {
+                renderWhatsappModal("connected", _waStatusState);
+            } else {
+                renderWhatsappModal("loading", { message: "Connecting to WhatsApp..." });
+            }
             _waOfflineCount = 0;
             _serverOffline = false;
             _serverFailCount = 0;
