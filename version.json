@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.9.7",
-  "build": 197,
-  "releaseDate": "2026-10-24",
+  "version": "1.9.8",
+  "build": 198,
+  "releaseDate": "2026-10-26",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix(whatsapp): direct live QR & pairing code rendering on cloud container",
-  "releaseNotes": "1. Fast PDF generation: Pooled headless Chrome worker generates official A4 Tax Invoice PDFs in <350ms without cold-launch overhead. 2. High-speed WhatsApp dispatch: Customer recipient dispatched immediately with store backups sent in parallel. 3. Sub-second Supabase database communication and persistent connection hydration.",
-  "commit": "23c760898358b84f135d44a3b01a1b0c312c5465"
+  "description": "fix(whatsapp): enable live dynamic QR and pairing code modal directly on cloud mobile container",
+  "releaseNotes": "1. Live dynamic QR and pairing code modal directly rendered on Render mobile web. 2. Any phone number can be connected or switched dynamically. 3. Realtime SSE status synchronization.",
+  "commit": "ad860ad"
 }
