@@ -7,5 +7,5 @@
   "branch": "main",
   "description": "fix(whatsapp): enable live dynamic QR and pairing code modal directly on cloud mobile container",
   "releaseNotes": "1. Live dynamic QR and pairing code modal directly rendered on Render mobile web. 2. Any phone number can be connected or switched dynamically. 3. Realtime SSE status synchronization.",
-  "commit": "ad860ad"
+  "commit": "fce066356be97aa88de766558367dcbe351130bb"
 }
