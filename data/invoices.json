@@ -1,25 +1,5 @@
 [
   {
-    "id": "test_upsert_1792845966619",
-    "data": null,
-    "date": "2026-10-24",
-    "items": null,
-    "receiver": null,
-    "roundOff": 0,
-    "consignee": null,
-    "invoiceNo": 9999,
-    "cgstAmount": 0,
-    "created_at": "2026-10-24T12:46:06.037136+00:00",
-    "igstAmount": 0,
-    "sgstAmount": 0,
-    "updated_at": "2026-10-24T12:46:06.037136+00:00",
-    "totalAmount": 0,
-    "isInterState": false,
-    "customerPhone": "918367047947",
-    "rawGrandTotal": 0,
-    "taxableAmount": 0
-  },
-  {
     "date": "2026-10-24",
     "items": [
       {
@@ -201,84 +181,6 @@
     "taxableAmount": 3250,
     "transportDate": "2026-10-24",
     "transportMode": "BUS"
-  },
-  {
-    "invoiceNo": 9991,
-    "date": "2026-10-24",
-    "customerPhone": "918367047947",
-    "receiver": {
-      "name": "Anudeep Official WhatsApp Test",
-      "phone": "918367047947",
-      "address": "Tenali Main Road, AP",
-      "gstin": "37BTMPS9234C1ZA",
-      "stateCode": "37"
-    },
-    "consignee": {
-      "name": "Anudeep Official WhatsApp Test",
-      "phone": "918367047947",
-      "address": "Tenali Main Road, AP",
-      "gstin": "37BTMPS9234C1ZA",
-      "stateCode": "37"
-    },
-    "items": [
-      {
-        "baleNo": 1,
-        "description": "Superfine Cotton Khadi Cloth",
-        "hsn": "5208",
-        "qty": 1,
-        "meters": 25,
-        "cms": 0,
-        "rate": 150,
-        "amount": 3750
-      }
-    ],
-    "taxableAmount": 3750,
-    "cgstAmount": 93.75,
-    "sgstAmount": 93.75,
-    "igstAmount": 0,
-    "roundOff": -0.5,
-    "totalAmount": 3937,
-    "id": "inv_1792812569300",
-    "_id": "inv_1792812569300"
-  },
-  {
-    "invoiceNo": 9991,
-    "date": "2026-10-24",
-    "customerPhone": "918367047947",
-    "receiver": {
-      "name": "Anudeep Official WhatsApp Test",
-      "phone": "918367047947",
-      "address": "Tenali Main Road, AP",
-      "gstin": "37BTMPS9234C1ZA",
-      "stateCode": "37"
-    },
-    "consignee": {
-      "name": "Anudeep Official WhatsApp Test",
-      "phone": "918367047947",
-      "address": "Tenali Main Road, AP",
-      "gstin": "37BTMPS9234C1ZA",
-      "stateCode": "37"
-    },
-    "items": [
-      {
-        "baleNo": 1,
-        "description": "Superfine Cotton Khadi Cloth",
-        "hsn": "5208",
-        "qty": 1,
-        "meters": 25,
-        "cms": 0,
-        "rate": 150,
-        "amount": 3750
-      }
-    ],
-    "taxableAmount": 3750,
-    "cgstAmount": 93.75,
-    "sgstAmount": 93.75,
-    "igstAmount": 0,
-    "roundOff": -0.5,
-    "totalAmount": 3937,
-    "id": "inv_1792812369731",
-    "_id": "inv_1792812369731"
   },
   {
     "id": 1792810610713,
