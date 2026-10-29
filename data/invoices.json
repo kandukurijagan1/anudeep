@@ -1,5 +1,60 @@
 [
   {
+    "id": 1793290009561,
+    "date": "2026-10-29",
+    "lrNo": "6798UIJ",
+    "items": [
+      {
+        "cms": 5,
+        "hsn": "5208",
+        "qty": 10,
+        "rate": 650,
+        "amount": 3282.5,
+        "baleNo": "1",
+        "meters": 5,
+        "calcType": "meters",
+        "description": "WHITE KHADI SHIRT",
+        "totalMeters": 5.05
+      }
+    ],
+    "state": "ANDHRA PRADESH",
+    "bundles": "10",
+    "receiver": {
+      "name": "JAGAN",
+      "gstin": "2154884548",
+      "phone": "8367047947",
+      "state": "ODISHA",
+      "address": "VPM",
+      "stateCode": "21"
+    },
+    "roundOff": 0.38,
+    "consignee": {
+      "name": "JAGAN",
+      "gstin": "4554848454",
+      "phone": "8367047947",
+      "state": "ANDHRA PRADESH",
+      "address": "VPM",
+      "stateCode": "37"
+    },
+    "invoiceNo": 20,
+    "stateCode": "37",
+    "_createdAt": 1793290009561,
+    "_localOnly": true,
+    "cgstAmount": 82.06,
+    "igstAmount": 0,
+    "sgstAmount": 82.06,
+    "supplyDate": "2026-10-29",
+    "totalAmount": 3447,
+    "isInterState": false,
+    "customerPhone": "8367047947",
+    "placeOfSupply": "TENALI",
+    "rawGrandTotal": 3446.62,
+    "reverseCharge": "No",
+    "taxableAmount": 3282.5,
+    "transportDate": "2026-10-29",
+    "transportMode": "TRAIN"
+  },
+  {
     "date": "2026-10-24",
     "items": [
       {
