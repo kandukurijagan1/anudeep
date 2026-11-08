@@ -711,7 +711,7 @@ app.whenReady().then(async () => {
 
         // Enforce Content-Security-Policy
         session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-            const csp = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://127.0.0.1:3000 http://localhost:3000 https://script.google.com https://*.google.com https://*.googleapis.com https://api.telegram.org https://web.whatsapp.com https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' data: https://unpkg.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https: http:;";
+            const csp = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://127.0.0.1:3000 http://localhost:3000 https://script.google.com https://*.google.com https://*.googleapis.com https://api.telegram.org https://web.whatsapp.com https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.supabase.co wss://*.supabase.co https://raw.githubusercontent.com https://*.onrender.com https://*.railway.app; connect-src 'self' data: blob: http://127.0.0.1:3000 http://localhost:3000 https://script.google.com https://*.google.com https://*.googleapis.com https://api.telegram.org https://web.whatsapp.com https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.supabase.co wss://*.supabase.co https://raw.githubusercontent.com https://*.onrender.com https://*.railway.app; font-src 'self' data: https://unpkg.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https: http:;";
             const responseHeaders = { ...details.responseHeaders };
             responseHeaders['Content-Security-Policy'] = [csp];
             callback({ responseHeaders });

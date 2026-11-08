@@ -6,6 +6,8 @@
   "main": "electron-main.js",
   "scripts": {
     "start": "node server.js",
+    "test": "node test-agent.js",
+    "test:report": "node test-agent.js && start test-report.html",
     "app": "powershell -WindowStyle Hidden -Command \"Start-Process .\\Launch-AKB-App.bat\"",
     "electron": "electron .",
     "dev:electron": "electron .",

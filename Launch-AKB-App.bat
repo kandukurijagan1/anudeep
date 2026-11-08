@@ -2,18 +2,41 @@
 title Anudeep Khadi Bandar - Dedicated Workstation Launcher
 cd /d "%~dp0"
 
-:: 0. Silent background auto-sync from GitHub (zero prompt, timeout 3s)
+:: 0. Silent sync check (dev safety: if .git exists, use local workspace files instead of remote GitHub)
 if not exist "%APPDATA%\AnudeepKhadiBandar" mkdir "%APPDATA%\AnudeepKhadiBandar" >nul 2>&1
 if not exist "%APPDATA%\AnudeepKhadiBandar\data" mkdir "%APPDATA%\AnudeepKhadiBandar\data" >nul 2>&1
 if not exist "%~dp0data" mkdir "%~dp0data" >nul 2>&1
-curl -s -m 3 -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html" -o "%APPDATA%\AnudeepKhadiBandar\index.html" >nul 2>&1
-curl -s -m 3 -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js" -o "%APPDATA%\AnudeepKhadiBandar\server.js" >nul 2>&1
-curl -s -m 3 -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/version.json" -o "%APPDATA%\AnudeepKhadiBandar\version.json" >nul 2>&1
-curl -s -m 3 -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/invoices.json" -o "%APPDATA%\AnudeepKhadiBandar\data\invoices.json" >nul 2>&1
-copy /Y "%APPDATA%\AnudeepKhadiBandar\index.html" "%~dp0index.html" >nul 2>&1
-copy /Y "%APPDATA%\AnudeepKhadiBandar\server.js" "%~dp0server.js" >nul 2>&1
-copy /Y "%APPDATA%\AnudeepKhadiBandar\version.json" "%~dp0version.json" >nul 2>&1
-copy /Y "%APPDATA%\AnudeepKhadiBandar\data\invoices.json" "%~dp0data\invoices.json" >nul 2>&1
+
+if exist "%~dp0.git" (
+    copy /Y "%~dp0index.html" "%APPDATA%\AnudeepKhadiBandar\index.html" >nul 2>&1
+    copy /Y "%~dp0server.js" "%APPDATA%\AnudeepKhadiBandar\server.js" >nul 2>&1
+    copy /Y "%~dp0version.json" "%APPDATA%\AnudeepKhadiBandar\version.json" >nul 2>&1
+) else (
+    curl -s -m 3 -f -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/version.json" -o "%APPDATA%\AnudeepKhadiBandar\version.json.tmp" >nul 2>&1
+    if exist "%APPDATA%\AnudeepKhadiBandar\version.json.tmp" (
+        for %%F in ("%APPDATA%\AnudeepKhadiBandar\version.json.tmp") do if %%~zF GTR 10 (
+            move /Y "%APPDATA%\AnudeepKhadiBandar\version.json.tmp" "%APPDATA%\AnudeepKhadiBandar\version.json" >nul 2>&1
+            copy /Y "%APPDATA%\AnudeepKhadiBandar\version.json" "%~dp0version.json" >nul 2>&1
+        )
+        if exist "%APPDATA%\AnudeepKhadiBandar\version.json.tmp" del /Q "%APPDATA%\AnudeepKhadiBandar\version.json.tmp" >nul 2>&1
+    )
+    curl -s -m 3 -f -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html" -o "%APPDATA%\AnudeepKhadiBandar\index.html.tmp" >nul 2>&1
+    if exist "%APPDATA%\AnudeepKhadiBandar\index.html.tmp" (
+        for %%F in ("%APPDATA%\AnudeepKhadiBandar\index.html.tmp") do if %%~zF GTR 1000 (
+            move /Y "%APPDATA%\AnudeepKhadiBandar\index.html.tmp" "%APPDATA%\AnudeepKhadiBandar\index.html" >nul 2>&1
+            copy /Y "%APPDATA%\AnudeepKhadiBandar\index.html" "%~dp0index.html" >nul 2>&1
+        )
+        if exist "%APPDATA%\AnudeepKhadiBandar\index.html.tmp" del /Q "%APPDATA%\AnudeepKhadiBandar\index.html.tmp" >nul 2>&1
+    )
+    curl -s -m 3 -f -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js" -o "%APPDATA%\AnudeepKhadiBandar\server.js.tmp" >nul 2>&1
+    if exist "%APPDATA%\AnudeepKhadiBandar\server.js.tmp" (
+        for %%F in ("%APPDATA%\AnudeepKhadiBandar\server.js.tmp") do if %%~zF GTR 1000 (
+            move /Y "%APPDATA%\AnudeepKhadiBandar\server.js.tmp" "%APPDATA%\AnudeepKhadiBandar\server.js" >nul 2>&1
+            copy /Y "%APPDATA%\AnudeepKhadiBandar\server.js" "%~dp0server.js" >nul 2>&1
+        )
+        if exist "%APPDATA%\AnudeepKhadiBandar\server.js.tmp" del /Q "%APPDATA%\AnudeepKhadiBandar\server.js.tmp" >nul 2>&1
+    )
+)
 
 
 :: 1. Ensure background Node.js server is running
@@ -62,7 +85,7 @@ if exist "AKB-Billing.exe" (
 if defined TARGET_HOST_URL (
     start msedge --app="%TARGET_HOST_URL%/?mode=dedicated_app"
 ) else (
-    start msedge --app="http://10.209.191.184:3000/?mode=dedicated_app"
+    start msedge --app="http://127.0.0.1:3000/?mode=dedicated_app"
 )
 exit
 

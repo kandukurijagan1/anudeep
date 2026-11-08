@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "1.9.8",
-  "build": 198,
-  "releaseDate": "2026-10-26",
+  "version": "2.0.0",
+  "build": 200,
+  "releaseDate": "2026-11-08",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix(whatsapp): enable live dynamic QR and pairing code modal directly on cloud mobile container",
-  "releaseNotes": "1. Live dynamic QR and pairing code modal directly rendered on Render mobile web. 2. Any phone number can be connected or switched dynamically. 3. Realtime SSE status synchronization.",
-  "commit": "fce066356be97aa88de766558367dcbe351130bb"
+  "description": "WhatsApp Always-Connected Supabase Cloud Sync Engine & Total Sales Metric",
+  "releaseNotes": "1. WhatsApp Bot permanently linked with Supabase Cloud Realtime with auto-reconnect and 15s backlog sweeper. 2. Realtime delivery confirmations written to Supabase invoices. 3. Total Sales metric card added to dashboard. 4. Modern non-blocking dialogs. 5. Persistent WhatsApp connection indicator.",
+  "commit": "8896"
 }

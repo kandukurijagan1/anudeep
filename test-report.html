@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AKB Automated Diagnostic & Test Report</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; padding: 24px; }
+        .container { max-width: 1100px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); overflow: hidden; border: 1px solid #e2e8f0; }
+        .header { background: #854d0e; color: #fff; padding: 24px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { margin: 0; font-size: 1.4rem; }
+        .summary-bar { display: flex; gap: 16px; padding: 18px 24px; background: #fdfaf6; border-bottom: 1px solid #e2e8f0; }
+        .stat-pill { flex: 1; padding: 12px; background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; }
+        .stat-pill .val { font-size: 1.5rem; font-weight: 800; }
+        .stat-pill .lbl { font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 700; margin-top: 2px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th { padding: 12px 16px; background: #f1f5f9; font-size: 0.8rem; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; }
+        td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+        .row-fail { background: #fff5f5; }
+        .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 800; }
+        .badge-pass { background: #dcfce7; color: #15803d; }
+        .badge-fail { background: #fee2e2; color: #b91c1c; }
+        .badge-crit { background: #b91c1c; color: #fff; }
+        .defect-box { margin-top: 8px; padding: 10px 12px; background: #fff; border-radius: 6px; border: 1px solid #fecaca; font-size: 0.85rem; line-height: 1.45; }
+        code { background: #f1f5f9; padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 0.82rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>Anudeep Khadi Bandar - Automated Test & Diagnostic Report</h1>
+                <div style="font-size:0.85rem; opacity:0.9; margin-top:4px;">Generated autonomously on 8/11/2026, 9:58:59 pm</div>
+            </div>
+            <div style="text-align:right;">
+                <span class="badge badge-pass" style="font-size:0.9rem; padding:6px 12px;">
+                    HEALTHY
+                </span>
+            </div>
+        </div>
+        <div class="summary-bar">
+            <div class="stat-pill"><div class="val" style="color:#0284c7;">24</div><div class="lbl">Total Tests</div></div>
+            <div class="stat-pill"><div class="val" style="color:#16a34a;">24</div><div class="lbl">Passed</div></div>
+            <div class="stat-pill"><div class="val" style="color:#dc2626;">0</div><div class="lbl">Failed</div></div>
+            <div class="stat-pill"><div class="val" style="color:#ea580c;">0</div><div class="lbl">Critical</div></div>
+            <div class="stat-pill"><div class="val" style="color:#64748b;">1937ms</div><div class="lbl">Execution Time</div></div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:70px;">ID</th>
+                    <th style="width:90px;">Status</th>
+                    <th>Test Name, Category & Diagnostic Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr class="row-pass">
+                <td><strong>SYN-01</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">server.js Node.js Syntax Parsing</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Syntax & Structure &bull; server.js</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>SYN-02</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">electron-main.js Syntax Parsing</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Syntax & Structure &bull; electron-main.js</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>STR-01</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">HTML <div> Tag Hierarchy Balance</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Syntax & Structure &bull; index.html</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>STR-02</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">HTML <section> View Container Balance</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Syntax & Structure &bull; index.html</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>SYN-03</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Inline JavaScript Parsing in index.html</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Syntax & Structure &bull; index.html</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>DAT-invoices.json</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Data File Format & JSON Validity (invoices.json)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Data Ledger Integrity &bull; data\invoices.json</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>DAT-products.json</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Data File Format & JSON Validity (products.json)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Data Ledger Integrity &bull; data\products.json</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>DAT-receivers.json</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Data File Format & JSON Validity (receivers.json)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Data Ledger Integrity &bull; data\receivers.json</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>DAT-consignees.json</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Data File Format & JSON Validity (consignees.json)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Data Ledger Integrity &bull; data\consignees.json</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>DAT-settings.json</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Data File Format & JSON Validity (settings.json)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Data Ledger Integrity &bull; data\settings.json</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>LED-01</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">GST Invoice Number Uniqueness (No Duplicates)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Data Ledger Integrity &bull; data\invoices.json</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>LED-02</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Monotonic Sequence (nextInvoiceNo > Max Invoice No)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Data Ledger Integrity &bull; data\settings.json</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>GST-01</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Intra-State GST (2.5% CGST + 2.5% SGST = 5.0%)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">GST Tax Engine &bull; General</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>GST-02</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Inter-State GST (5.0% IGST)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">GST Tax Engine &bull; General</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>GST-03</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Mathematical Round-Off Precision (rawTotal + roundOff == finalTotal)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">GST Tax Engine &bull; General</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>ENV-01</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Elimination of Native Browser Confirm Popups ("127.0.0.1:3000 says")</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Local Host & UX &bull; index.html</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>ENV-02</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">U.confirm In-App Modal Implementation in Utilities</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Local Host & UX &bull; index.html</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>ENV-03</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Dashboard "Total Sales" Card Presence</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Local Host & UX &bull; index.html</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>ENV-04</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Local Host Priority (Primary Local Database)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Local Host & UX &bull; index.html</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>DSK-01</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Native Workstation Executable (AKB-Billing.exe)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Desktop Packaging & Launcher &bull; AKB-Billing.exe</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>DSK-02</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">Batch Launcher Dedicated Fallback URL</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Desktop Packaging & Launcher &bull; Launch-AKB-App.bat</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>API-01</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">GET /api/health Endpoint</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Backend API Endpoints &bull; General</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>API-02</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">GET /api/invoices/version (Continuous Sync Heartbeat)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Backend API Endpoints &bull; General</div>
+                    
+                </td>
+            </tr>
+        
+            <tr class="row-pass">
+                <td><strong>API-03</strong></td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td>
+                    <div style="font-weight:700; color:#1e293b;">GET /api/bootstrap (Single Round-Trip Loader)</div>
+                    <div style="font-size:0.8rem; color:#64748b;">Backend API Endpoints &bull; General</div>
+                    
+                </td>
+            </tr>
+        
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

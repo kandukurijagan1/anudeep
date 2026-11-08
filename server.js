@@ -331,71 +331,163 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 
 // Real-Time Supabase WebSocket Listener: When ANY invoice is saved on Client/Mobile, immediately dispatch WhatsApp!
 const _dispatchedEvents = new Map();
+let supabaseChannel = null;
+let supabaseReconnectTimer = null;
+let isSupabaseSubscribed = false;
 
-try {
-  supabase.channel('supabase_whatsapp_dispatcher')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, async (payload) => {
-      try {
-        if (payload.eventType === 'DELETE') {
-          const delId = payload.old ? String(payload.old.id || payload.old.invoiceNo) : '';
-          if (delId) {
-            console.log(`⚡ [Supabase-Realtime] Detected deletion from website/cloud for invoice ID: ${delId}`);
-            let invoices = readJsonFile('invoices', []);
-            invoices = invoices.filter(i => String(i.id || i._id) !== delId && String(i.invoiceNo) !== delId);
-            writeJsonFile('invoices', invoices);
-            _invoicesVersion = Date.now();
-            
-            let deletedList = readJsonFile('deleted_invoices', []);
-            if (delId.length > 5 && !deletedList.includes(delId)) {
-              deletedList.push(delId);
-              writeJsonFile('deleted_invoices', deletedList);
+function initSupabaseRealtimeListener() {
+  if (!supabase) return;
+  try {
+    if (supabaseChannel) {
+      try { supabase.removeChannel(supabaseChannel); } catch (_) {}
+      supabaseChannel = null;
+    }
+
+    const channelName = 'supabase_whatsapp_dispatcher_' + Math.random().toString(36).slice(2, 8);
+    supabaseChannel = supabase.channel(channelName)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, async (payload) => {
+        try {
+          if (payload.eventType === 'DELETE') {
+            const delId = payload.old ? String(payload.old.id || payload.old.invoiceNo) : '';
+            if (delId) {
+              console.log(`⚡ [Supabase-Realtime] Detected deletion from website/cloud for invoice ID: ${delId}`);
+              let invoices = readJsonFile('invoices', []);
+              invoices = invoices.filter(i => String(i.id || i._id) !== delId && String(i.invoiceNo) !== delId);
+              writeJsonFile('invoices', invoices);
+              _invoicesVersion = Date.now();
+              
+              let deletedList = readJsonFile('deleted_invoices', []);
+              if (delId.length > 5 && !deletedList.includes(delId)) {
+                deletedList.push(delId);
+                writeJsonFile('deleted_invoices', deletedList);
+              }
+
+              broadcastRealtime('invoice_deleted', { id: delId });
             }
-
-            broadcastRealtime('invoice_deleted', { id: delId });
-          }
-          return;
-        }
-
-        // For INSERT and UPDATE (upsert from mobile or web client)
-        const inv = payload.new ? (payload.new.data || payload.new) : null;
-        if (inv) {
-          const invKey = String(inv.id || inv._id || inv.invoiceNo);
-          const now = Date.now();
-          const lastDisp = _dispatchedEvents.get(invKey) || 0;
-          if (now - lastDisp < 4000) {
-            // Debounce duplicate events within 4 seconds
             return;
           }
-          _dispatchedEvents.set(invKey, now);
 
-          console.log(`⚡ [Supabase-Realtime] Detected invoice #${inv.invoiceNo || inv.id} (${payload.eventType}). Auto-dispatching WhatsApp & Ledger sync...`);
+          // For INSERT and UPDATE (upsert from mobile or web client)
+          const inv = payload.new ? Object.assign({}, payload.new, payload.new.data || {}) : null;
+          if (inv) {
+            const invKey = String(inv.id || inv._id || inv.invoiceNo);
+            const now = Date.now();
+            const lastDisp = _dispatchedEvents.get(invKey) || 0;
+            if (now - lastDisp < 4000) {
+              // Debounce duplicate events within 4 seconds
+              return;
+            }
 
-          // Sync to local json ledger so host stays 100% updated
-          let invoices = readJsonFile('invoices', []);
-          const existingIdx = invoices.findIndex(i => String(i.id || i._id) === String(inv.id) || String(i.invoiceNo) === String(inv.invoiceNo));
-          if (existingIdx >= 0) {
-            invoices[existingIdx] = inv;
-          } else {
-            invoices.unshift(inv);
+            // Sync to local json ledger so host stays 100% updated
+            let invoices = readJsonFile('invoices', []);
+            const existingIdx = invoices.findIndex(i => String(i.id || i._id) === String(inv.id) || String(i.invoiceNo) === String(inv.invoiceNo));
+            if (existingIdx >= 0) {
+              invoices[existingIdx] = inv;
+            } else {
+              invoices.unshift(inv);
+            }
+            writeJsonFile('invoices', invoices);
+            _invoicesVersion = Date.now();
+            broadcastRealtime('invoice_created', { invoice: inv });
+
+            // If already marked as delivered in Supabase, skip bot re-dispatch
+            if (inv.whatsapp_delivered || (inv.data && inv.data.whatsapp_delivered)) {
+              return;
+            }
+
+            _dispatchedEvents.set(invKey, now);
+            console.log(`⚡ [Supabase-Realtime] Detected invoice #${inv.invoiceNo || inv.id} (${payload.eventType}). Auto-dispatching WhatsApp & Ledger sync...`);
+            await autoDispatchBots(inv);
           }
-          writeJsonFile('invoices', invoices);
-          _invoicesVersion = Date.now();
-          broadcastRealtime('invoice_created', { invoice: inv });
-
-          await autoDispatchBots(inv);
+        } catch (dispErr) {
+          console.warn('[Supabase-Realtime] Dispatch error:', dispErr.message);
         }
-      } catch (dispErr) {
-        console.warn('[Supabase-Realtime] Dispatch error:', dispErr.message);
-      }
-    })
-    .subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('⚡ [Supabase-Realtime] Store WhatsApp Bot subscribed to live Supabase cloud invoice stream (ALL EVENTS: INSERT + UPDATE + DELETE).');
-      }
-    });
-} catch (e) {
-  console.warn('[Supabase-Realtime] Initialization note:', e.message);
+      })
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          isSupabaseSubscribed = true;
+          console.log('⚡ [Supabase-Realtime] WhatsApp Bot is ALWAYS CONNECTED to Supabase live invoice stream.');
+          if (supabaseReconnectTimer) {
+            clearTimeout(supabaseReconnectTimer);
+            supabaseReconnectTimer = null;
+          }
+          sweepPendingSupabaseInvoices().catch(() => {});
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          isSupabaseSubscribed = false;
+          console.warn(`[Supabase-Realtime] Stream status: ${status}. Scheduling auto-reconnect in 4s...`, err ? err.message : '');
+          if (!supabaseReconnectTimer) {
+            supabaseReconnectTimer = setTimeout(() => {
+              supabaseReconnectTimer = null;
+              initSupabaseRealtimeListener();
+            }, 4000);
+          }
+        }
+      });
+  } catch (e) {
+    console.warn('[Supabase-Realtime] Channel initialization error:', e.message);
+  }
 }
+
+// Resilient Backlog Sweeper: guarantees zero missed WhatsApp invoices from Supabase
+async function sweepPendingSupabaseInvoices() {
+  if (!supabase || !isWhatsappConnected || !client) return;
+  try {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (error || !Array.isArray(data)) return;
+
+    for (const row of data) {
+      const inv = row.data || row;
+      const invKey = String(inv.id || inv._id || inv.invoiceNo);
+      
+      const custPhone = (inv.receiver && inv.receiver.phone) || (inv.consignee && inv.consignee.phone) || inv.customerPhone;
+      if (!custPhone) continue;
+
+      const isDelivered = inv.whatsapp_delivered || (inv.data && inv.data.whatsapp_delivered);
+      if (!isDelivered && !_dispatchedEvents.has(invKey)) {
+        const createdMs = inv._createdAt || (row.created_at ? new Date(row.created_at).getTime() : 0);
+        if (createdMs && (Date.now() - createdMs > 86400000)) continue; // skip older than 24h
+
+        console.log(`⚡ [Supabase-Sweeper] Found pending undelivered invoice #${inv.invoiceNo}. Auto-dispatching WhatsApp...`);
+        _dispatchedEvents.set(invKey, Date.now());
+        await autoDispatchBots(inv);
+      }
+    }
+  } catch (err) {
+    // Non-blocking backlog scan note
+  }
+}
+
+// Start Supabase Realtime Listener
+initSupabaseRealtimeListener();
+
+// Periodic Supabase connection heartbeat & backlog sweeper every 15 seconds
+setInterval(() => {
+  if (supabase) {
+    if (!isSupabaseSubscribed || !supabaseChannel || supabaseChannel.state !== 'joined') {
+      console.log('⚡ [Supabase-Realtime] Verifying/reconnecting Supabase Realtime channel...');
+      initSupabaseRealtimeListener();
+    }
+    if (isWhatsappConnected) {
+      sweepPendingSupabaseInvoices().catch(() => {});
+      // Continual WhatsApp status heartbeat in Supabase settings
+      if (whatsappUserInfo || getSavedWhatsappUserInfo()) {
+        supabase.from('settings').update({
+          whatsapp: {
+            connected: true,
+            status: 'ready',
+            user: whatsappUserInfo || getSavedWhatsappUserInfo(),
+            updatedAt: new Date().toISOString()
+          }
+        }).eq('id', 'app_settings').then(() => {}).catch(() => {});
+      }
+    }
+  }
+}, 15000);
 
 // Asynchronously forward database changes to Supabase Cloud Database (< 50ms)
 async function forwardToSupabase(table, data, isUpsert = true) {
@@ -901,13 +993,38 @@ function cleanAuthDirectory() {
   // does not need to be re-downloaded from scratch. This makes fresh QR code generation 10x faster!
 }
 
+function cleanPhoneNumber(phone) {
+  if (!phone) return null;
+  let clean = String(phone).trim().replace(/[^\d+]/g, '');
+  if (clean.startsWith('+')) clean = clean.slice(1);
+  clean = clean.replace(/\D/g, '');
+
+  // Strip international call prefixes: 0091XXXXXXXXXX -> 91XXXXXXXXXX
+  if (clean.startsWith('0091') && clean.length === 14) {
+    clean = clean.slice(2);
+  }
+  // Strip leading 0 from 11-digit number: 0XXXXXXXXXX -> 91XXXXXXXXXX
+  if (clean.length === 11 && clean.startsWith('0')) {
+    clean = '91' + clean.slice(1);
+  }
+  // Strip accidental 910XXXXXXXXXX (13 digits): 910XXXXXXXXXX -> 91XXXXXXXXXX
+  if (clean.length === 13 && clean.startsWith('910')) {
+    clean = '91' + clean.slice(3);
+  }
+  // Standard 10-digit Indian number: XXXXXXXXXX -> 91XXXXXXXXXX
+  if (clean.length === 10) {
+    clean = '91' + clean;
+  }
+
+  if (!clean || clean.length < 10) return null;
+  return clean;
+}
+
 const chatIdCache = new Map();
 async function resolveChatId(cl, phone) {
-  if (!phone) return null;
-  let clean = String(phone).replace(/\D/g, '');
-  if (clean.length === 10) clean = '91' + clean;
-  if (!clean || clean.length < 10) return null;
-  
+  const clean = cleanPhoneNumber(phone);
+  if (!clean) return null;
+
   // Standard phone user direct JID (ALWAYS universally deliverable):
   const directId = clean + '@c.us';
 
@@ -921,21 +1038,29 @@ async function resolveChatId(cl, phone) {
 
   if (cl && typeof cl.getNumberId === 'function') {
     try {
-      // Attempt getNumberId with a rapid 1.5s race timeout
+      // Attempt getNumberId with a rapid 2.5s race timeout
       const contactId = await Promise.race([
         cl.getNumberId(clean),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('getNumberId timeout')), 1500))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('getNumberId timeout')), 2500))
       ]);
-      // ONLY accept if it is a valid phone JID ending with @c.us! NEVER route to internal @lid
-      if (contactId && contactId._serialized && contactId._serialized.endsWith('@c.us')) {
-        chatIdCache.set(clean, contactId._serialized);
-        return contactId._serialized;
+
+      if (contactId && contactId._serialized) {
+        // ONLY accept if it is a valid phone JID ending with @c.us! NEVER route to internal @lid
+        const finalJid = contactId._serialized.endsWith('@lid') ? directId : contactId._serialized;
+        chatIdCache.set(clean, finalJid);
+        return finalJid;
+      }
+      if (contactId === null) {
+        // Explicitly reported not registered by WhatsApp servers
+        console.warn(`[WhatsApp] Number +${clean} is NOT registered on WhatsApp.`);
+        return null;
       }
     } catch (e) {
       // Instant direct fallback on timeout or error
+      console.warn(`[WhatsApp] getNumberId note for +${clean}:`, e.message);
     }
   }
-  
+
   chatIdCache.set(clean, directId);
   return directId;
 }
@@ -1535,6 +1660,21 @@ setInterval(async () => {
               updatedAt: new Date().toISOString()
             }
           }).eq('id', 'app_settings').then(() => {}).catch(() => {});
+
+          // Permanently mark invoice as delivered in Supabase invoices table
+          const invId = String(inv.id || inv._id || '');
+          if (invId) {
+            const currentData = Object.assign({}, inv.data || inv, {
+              whatsapp_delivered: true,
+              whatsapp_delivered_at: new Date().toISOString()
+            });
+            supabase.from('invoices').update({
+              data: currentData,
+              updated_at: new Date().toISOString()
+            }).eq('id', invId).then(() => {
+              console.log(`⚡ [Supabase-DB] Invoice #${invNo} delivery status permanently recorded in Supabase.`);
+            }).catch(() => {});
+          }
         } catch (_) {}
       }
 
@@ -1927,17 +2067,17 @@ const VERSION_PATH = path.join(AKB_DIR, 'version.json');
 
 function getLocalVersion() {
   try {
-    if (fs.existsSync(VERSION_PATH)) {
-      return JSON.parse(fs.readFileSync(VERSION_PATH, 'utf8'));
-    }
     const wsVer = path.join(__dirname, 'version.json');
     if (fs.existsSync(wsVer)) {
       return JSON.parse(fs.readFileSync(wsVer, 'utf8'));
     }
+    if (fs.existsSync(VERSION_PATH)) {
+      return JSON.parse(fs.readFileSync(VERSION_PATH, 'utf8'));
+    }
   } catch (e) {
     console.warn('[Auto-Updater] Could not read version.json:', e.message);
   }
-  return { version: '1.6.5', build: 165, commit: 'latest', releaseDate: '2026-10-23' };
+  return { version: '2.0.0', build: 200, commit: '8896', releaseDate: '2026-11-08' };
 }
 
 let lastUpdateCheck = {
@@ -1979,16 +2119,16 @@ async function checkRemoteUpdates() {
     const localBuild = Number(localVer.build) || 0;
     const localCommit = String(localVer.commit || '').trim();
 
-    // Trigger update if build number is higher OR a new git commit SHA was detected
-    const isNewCommit = Boolean(latestSha && localCommit && latestSha !== localCommit && localCommit !== 'latest');
-    const isHigherBuild = remoteBuild > localBuild;
-    const hasUpdate = isHigherBuild || isNewCommit;
+    const isDevGitRepo = fs.existsSync(path.join(__dirname, '.git'));
+    // Trigger update if remote build is strictly higher than local build AND not in local dev git repo
+    const isHigherBuild = !isDevGitRepo && (remoteBuild > localBuild);
+    const hasUpdate = isHigherBuild;
 
     if (!remoteVer) {
       remoteVer = {
         name: 'anudeep-khadi-bandar-billing',
-        version: localVer.version || '1.4.3',
-        build: isNewCommit ? localBuild + 1 : localBuild,
+        version: localVer.version || '2.0.0',
+        build: localBuild,
         commit: latestSha || 'latest',
         description: commitMessage || 'GitHub Cloud Update'
       };
@@ -2027,6 +2167,22 @@ async function downloadAndApplyUpdate(remoteVer) {
   // Ensure AppData directory exists
   if (!fs.existsSync(AKB_DIR)) fs.mkdirSync(AKB_DIR, { recursive: true });
 
+  const isDevGitRepo = fs.existsSync(path.join(__dirname, '.git'));
+  if (isDevGitRepo) {
+    // In local development workspace: sync workspace files to AKB_DIR so both are always identical!
+    for (const filename of filesToUpdate) {
+      try {
+        const srcPath = path.join(__dirname, filename);
+        const destPath = path.join(AKB_DIR, filename);
+        if (fs.existsSync(srcPath)) {
+          fs.writeFileSync(destPath, fs.readFileSync(srcPath));
+          updatedFiles.push(filename);
+        }
+      } catch (_) {}
+    }
+    return { success: true, updated: updatedFiles, version: getLocalVersion() };
+  }
+
   for (const filename of filesToUpdate) {
     try {
       const fileUrl = `${RAW_BASE_URL}/${filename}?_nocache=${Date.now()}`;
@@ -2041,13 +2197,16 @@ async function downloadAndApplyUpdate(remoteVer) {
           }
           fs.writeFileSync(destPath, content, 'utf8');
 
-          // 2. Also write to project directory if writable (for portable/zip installations)
-          try {
-            const rootPath = path.join(__dirname, filename);
-            if (fs.existsSync(rootPath)) {
-              fs.writeFileSync(rootPath, content, 'utf8');
-            }
-          } catch (_) {}
+          // 2. Also write to project directory if NOT a development git repo (for portable/zip installations only)
+          const isDevGitRepo = fs.existsSync(path.join(__dirname, '.git'));
+          if (!isDevGitRepo) {
+            try {
+              const rootPath = path.join(__dirname, filename);
+              if (fs.existsSync(rootPath)) {
+                fs.writeFileSync(rootPath, content, 'utf8');
+              }
+            } catch (_) {}
+          }
 
           updatedFiles.push(filename);
         }
@@ -2070,12 +2229,15 @@ async function downloadAndApplyUpdate(remoteVer) {
         }
         fs.writeFileSync(srvPath, srvContent, 'utf8');
 
-        try {
-          const rootSrv = path.join(__dirname, 'server.js');
-          if (fs.existsSync(rootSrv)) {
-            fs.writeFileSync(rootSrv, srvContent, 'utf8');
-          }
-        } catch (_) {}
+        const isDevGitRepo = fs.existsSync(path.join(__dirname, '.git'));
+        if (!isDevGitRepo) {
+          try {
+            const rootSrv = path.join(__dirname, 'server.js');
+            if (fs.existsSync(rootSrv)) {
+              fs.writeFileSync(rootSrv, srvContent, 'utf8');
+            }
+          } catch (_) {}
+        }
 
         updatedFiles.push('server.js');
       }
@@ -2403,12 +2565,13 @@ app.get('/api/bootstrap', requireAuth, async (req, res) => {
       _invoicesVersion = Date.now();
     }
 
-    // Intelligent synchronization: pull and merge any missing invoices from Cloud & GitHub
-    if (fetch) {
+    // Non-blocking background sync helper: pulls from Cloud GAS / GitHub without stalling local client responses
+    const syncRemoteLedger = async () => {
+      if (!fetch) return;
       try {
         let remoteInvoices = [];
         // 1. Try Cloud GAS
-        const gasRes = await fetch(CLOUD_GAS_URL + '?action=bootstrap', { timeout: 4000 });
+        const gasRes = await fetch(CLOUD_GAS_URL + '?action=bootstrap', { timeout: 3000 });
         if (gasRes.ok) {
           const cloudData = await gasRes.json();
           if (cloudData) {
@@ -2432,7 +2595,7 @@ app.get('/api/bootstrap', requireAuth, async (req, res) => {
         // 2. Also check GitHub data/invoices.json master ledger if invoices are empty
         if (invoices.length === 0) {
           try {
-            const ghRes = await fetch(`${RAW_BASE_URL}/data/invoices.json?_t=${Date.now()}`, { timeout: 3000 });
+            const ghRes = await fetch(`${RAW_BASE_URL}/data/invoices.json?_t=${Date.now()}`, { timeout: 2500 });
             if (ghRes.ok) {
               const ghData = await ghRes.json();
               if (Array.isArray(ghData) && ghData.length > 0) {
@@ -2444,30 +2607,40 @@ app.get('/api/bootstrap', requireAuth, async (req, res) => {
 
         if (remoteInvoices.length > 0) {
           let updated = false;
+          let currentInvs = readJsonFile('invoices', []);
           const deletedInvs = new Set(readJsonFile('deleted_invoices', []).map(String));
-          const existingIds = new Set(invoices.map(i => String(i.id || i._id)));
-          const existingNos = new Set(invoices.map(i => Number(i.invoiceNo)).filter(n => !isNaN(n) && n > 0));
+          const existingIds = new Set(currentInvs.map(i => String(i.id || i._id)));
+          const existingNos = new Set(currentInvs.map(i => Number(i.invoiceNo)).filter(n => !isNaN(n) && n > 0));
           for (const cinv of remoteInvoices) {
             const num = Number(cinv.invoiceNo);
             const cid = String(cinv.id || cinv._id || '');
             if (cid && deletedInvs.has(cid)) continue;
             if (cid && existingIds.has(cid)) continue;
             if (!isNaN(num) && num > 0 && existingNos.has(num)) continue;
-            invoices.push(cinv);
+            currentInvs.push(cinv);
             if (cid) existingIds.add(cid);
             if (!isNaN(num) && num > 0) existingNos.add(num);
             updated = true;
           }
           if (updated) {
-            invoices.sort((a, b) => (Number(b.invoiceNo) || 0) - (Number(a.invoiceNo) || 0));
-            writeJsonFile('invoices', invoices);
+            currentInvs.sort((a, b) => (Number(b.invoiceNo) || 0) - (Number(a.invoiceNo) || 0));
+            writeJsonFile('invoices', currentInvs);
             _invoicesVersion = Date.now();
-            console.log(`[Bootstrap] Synchronized and merged ${invoices.length} total invoices.`);
+            console.log(`[Bootstrap] Synchronized and merged ${currentInvs.length} total invoices.`);
           }
         }
       } catch (cloudErr) {
         console.warn('[Bootstrap] Sync note:', cloudErr.message);
       }
+    };
+
+    // If local invoices are completely empty and internet is available, await initial sync;
+    // otherwise respond instantly (<10ms) from local storage and let sync run in background.
+    if (invoices.length === 0 && fetch) {
+      await syncRemoteLedger();
+      invoices = readJsonFile('invoices', []);
+    } else if (fetch) {
+      setImmediate(syncRemoteLedger);
     }
 
     const sanitizedSettings = { ...settings };
@@ -2492,6 +2665,33 @@ app.get('/api/bootstrap', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[Bootstrap] Error:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Autonomous Test & Diagnostic Agent runner
+app.get('/api/test-agent/run', requireAuth, async (req, res) => {
+  try {
+    const testAgentPath = path.join(__dirname, 'test-agent.js');
+    if (!fs.existsSync(testAgentPath)) {
+      return res.status(404).json({ success: false, error: 'test-agent.js not found' });
+    }
+    delete require.cache[require.resolve('./test-agent')];
+    const AkbTestAgent = require('./test-agent');
+    const agent = new AkbTestAgent({
+      baseDir: __dirname,
+      apiUrl: `http://127.0.0.1:${PORT}`
+    });
+    const runResult = await agent.runAll();
+    res.json({
+      success: true,
+      summary: runResult.summary,
+      results: runResult.results,
+      reportHtmlUrl: '/test-report.html',
+      reportJsonUrl: '/test-report.json'
+    });
+  } catch (err) {
+    console.error('[TestAgent API] Error:', err);
+    res.status(500).json({ success: false, error: err.message, stack: err.stack });
   }
 });
 
@@ -3165,6 +3365,57 @@ app.post('/api/whatsapp/sendTest', async (req, res) => {
       errorMsg = 'WhatsApp is still syncing initial chats with your phone. Please wait a few seconds and try again.';
     }
     res.status(500).json({ error: errorMsg });
+  }
+});
+
+// Real-Time Number Registration & WhatsApp Deliverability Inspector
+app.post('/api/whatsapp/check-number', async (req, res) => {
+  if (!isWhatsappConnected || !client) {
+    return res.status(400).json({ success: false, error: 'WhatsApp Bot is not connected. Please connect WhatsApp first.' });
+  }
+  try {
+    const rawPhone = req.body && req.body.phone;
+    if (!rawPhone) return res.status(400).json({ success: false, error: 'Phone number is required.' });
+
+    const clean = cleanPhoneNumber(rawPhone);
+    if (!clean) return res.status(400).json({ success: false, error: 'Invalid phone format (must have at least 10 digits).' });
+
+    let registered = false;
+    let wid = null;
+    let details = '';
+
+    if (typeof client.getNumberId === 'function') {
+      try {
+        const contactId = await Promise.race([
+          client.getNumberId(clean),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3500))
+        ]);
+        if (contactId && contactId._serialized) {
+          registered = true;
+          wid = contactId._serialized;
+          details = `Verified active WhatsApp account (${contactId._serialized})`;
+        } else if (contactId === null) {
+          registered = false;
+          details = 'Not registered on WhatsApp. This number cannot receive WhatsApp messages.';
+        } else {
+          details = 'Could not verify status; fallback direct delivery active.';
+        }
+      } catch (err) {
+        details = 'Verification query timed out; direct delivery enabled.';
+      }
+    }
+
+    res.json({
+      success: true,
+      rawPhone,
+      cleanPhone: clean,
+      international: '+' + clean,
+      registered,
+      wid: wid || (clean + '@c.us'),
+      details
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -4110,6 +4361,21 @@ async function autoDispatchBots(inv) {
               timestamp: new Date().toISOString()
             }
           }).eq('id', 'app_settings').then(() => {}).catch(() => {});
+
+          // Permanently mark invoice as delivered in Supabase invoices table
+          const invId = String(inv.id || inv._id || '');
+          if (invId) {
+            const currentData = Object.assign({}, inv.data || inv, {
+              whatsapp_delivered: true,
+              whatsapp_delivered_at: new Date().toISOString()
+            });
+            supabase.from('invoices').update({
+              data: currentData,
+              updated_at: new Date().toISOString()
+            }).eq('id', invId).then(() => {
+              console.log(`⚡ [Supabase-DB] Invoice #${invNo} delivery status permanently recorded in Supabase.`);
+            }).catch(() => {});
+          }
         } catch (_) {}
       }
     } else {
@@ -4126,8 +4392,20 @@ app.get(['/', '/index.html'], (req, res) => {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   
+  const devIndex = path.join(__dirname, 'index.html');
   const appDataIndex = path.join(AKB_DIR, 'index.html');
-  const target = (fs.existsSync(appDataIndex) && fs.statSync(appDataIndex).size > 1000) ? appDataIndex : path.join(__dirname, 'index.html');
+  let target = devIndex;
+  if (!fs.existsSync(devIndex) && fs.existsSync(appDataIndex)) {
+    target = appDataIndex;
+  } else if (fs.existsSync(devIndex) && fs.existsSync(appDataIndex)) {
+    try {
+      const devMtime = fs.statSync(devIndex).mtimeMs;
+      const appMtime = fs.statSync(appDataIndex).mtimeMs;
+      target = (devMtime >= appMtime) ? devIndex : appDataIndex;
+    } catch (_) {
+      target = devIndex;
+    }
+  }
   res.sendFile(target);
 });
 

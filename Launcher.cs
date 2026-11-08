@@ -108,6 +108,18 @@ namespace AnudeepKhadiBandar
         }
 
         
+        private static int GetBuildNumber(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return 0;
+            try
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(json, "\"build\"\\s*:\\s*(\\d+)");
+                if (match.Success) return int.Parse(match.Groups[1].Value);
+            }
+            catch { }
+            return 0;
+        }
+
         private static void TrySilentCloudSync()
         {
             try
@@ -120,15 +132,33 @@ namespace AnudeepKhadiBandar
                     wc.Headers.Add("User-Agent", "AKB-Launcher");
                     string verUrl = "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/version.json?_t=" + DateTime.UtcNow.Ticks;
                     string remoteVerJson = wc.DownloadString(verUrl);
-                    if (!string.IsNullOrEmpty(remoteVerJson) && remoteVerJson.Contains("\"build\""))
+                    int remoteBuild = GetBuildNumber(remoteVerJson);
+                    if (remoteBuild > 0)
                     {
                         string localVerPath = Path.Combine(appDataDir, "version.json");
                         string localVerJson = File.Exists(localVerPath) ? File.ReadAllText(localVerPath) : "";
-                        if (localVerJson != remoteVerJson)
+                        int localBuild = GetBuildNumber(localVerJson);
+                        string wsVerPath = Path.Combine(appDir, "version.json");
+                        if (File.Exists(wsVerPath))
+                        {
+                            int wsBuild = GetBuildNumber(File.ReadAllText(wsVerPath));
+                            if (wsBuild > localBuild) localBuild = wsBuild;
+                        }
+
+                        bool isDevRepo = Directory.Exists(Path.Combine(appDir, ".git"));
+                        if (isDevRepo)
+                        {
+                            try { File.Copy(Path.Combine(appDir, "index.html"), Path.Combine(appDataDir, "index.html"), true); } catch { }
+                            try { File.Copy(Path.Combine(appDir, "server.js"), Path.Combine(appDataDir, "server.js"), true); } catch { }
+                            try { File.Copy(Path.Combine(appDir, "version.json"), Path.Combine(appDataDir, "version.json"), true); } catch { }
+                            return;
+                        }
+
+                        if (remoteBuild > localBuild)
                         {
                             wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, "index.html"));
                             wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, "server.js"));
-                            if (Directory.Exists(appDir))
+                            if (Directory.Exists(appDir) && !isDevRepo)
                             {
                                 try { File.Copy(Path.Combine(appDataDir, "index.html"), Path.Combine(appDir, "index.html"), true); } catch { }
                                 try { File.Copy(Path.Combine(appDataDir, "server.js"), Path.Combine(appDir, "server.js"), true); } catch { }
@@ -139,7 +169,7 @@ namespace AnudeepKhadiBandar
                                 try
                                 {
                                     wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/" + asset + "?_t=" + DateTime.UtcNow.Ticks, Path.Combine(appDataDir, asset));
-                                    if (Directory.Exists(appDir))
+                                    if (Directory.Exists(appDir) && !isDevRepo)
                                     {
                                         try { File.Copy(Path.Combine(appDataDir, asset), Path.Combine(appDir, asset), true); } catch { }
                                     }
@@ -154,7 +184,7 @@ namespace AnudeepKhadiBandar
                                 try
                                 {
                                     wc.DownloadFile("https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/data/" + tbl + "?_t=" + DateTime.UtcNow.Ticks, Path.Combine(dataDir, tbl));
-                                    if (Directory.Exists(Path.Combine(appDir, "data")))
+                                    if (Directory.Exists(Path.Combine(appDir, "data")) && !isDevRepo)
                                     {
                                         try { File.Copy(Path.Combine(dataDir, tbl), Path.Combine(appDir, "data", tbl), true); } catch { }
                                     }
@@ -279,24 +309,9 @@ namespace AnudeepKhadiBandar
             // 1. Check if local backend is responding
             bool localResponding = IsUrlResponding("http://127.0.0.1:3000/api/health", 500);
 
-            // 2. If not local, check if Host Workstation on LAN is responding
-            bool lanResponding = false;
+            // 2. If not local, check if local node files exist to start local backend first
             if (!localResponding)
             {
-                lanResponding = IsUrlResponding("http://10.209.191.184:3000/api/health", 800);
-            }
-
-            if (localResponding)
-            {
-                activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
-            }
-            else if (lanResponding)
-            {
-                activeUrl = "http://10.209.191.184:3000/?mode=dedicated_app";
-            }
-            else
-            {
-                // Try starting local node if files exist on this machine
                 string serverJs = FindServerJs();
                 string nodeExe = FindNodeExe();
 
@@ -314,18 +329,29 @@ namespace AnudeepKhadiBandar
                         }
                     }
                 }
+            }
 
-                if (localResponding)
-                {
-                    activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
-                }
-                else
-                {
-                    // Fallback to embedded web server so the app runs smoothly even without Node.js installed
-                    int port = GetFreePort(3005);
-                    StartEmbeddedServer(port);
-                    activeUrl = "http://localhost:" + port + "/index.html?mode=dedicated_app";
-                }
+            // 3. If still not responding, check LAN host workstation
+            bool lanResponding = false;
+            if (!localResponding)
+            {
+                lanResponding = IsUrlResponding("http://10.209.191.184:3000/api/health", 500);
+            }
+
+            if (localResponding)
+            {
+                activeUrl = "http://127.0.0.1:3000/?mode=dedicated_app";
+            }
+            else if (lanResponding)
+            {
+                activeUrl = "http://10.209.191.184:3000/?mode=dedicated_app";
+            }
+            else
+            {
+                // Fallback to embedded web server so the app runs smoothly even without Node.js installed
+                int port = GetFreePort(3005);
+                StartEmbeddedServer(port);
+                activeUrl = "http://localhost:" + port + "/index.html?mode=dedicated_app";
             }
         }
 
