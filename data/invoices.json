@@ -1,6 +1,6 @@
 [
   {
-    "id": 1793372912139,
+    "id": "1793372912139",
     "date": "2026-10-30",
     "lrNo": "87657",
     "items": [
@@ -22,7 +22,7 @@
     "receiver": {
       "name": "JAGAN",
       "gstin": "2154884548",
-      "phone": "8367047947",
+      "phone": "8639284135",
       "state": "ODISHA",
       "address": "VPM",
       "stateCode": "21"
@@ -38,7 +38,7 @@
     },
     "invoiceNo": 20,
     "stateCode": "37",
-    "_createdAt": 1793372912139,
+    "_createdAt": 1793372953136,
     "_localOnly": true,
     "cgstAmount": 81.25,
     "igstAmount": 0,
@@ -46,7 +46,7 @@
     "supplyDate": "2026-10-30",
     "totalAmount": 3413,
     "isInterState": false,
-    "customerPhone": "8367047947",
+    "customerPhone": "8639284135",
     "placeOfSupply": "TENALI",
     "rawGrandTotal": 3412.5,
     "reverseCharge": "No",
@@ -55,6 +55,7 @@
     "transportMode": "TRAIN"
   },
   {
+    "id": "1729775000000",
     "date": "2026-10-24",
     "items": [
       {
