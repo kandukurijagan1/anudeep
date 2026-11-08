@@ -472,19 +472,27 @@ setInterval(() => {
       console.log('⚡ [Supabase-Realtime] Verifying/reconnecting Supabase Realtime channel...');
       initSupabaseRealtimeListener();
     }
-    if (isWhatsappConnected) {
+    if (isWhatsappConnected && client) {
       sweepPendingSupabaseInvoices().catch(() => {});
       // Continual WhatsApp status heartbeat in Supabase settings
-      if (whatsappUserInfo || getSavedWhatsappUserInfo()) {
-        supabase.from('settings').update({
-          whatsapp: {
-            connected: true,
-            status: 'ready',
-            user: whatsappUserInfo || getSavedWhatsappUserInfo(),
-            updatedAt: new Date().toISOString()
-          }
-        }).eq('id', 'app_settings').then(() => {}).catch(() => {});
-      }
+      supabase.from('settings').update({
+        whatsapp: {
+          connected: true,
+          status: 'ready',
+          user: whatsappUserInfo || getSavedWhatsappUserInfo(),
+          updatedAt: new Date().toISOString()
+        }
+      }).eq('id', 'app_settings').then(() => {}).catch(() => {});
+    } else {
+      // Accurately reflect disconnected state so remote clients never get misled
+      supabase.from('settings').update({
+        whatsapp: {
+          connected: false,
+          status: isWhatsappInitializing ? 'initializing' : 'disconnected',
+          user: getSavedWhatsappUserInfo(),
+          updatedAt: new Date().toISOString()
+        }
+      }).eq('id', 'app_settings').then(() => {}).catch(() => {});
     }
   }
 }, 15000);
@@ -1138,6 +1146,10 @@ async function initWhatsappClient(forceClean = false) {
   lastPairingCode = null;
   pendingQrDataUrl = null;
 
+  // Clear any leftover Chrome singleton locks and ensure session lockfile is clean
+  cleanChromeLockFiles();
+  killOrphanAuthBrowsers(false);
+
   // Set intelligent watchdog timer: allow up to 180s for saved session reconnection, 90s for fresh session
   const hasSavedSess = hasSavedWhatsappSession();
   const watchdogTimeoutMs = hasSavedSess ? 180000 : 90000;
@@ -1264,16 +1276,6 @@ async function initWhatsappClient(forceClean = false) {
       authTimeoutMs: 180000,
       qrMaxRetries: 0,
       takeoverOnConflict: false,
-      userAgent: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`,
-      evalOnNewDoc: () => {
-        try {
-          Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-          if (navigator.storage) {
-            navigator.storage.persist = () => Promise.resolve(true);
-            navigator.storage.persisted = () => Promise.resolve(true);
-          }
-        } catch (_) {}
-      },
       puppeteer: {
         headless: true,
         executablePath: detectedChrome,
@@ -1284,18 +1286,8 @@ async function initWhatsappClient(forceClean = false) {
           '--disable-dev-shm-usage',
           '--disable-gpu',
           '--no-first-run',
-          '--no-default-browser-check',
-          '--disable-session-crashed-bubble',
-          '--disable-blink-features=AutomationControlled',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--unlimited-storage',
-          '--enable-features=PersistentQuota,StorageBuckets',
-          '--window-size=1024,768',
-          '--mute-audio'
-        ],
-        ignoreDefaultArgs: ['--enable-automation']
+          '--no-default-browser-check'
+        ]
       }
     };
 
@@ -1622,15 +1614,16 @@ setInterval(async () => {
   if (client && isWhatsappConnected) {
     try {
       // 1. Check if the Puppeteer browser and page are still alive
-      const isBrowserAlive = client.pupBrowser && (typeof client.pupBrowser.isConnected !== 'function' || client.pupBrowser.isConnected());
-      const isPageAlive = client.pupPage && (typeof client.pupPage.isClosed !== 'function' || !client.pupPage.isClosed());
+      const isBrowserDead = client.pupBrowser && typeof client.pupBrowser.isConnected === 'function' && !client.pupBrowser.isConnected();
+      const isPageDead = client.pupPage && typeof client.pupPage.isClosed === 'function' && client.pupPage.isClosed();
       
-      if (!isBrowserAlive || !isPageAlive) {
+      if (isBrowserDead || isPageDead) {
         keepAliveFailures++;
-        console.warn(`[WhatsApp KeepAlive] Browser or Page dead (Failure ${keepAliveFailures}/3).`);
+        console.warn(`[WhatsApp KeepAlive] Browser target unavailable (Failure ${keepAliveFailures}/3).`);
         if (keepAliveFailures >= 3) {
           console.log('🔄 [WhatsApp KeepAlive] Browser target lost. Initiating seamless recovery...');
           isWhatsappConnected = false;
+          isWhatsappInitializing = false;
           keepAliveFailures = 0;
           broadcastRealtime('whatsapp_status', { connected: false, status: 'reconnecting', user: getSavedWhatsappUserInfo() });
           await safeDestroyClient();
@@ -1660,21 +1653,6 @@ setInterval(async () => {
               updatedAt: new Date().toISOString()
             }
           }).eq('id', 'app_settings').then(() => {}).catch(() => {});
-
-          // Permanently mark invoice as delivered in Supabase invoices table
-          const invId = String(inv.id || inv._id || '');
-          if (invId) {
-            const currentData = Object.assign({}, inv.data || inv, {
-              whatsapp_delivered: true,
-              whatsapp_delivered_at: new Date().toISOString()
-            });
-            supabase.from('invoices').update({
-              data: currentData,
-              updated_at: new Date().toISOString()
-            }).eq('id', invId).then(() => {
-              console.log(`⚡ [Supabase-DB] Invoice #${invNo} delivery status permanently recorded in Supabase.`);
-            }).catch(() => {});
-          }
         } catch (_) {}
       }
 
@@ -1684,6 +1662,7 @@ setInterval(async () => {
         if (keepAliveFailures >= 3) {
           console.log('🔄 [WhatsApp KeepAlive] Browser target closed or detached. Reconnecting WhatsApp client...');
           isWhatsappConnected = false;
+          isWhatsappInitializing = false;
           keepAliveFailures = 0;
           await safeDestroyClient();
           initWhatsappClient(false);
@@ -4296,29 +4275,30 @@ async function autoDispatchBots(inv) {
         console.warn(`[Auto-WhatsApp] PDF generation warning (will dispatch text breakdown):`, pdfErr.message);
       }
 
-      // ⚡ High-Speed Concurrent Dispatch: Send to Customer first with priority, then broadcast to store backups concurrently
+      // ⚡ Robust Dispatch: Send Text Breakdown First (Guaranteed Delivery), then PDF attachment
       const dispatchToPhone = async (phone) => {
         const targetChatId = await resolveChatId(client, phone);
         if (!targetChatId) return;
         try {
+          // ALWAYS send complete text invoice first (instant, lightweight, 100% reliable)
+          await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 15000);
+          console.log(`[Auto-WhatsApp] ✅ Dispatched invoice #${invNo} text summary to ${targetChatId}`);
+          
+          // Then dispatch PDF if generated
           if (pdfMedia) {
-            await sendWhatsappMessageWithTimeout(client, targetChatId, pdfMedia, {
-              caption: waText,
-              sendMediaAsDocument: true
-            }, 30000);
-            console.log(`[Auto-WhatsApp] ✅ Dispatched invoice #${invNo} PDF document with summary to ${targetChatId}`);
-          } else {
-            await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 12000);
-            console.log(`[Auto-WhatsApp] Dispatched invoice #${invNo} text to ${targetChatId}`);
+            try {
+              await new Promise(r => setTimeout(r, 600));
+              await sendWhatsappMessageWithTimeout(client, targetChatId, pdfMedia, {
+                caption: `Anudeep Khadi Bandar - Tax Invoice #${invNo}`,
+                sendMediaAsDocument: true
+              }, 25000);
+              console.log(`[Auto-WhatsApp] ✅ Dispatched invoice #${invNo} PDF document to ${targetChatId}`);
+            } catch (pdfErr) {
+              console.warn(`[Auto-WhatsApp] PDF send note for ${targetChatId}:`, pdfErr.message);
+            }
           }
         } catch (waErr) {
           console.warn(`[Auto-WhatsApp] Send to ${targetChatId} warning:`, waErr.message);
-          if (pdfMedia) {
-            try {
-              await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 12000);
-              console.log(`[Auto-WhatsApp] Fallback text dispatched to ${targetChatId}`);
-            } catch (_) {}
-          }
         }
       };
 
@@ -4327,10 +4307,15 @@ async function autoDispatchBots(inv) {
         await dispatchToPhone(custPhone);
       }
 
-      // 2. Dispatch to Store Backup numbers concurrently in background
+      // 2. Dispatch to Store Backup numbers sequentially in background (prevents memory spikes)
       const otherRecipients = recipientPhones.filter(p => p !== custPhone);
       if (otherRecipients.length > 0) {
-        Promise.allSettled(otherRecipients.map(p => dispatchToPhone(p))).catch(() => {});
+        (async () => {
+          for (const p of otherRecipients) {
+            await new Promise(r => setTimeout(r, 1200));
+            await dispatchToPhone(p).catch(() => {});
+          }
+        })().catch(() => {});
       }
       recordWhatsappDelivery({
         invoiceNo: invNo,

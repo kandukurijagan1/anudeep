@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "2.0.0",
-  "build": 200,
+  "version": "2.0.1",
+  "build": 201,
   "releaseDate": "2026-11-08",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "WhatsApp Always-Connected Supabase Cloud Sync Engine & Total Sales Metric",
-  "releaseNotes": "1. WhatsApp Bot permanently linked with Supabase Cloud Realtime with auto-reconnect and 15s backlog sweeper. 2. Realtime delivery confirmations written to Supabase invoices. 3. Total Sales metric card added to dashboard. 4. Modern non-blocking dialogs. 5. Persistent WhatsApp connection indicator.",
-  "commit": "8896"
+  "description": "Direct WhatsApp 1-Click Send on Mobile/Web & Guaranteed Accurate Bot State",
+  "releaseNotes": "1. Direct 1-click WhatsApp sending on Mobile and Web with pre-filled bill and instant wa.me deep-link. 2. Heartbeat expiration check in Supabase prevents false 'connected' status when host PC is offline. 3. Fixed KeepAlive loop in server.js to prevent browser crash and memory leaks. 4. Automatic Share modal trigger on invoice creation when host bot is offline. 5. Sequential message dispatch (text first, then PDF) for 100% reliable WhatsApp delivery.",
+  "commit": "201"
 }

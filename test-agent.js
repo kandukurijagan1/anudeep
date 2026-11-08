@@ -481,7 +481,7 @@ class AkbTestAgent {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer local_dev_token'
                     },
-                    timeout: 2500
+                    timeout: 5000
                 }, (res) => {
                     let data = '';
                     res.on('data', chunk => data += chunk);

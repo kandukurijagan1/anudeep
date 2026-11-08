@@ -7145,11 +7145,11 @@
 
             launchWaDeepLink: function (cleanPhone, textMsg, inv) {
                 var invNo = inv ? U.pi(inv.invoiceNo) : '';
-                var isMobile = SM.isMobileDevice();
                 var phone = cleanPhone ? cleanPhone.replace(/\D/g, '') : '';
                 if (phone.length === 10) phone = '91' + phone;
-                var waUrl = (isMobile ? 'https://api.whatsapp.com/send?phone=' : 'https://web.whatsapp.com/send?phone=') + phone + '&text=' + encodeURIComponent(textMsg);
-                U.toast("📱 Opening WhatsApp to send Invoice #" + invNo + "...", "info");
+                if (!phone) phone = '919441753678';
+                var waUrl = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(textMsg);
+                U.toast("📱 Opening WhatsApp for Invoice #" + invNo + "...", "info");
                 var win = window.open(waUrl, '_blank');
                 if (!win) {
                     location.href = waUrl;
@@ -7167,33 +7167,15 @@
                 var invNo = U.pi(inv.invoiceNo);
                 var textMsg = SM.formatWhatsAppText(inv);
 
-                // Try Web Share API with PDF on supported mobile devices (Android Chrome, iOS Safari)
-                if (navigator.share && SM.isMobileDevice()) {
+                // Auto-download PDF in background so user has it on device
+                try {
                     SM.generatePdfBlob(inv, function (blob, pdfName) {
-                        var fileObj = null;
-                        if (blob && typeof File !== 'undefined') {
-                            try { fileObj = new File([blob], pdfName || ('Invoice_' + invNo + '.pdf'), { type: 'application/pdf' }); } catch (_) {}
-                        }
-                        if (fileObj && navigator.canShare && navigator.canShare({ files: [fileObj] })) {
-                            navigator.share({
-                                title: 'Tax Invoice #' + invNo,
-                                text: textMsg,
-                                files: [fileObj]
-                            }).then(function () {
-                                U.toast("✅ Invoice #" + invNo + " shared successfully to WhatsApp!", "success");
-                                SM.markDeliveredInSupabase(inv);
-                            }).catch(function (err) {
-                                if (err && err.name !== 'AbortError') {
-                                    SM.launchWaDeepLink(cleanPhone, textMsg, inv);
-                                }
-                            });
-                            return;
-                        }
-                        SM.launchWaDeepLink(cleanPhone, textMsg, inv);
+                        if (blob) SM.downloadPdfBlob(blob, pdfName, inv);
                     });
-                } else {
-                    SM.launchWaDeepLink(cleanPhone, textMsg, inv);
-                }
+                } catch (_) {}
+
+                // Directly and synchronously launch WhatsApp (100% immune to popup blockers & gesture expiry)
+                SM.launchWaDeepLink(cleanPhone, textMsg, inv);
             },
 
             sendViaHostBot: function (inv) {
@@ -7203,7 +7185,7 @@
                     U.toast("⚡ Invoice #" + invNo + " queued to Shop WhatsApp Bot (Active)...", "info");
                     SM.autoSendWhatsapp(inv, null, false);
                 } else {
-                    U.toast("⚠️ Shop computer is currently offline. Opening WhatsApp directly on this device...", "warning");
+                    U.toast("⚠️ Shop computer bot is currently offline. Opening WhatsApp directly on this device...", "warning");
                     SM.openDirectMobileWhatsapp(inv);
                 }
             },
@@ -7264,9 +7246,12 @@
                 if (isWebCloud) {
                     if (isHostBotLive) {
                         U.toast("⚡ Invoice #" + invNo + " queued to Shop WhatsApp Bot (Active)", "success");
-                    } else if (isMobile) {
-                        // On mobile web when laptop is off, prompt to open WhatsApp
+                    } else {
+                        // Open Share Modal so user can send via WhatsApp with 1 tap
                         U.toast("⚡ Invoice #" + invNo + " saved to Cloud!", "success");
+                        setTimeout(function () {
+                            SM.open(inv.id || inv._id || inv.invoiceNo);
+                        }, 500);
                     }
                     return;
                 }
@@ -11449,9 +11434,12 @@
                 var raw = localStorage.getItem('akb_wa_status');
                 if (raw) {
                     var st = JSON.parse(raw);
-                    if (st && (st.connected === true || st.status === 'authenticated' || st.status === 'ready' || st.status === 'connected')) {
+                    var ageMs = st.updatedAt ? (Date.now() - new Date(st.updatedAt).getTime()) : 999999;
+                    if (st && st.connected === true && !isNaN(ageMs) && ageMs < 75000) {
                         _waStatusState = st;
                         updateWhatsappSidebarDot(true, false);
+                    } else if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
+                        updateWhatsappSidebarDot(false, false, true);
                     }
                 }
             } catch (_) {}
@@ -12009,8 +11997,13 @@
             if (isWebCloud) {
                 var cleanPhone = phone ? phone.replace(/\D/g, '') : "918367047947";
                 if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-                if (sbClient) {
-                    U.toast("⚡ Triggering test message via Host Workstation WhatsApp bot...", "info");
+
+                var testMsg = "Hello! 👋 This is a test message from Anudeep Khadi Bandar Billing System. WhatsApp connection verified.";
+                var waUrl = 'https://wa.me/' + cleanPhone + '?text=' + encodeURIComponent(testMsg);
+                window.open(waUrl, '_blank');
+                U.toast("📱 Opening WhatsApp test chat for +" + cleanPhone + "...", "success");
+
+                if (sbClient && typeof SM !== 'undefined' && SM.isHostBotActive && SM.isHostBotActive()) {
                     sbClient.from('invoices').insert({
                         id: 'test_' + Date.now(),
                         invoiceNo: 99999,
@@ -12019,13 +12012,7 @@
                         customerPhone: cleanPhone,
                         totalAmount: 1,
                         items: [{ description: 'WhatsApp Test Ping', qty: 1, rate: 1, amount: 1 }]
-                    }).then(function() {
-                        U.toast("✅ Test ping dispatched to host bot stream!", "success");
-                    }).catch(function(err) {
-                        U.toast("Notice: " + (err ? err.message : 'Sent to queue'), "info");
-                    });
-                } else {
-                    U.toast("Host bot is currently offline or pairing. Please link bot on host.", "warning");
+                    }).catch(function() {});
                 }
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-paper-plane"></i> Test Send'; }
                 return;
@@ -12159,11 +12146,22 @@
                     var stRes = await sbClient.from('settings').select('whatsapp').eq('id', 'app_settings').single();
                     if (stRes && stRes.data && stRes.data.whatsapp) {
                         var cloudWa = stRes.data.whatsapp;
+                        var ageMs = cloudWa.updatedAt ? (Date.now() - new Date(cloudWa.updatedAt).getTime()) : 999999;
+                        var isLiveBot = !!(cloudWa.connected && !isNaN(ageMs) && ageMs < 75000);
+
+                        if (!isLiveBot && cloudWa.connected) {
+                            // Heartbeat expired - host bot is sleeping or laptop is powered off
+                            cloudWa.connected = false;
+                            cloudWa.status = 'offline';
+                        }
+
                         _waStatusState = cloudWa;
                         try { localStorage.setItem('akb_wa_status', JSON.stringify(cloudWa)); } catch (_) {}
                         applyWhatsappStatusState(cloudWa);
-                        if (cloudWa.connected || cloudWa.status === 'ready' || cloudWa.status === 'authenticated' || cloudWa.status === 'connected') {
-                            if (showToast) U.toast("WhatsApp Bot is connected & active", "success");
+
+                        if (isLiveBot) {
+                            if (showToast) U.toast("WhatsApp Bot is connected & active on Host PC", "success");
+                            renderWhatsappModal("connected", cloudWa);
                             return;
                         } else if (cloudWa.qr || cloudWa.pairingCode || cloudWa.status === 'qr_ready') {
                             if (showToast) U.toast("Please scan QR code to connect WhatsApp bot", "info");
@@ -12177,21 +12175,22 @@
 
             var isDedicatedCloudApp = (location.hostname && (location.hostname.includes("onrender.com") || location.hostname.includes("railway.app")));
             if ((_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) && !isDedicatedCloudApp) {
-                // If we have connected state, apply connected status directly!
-                if (_waStatusState && _waStatusState.connected) {
+                // Check if we have verified active state from fresh Supabase heartbeat
+                var isBotLive = _waStatusState && _waStatusState.connected && _waStatusState.updatedAt && (Date.now() - new Date(_waStatusState.updatedAt).getTime() < 75000);
+                if (isBotLive) {
                     applyWhatsappStatusState(_waStatusState);
                     renderWhatsappModal("connected", _waStatusState);
                     return;
                 }
-                _waStatusState = { connected: false, hostedOnServer: true, isWebMode: true, status: 'connecting', user: { phone: '918367047947', name: 'Anudeep Khadi Bandar' } };
-                updateWhatsappSidebarDot(false, true, true);
+                _waStatusState = { connected: false, isWebMode: true, status: 'web_mode', user: { phone: '918367047947', name: 'Anudeep Khadi Bandar' } };
+                updateWhatsappSidebarDot(false, false, true);
                 var waBadge = document.getElementById("s-wa-badge");
                 var waBox = document.getElementById("s-wa-status-box");
                 if (waBadge && waBox) {
                     waBadge.style.background = "#eff6ff";
                     waBadge.style.color = "#1e40af";
-                    waBadge.textContent = "CHECKING BOT";
-                    waBox.innerHTML = '<span style="color:#2563eb; font-weight:700;"><i class="ph ph-device-mobile"></i> WhatsApp Engine on Host PC</span><br><span style="color:var(--tl)">Invoices generated on this web portal are synced to your billing computer (+918367047947) for delivery.</span>';
+                    waBadge.textContent = "WEB DIRECT";
+                    waBox.innerHTML = '<span style="color:#2563eb; font-weight:700;"><i class="ph ph-whatsapp-logo"></i> Direct WhatsApp Sharing Active</span><br><span style="color:var(--tl)">Invoices share directly from this device via WhatsApp. Start billing app on store PC for automated background bot.</span>';
                 }
                 renderWhatsappModal("web_mode", _waStatusState);
                 return;
@@ -12252,8 +12251,11 @@
                 modal.style.removeProperty('display');
                 modal.classList.add('active');
             }
-            if (_waStatusState && _waStatusState.connected) {
+            var isBotLive = _waStatusState && _waStatusState.connected && _waStatusState.updatedAt && (Date.now() - new Date(_waStatusState.updatedAt).getTime() < 75000);
+            if (isBotLive) {
                 renderWhatsappModal("connected", _waStatusState);
+            } else if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
+                renderWhatsappModal("web_mode", _waStatusState);
             } else {
                 renderWhatsappModal("loading", { message: "Connecting to WhatsApp..." });
             }
@@ -12608,11 +12610,11 @@
                     var stRes = await sbClient.from('settings').select('whatsapp').eq('id', 'app_settings').single();
                     if (stRes && stRes.data && stRes.data.whatsapp) {
                         var cloudWa = stRes.data.whatsapp;
-                        var isFresh = cloudWa.updatedAt && (Date.now() - new Date(cloudWa.updatedAt).getTime() < 120000);
-                        if (cloudWa.connected) {
+                        var isFresh = cloudWa.updatedAt && (Date.now() - new Date(cloudWa.updatedAt).getTime() < 75000);
+                        if (cloudWa.connected && isFresh) {
                             results.waStatus.ok = true;
                             var botPhone = (cloudWa.user && cloudWa.user.phone) ? ('+' + cloudWa.user.phone) : 'Connected';
-                            results.waStatus.details = 'Active on Shop PC (' + botPhone + ') - ' + (isFresh ? 'Live Cloud Sync' : 'Standby');
+                            results.waStatus.details = 'Active on Shop PC (' + botPhone + ') - Live Cloud Sync';
                             waChecked = true;
                         }
                     }
@@ -12638,7 +12640,7 @@
                 } catch (e) {
                     if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
                         results.waStatus.ok = true;
-                        results.waStatus.details = 'Web Mode: Invoices delivered via Direct WhatsApp or queued to Shop PC';
+                        results.waStatus.details = 'Web Mode: Direct WhatsApp Sharing Active (Shop PC bot offline)';
                     } else {
                         results.waStatus.ok = false;
                         results.waStatus.details = 'Not responding (' + e.message + ')';
