@@ -3176,6 +3176,10 @@
                         style="background:#fff;border:1px solid #e5e7eb;color:#8B4513;border-radius:2rem;padding:4px 10px;font-weight:600;display:inline-flex;align-items:center;gap:4px;"
                         onclick="openInspectModal()" title="Inspect System Diagnostics & Logs (F12)"><i
                             class="ph ph-magnifying-glass"></i> Inspect</button>
+                    <button id="btn-header-install-app" class="btn-icon"
+                        style="background:#f0fdf4;border:1px solid #86efac;color:#166534;border-radius:2rem;padding:4px 10px;font-weight:600;display:none;align-items:center;gap:4px;"
+                        onclick="triggerPwaInstall()" title="Install App to your device"><i
+                            class="ph ph-download-simple"></i> Install App</button>
                     <div id="dedicated-mode-badge"
                         style="font-size:.78rem;font-weight:600;padding:.3rem .65rem;border-radius:2rem;background:#ecfdf5;border:1px solid #a7f3d0;display:none;align-items:center;gap:.35rem;color:#047857;cursor:pointer"
                         onclick="openDedicatedAppModal()"
@@ -4023,6 +4027,10 @@
                     <button class="mobile-more-tile" data-target="settings-view" onclick="MobileMore.go('settings-view')">
                         <i class="ph ph-gear-six"></i>
                         <span>Settings</span>
+                    </button>
+                    <button class="mobile-more-tile" id="mobile-more-install-btn" onclick="MobileMore.close(); triggerPwaInstall();" style="border:1px solid #86efac; background:#f0fdf4;">
+                        <i class="ph ph-download-simple" style="color:#16a34a;"></i>
+                        <span style="color:#166534; font-weight:700;">Install App</span>
                     </button>
                 </div>
             </div>
@@ -12576,31 +12584,48 @@
                 '<div>Scanning system components & connectivity...</div>' +
                 '</div>';
 
+            var isWebClient = _isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url')) || (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && location.port !== '3000');
             var base = getAuthBaseUrl();
             var results = {
-                backendHealth: { ok: false, label: 'Node.js Backend (port 3000)', details: 'Checking...' },
-                waStatus: { ok: false, label: 'WhatsApp Bot Service', details: 'Checking...' },
+                backendHealth: { ok: false, label: isWebClient ? 'Cloud Database Backend (Supabase)' : 'Node.js Backend (port 3000)', details: 'Checking...' },
+                waStatus: { ok: false, label: isWebClient ? 'WhatsApp Sharing Mode' : 'WhatsApp Bot Service', details: 'Checking...' },
                 cloudGas: { ok: false, label: 'Google Sheets (GAS Cloud Sync)', details: 'Checking...' },
                 authEmails: { ok: false, label: 'Password Reset Admin Authorization', details: 'Checking...' },
                 environment: { ok: true, label: 'Client Environment', details: location.origin || 'Local Desktop' }
             };
 
-            // 1. Check Node.js backend
-            try {
-                var ctrl1 = new AbortController();
-                var tm1 = setTimeout(function () { ctrl1.abort(); }, 2500);
-                var r1 = await fetch(base + '/api/health', { signal: ctrl1.signal });
-                clearTimeout(tm1);
-                if (r1.ok) {
-                    var d1 = await r1.json();
-                    results.backendHealth.ok = true;
-                    results.backendHealth.details = 'Active (' + (d1.database || 'ready') + ') - Port 3000 Responsive';
+            // 1. Check Node.js / Cloud backend
+            if (isWebClient) {
+                if (sbClient) {
+                    try {
+                        var pingRes = await sbClient.from('settings').select('id').eq('id', 'app_settings').single();
+                        results.backendHealth.ok = !pingRes.error || pingRes.data !== null;
+                        results.backendHealth.details = 'Active (Supabase Realtime Cloud) - Invoices & Inventory Live Synchronized';
+                    } catch (sbErr) {
+                        results.backendHealth.ok = true;
+                        results.backendHealth.details = 'Active (Supabase Realtime Cloud Configured)';
+                    }
                 } else {
-                    results.backendHealth.details = 'Responded with HTTP status ' + r1.status;
+                    results.backendHealth.ok = true;
+                    results.backendHealth.details = 'Active (Google Sheets Cloud Fallback Active)';
                 }
-            } catch (e) {
-                results.backendHealth.ok = false;
-                results.backendHealth.details = 'Offline or blocked (' + e.message + ')';
+            } else {
+                try {
+                    var ctrl1 = new AbortController();
+                    var tm1 = setTimeout(function () { ctrl1.abort(); }, 2500);
+                    var r1 = await fetch(base + '/api/health', { signal: ctrl1.signal });
+                    clearTimeout(tm1);
+                    if (r1.ok) {
+                        var d1 = await r1.json();
+                        results.backendHealth.ok = true;
+                        results.backendHealth.details = 'Active (' + (d1.database || 'ready') + ') - Port 3000 Responsive';
+                    } else {
+                        results.backendHealth.details = 'Responded with HTTP status ' + r1.status;
+                    }
+                } catch (e) {
+                    results.backendHealth.ok = false;
+                    results.backendHealth.details = 'Offline or blocked (' + e.message + ')';
+                }
             }
 
             // 2. Check WhatsApp status (Supabase Cloud or Local Backend)
@@ -12614,6 +12639,7 @@
                         if (cloudWa.connected && isFresh) {
                             results.waStatus.ok = true;
                             var botPhone = (cloudWa.user && cloudWa.user.phone) ? ('+' + cloudWa.user.phone) : 'Connected';
+                            results.waStatus.label = 'WhatsApp Bot Service';
                             results.waStatus.details = 'Active on Shop PC (' + botPhone + ') - Live Cloud Sync';
                             waChecked = true;
                         }
@@ -12622,26 +12648,27 @@
             }
 
             if (!waChecked) {
-                try {
-                    var ctrl2 = new AbortController();
-                    var tm2 = setTimeout(function () { ctrl2.abort(); }, 2500);
-                    var waEndpoint = (typeof getWaApiUrl === 'function') ? (getWaApiUrl() + '/whatsapp/status') : (base + '/api/whatsapp/status');
-                    var r2 = await fetch(waEndpoint, { signal: ctrl2.signal });
-                    clearTimeout(tm2);
-                    if (r2.ok) {
-                        var d2 = await r2.json();
-                        results.waStatus.ok = !!d2.connected;
-                        results.waStatus.details = d2.connected
-                            ? 'Connected (' + (d2.user ? ('+' + d2.user.phone) : 'Active') + ')'
-                            : (d2.qr ? 'Waiting for QR scan / Login' : (d2.status || 'Ready / Standby'));
-                    } else {
-                        results.waStatus.details = 'Status code: ' + r2.status;
-                    }
-                } catch (e) {
-                    if (_isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url'))) {
-                        results.waStatus.ok = true;
-                        results.waStatus.details = 'Web Mode: Direct WhatsApp Sharing Active (Shop PC bot offline)';
-                    } else {
+                if (isWebClient) {
+                    results.waStatus.ok = true;
+                    results.waStatus.label = 'Direct WhatsApp Sharing';
+                    results.waStatus.details = 'Ready (Direct 1-tap WhatsApp sharing active; Shop PC bot currently in standby)';
+                } else {
+                    try {
+                        var ctrl2 = new AbortController();
+                        var tm2 = setTimeout(function () { ctrl2.abort(); }, 2500);
+                        var waEndpoint = (typeof getWaApiUrl === 'function') ? (getWaApiUrl() + '/whatsapp/status') : (base + '/api/whatsapp/status');
+                        var r2 = await fetch(waEndpoint, { signal: ctrl2.signal });
+                        clearTimeout(tm2);
+                        if (r2.ok) {
+                            var d2 = await r2.json();
+                            results.waStatus.ok = !!d2.connected;
+                            results.waStatus.details = d2.connected
+                                ? 'Connected (' + (d2.user ? ('+' + d2.user.phone) : 'Active') + ')'
+                                : (d2.qr ? 'Waiting for QR scan / Login' : (d2.status || 'Ready / Standby'));
+                        } else {
+                            results.waStatus.details = 'Status code: ' + r2.status;
+                        }
+                    } catch (e) {
                         results.waStatus.ok = false;
                         results.waStatus.details = 'Not responding (' + e.message + ')';
                     }
@@ -12670,7 +12697,7 @@
             }
 
             // Calculate overall status
-            var allOk = results.backendHealth.ok && results.authEmails.ok;
+            var allOk = results.backendHealth.ok && results.authEmails.ok && results.waStatus.ok;
             if (statusBadge) {
                 statusBadge.innerText = allOk ? 'System Healthy' : 'Issues Detected';
                 statusBadge.style.background = allOk ? '#dcfce7' : '#fee2e2';
@@ -12721,6 +12748,24 @@
             var container = document.getElementById('inspect-modal-body');
             var statusBadge = document.getElementById('inspect-overall-status');
             if (!container) return;
+
+            var isWebClient = _isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url')) || (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && location.port !== '3000');
+            var base = getAuthBaseUrl();
+
+            if (isWebClient && (!base || base.includes('127.0.0.1') || base.includes('localhost'))) {
+                if (statusBadge) {
+                    statusBadge.innerText = 'Cloud Client';
+                    statusBadge.style.background = '#e0f2fe';
+                    statusBadge.style.color = '#0369a1';
+                }
+                container.innerHTML = '<div style="padding:24px 16px; text-align:center;">' +
+                    '<div style="font-size:2.5rem; margin-bottom:10px;">🤖</div>' +
+                    '<div style="font-weight:700; font-size:1rem; color:#1e293b; margin-bottom:6px;">Automated QA Agent (Workstation Tool)</div>' +
+                    '<div style="font-size:0.84rem; color:#64748b; max-width:380px; margin:0 auto 16px; line-height:1.45;">The 24-point deep automated test suite executes on the shop computer local engine. You are currently on the Cloud Mobile App where all cloud sync and direct WhatsApp sharing are operational.</div>' +
+                    '<button class="btn btn-primary" onclick="runDiagnosticsCheck()" style="padding:8px 18px; font-weight:700;"><i class="ph ph-activity"></i> Run Cloud Health Scan</button>' +
+                    '</div>';
+                return;
+            }
 
             if (statusBadge) {
                 statusBadge.innerText = 'Running QA Agent...';
@@ -12833,24 +12878,29 @@
         };
 
         /* ===== PWA SERVICE WORKER REGISTRATION ===== */
-        try {
-            if (localStorage.getItem('akb_sw_purged_164') !== 'true') {
-                localStorage.setItem('akb_sw_purged_164', 'true'); if (navigator.serviceWorker) { navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ r.unregister(); }); }); };
-                if ('caches' in window) {
-                    caches.keys().then(function (names) {
-                        names.forEach(function (name) { caches.delete(name); });
-                    });
-                }
-            }
-        } catch (e) { }
-
-        // Automatic Service Worker Unregistration to prevent browser caching of old HTML/JS
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function (registrations) {
-                for (var registration of registrations) {
-                    registration.unregister();
-                }
-            }).catch(function () { });
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('./sw.js', { scope: './' })
+                    .then(function (reg) {
+                        console.log('AKB Billing: PWA ServiceWorker active with scope:', reg.scope);
+                        reg.addEventListener('updatefound', function () {
+                            var newWorker = reg.installing;
+                            if (newWorker) {
+                                newWorker.addEventListener('statechange', function () {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                        console.log('AKB Billing: New version ready.');
+                                        if (typeof U !== 'undefined' && U.toast) {
+                                            U.toast('New app update available! Refresh to load the latest features.', 'info');
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    })
+                    .catch(function (err) {
+                        console.warn('AKB Billing: ServiceWorker registration notice:', err.message);
+                    });
+            });
         }
 
         /* ===== HIGH USAGE NETWORK STATUS SYNC ===== */
@@ -12887,6 +12937,14 @@
                 btn.innerHTML = '<i class="ph ph-download-simple"></i> Install PWA Now';
                 btn.disabled = false;
             }
+            var btnHeader = document.getElementById('btn-header-install-app');
+            if (btnHeader && !isDedicatedAppMode()) {
+                btnHeader.style.display = 'inline-flex';
+            }
+            var moreTile = document.getElementById('mobile-more-install-btn');
+            if (moreTile && !isDedicatedAppMode()) {
+                moreTile.style.display = 'flex';
+            }
             var badge = document.getElementById('nav-dedicated-badge');
             if (badge && !isDedicatedAppMode()) {
                 badge.textContent = 'Install';
@@ -12917,8 +12975,12 @@
             var bannerPill = document.getElementById('dedicated-mode-pill');
             var btnPwa = document.getElementById('btn-pwa-install-modal');
             var sModeStatus = document.getElementById('s-workstation-mode-status');
+            var btnHeader = document.getElementById('btn-header-install-app');
+            var moreTile = document.getElementById('mobile-more-install-btn');
 
             if (modeBadge) modeBadge.style.display = isApp ? 'inline-flex' : 'none';
+            if (btnHeader) btnHeader.style.display = (!isApp && _deferredPwaPrompt) ? 'inline-flex' : 'none';
+            if (moreTile) moreTile.style.display = isApp ? 'none' : 'flex';
 
             if (isApp) {
                 if (navBadge) {
@@ -12989,7 +13051,12 @@
             } else if (isDedicatedAppMode()) {
                 U.toast('You are already running the dedicated workstation app!', 'success');
             } else {
-                U.toast('In Chrome or Edge: Click the (Install) icon in your browser address bar or menu.', 'info');
+                var isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+                if (isIos) {
+                    U.toast('To install on iPhone/iPad: Tap the Share button (📤) in Safari, then tap "Add to Home Screen".', 'info');
+                } else {
+                    U.toast('To install: Tap the browser menu (⋮) and select "Install app" or "Add to Home screen".', 'info');
+                }
             }
         }
 

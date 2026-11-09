@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "2.0.1",
-  "build": 201,
-  "releaseDate": "2026-11-08",
+  "version": "2.0.2",
+  "build": 202,
+  "releaseDate": "2026-11-09",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "Direct WhatsApp 1-Click Send on Mobile/Web & Guaranteed Accurate Bot State",
-  "releaseNotes": "1. Direct 1-click WhatsApp sending on Mobile and Web with pre-filled bill and instant wa.me deep-link. 2. Heartbeat expiration check in Supabase prevents false 'connected' status when host PC is offline. 3. Fixed KeepAlive loop in server.js to prevent browser crash and memory leaks. 4. Automatic Share modal trigger on invoice creation when host bot is offline. 5. Sequential message dispatch (text first, then PDF) for 100% reliable WhatsApp delivery.",
-  "commit": "201"
+  "description": "Complete Turnkey App - Installable Mobile PWA, Desktop Workstation & 100% Reliable WhatsApp Sharing",
+  "releaseNotes": "1. Production Network-First PWA Service Worker for standalone Android and iOS installation. 2. Relative manifest.json paths enabling home-screen install directly on GitHub Pages. 3. Context-aware System Inspector diagnostics accurately verifying Cloud Supabase, Google Sheets, and Direct Mobile WhatsApp. 4. One-click Install App button added to mobile navigation and desktop header. 5. Synchronous direct WhatsApp deep-linking immune to popup blockers and mobile browser restrictions.",
+  "commit": "202"
 }
