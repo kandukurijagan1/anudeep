@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "2.0.2",
-  "build": 202,
+  "version": "2.0.4",
+  "build": 204,
   "releaseDate": "2026-11-09",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
   "description": "Complete Turnkey App - Installable Mobile PWA, Desktop Workstation & 100% Reliable WhatsApp Sharing",
-  "releaseNotes": "1. Production Network-First PWA Service Worker for standalone Android and iOS installation. 2. Relative manifest.json paths enabling home-screen install directly on GitHub Pages. 3. Context-aware System Inspector diagnostics accurately verifying Cloud Supabase, Google Sheets, and Direct Mobile WhatsApp. 4. One-click Install App button added to mobile navigation and desktop header. 5. Synchronous direct WhatsApp deep-linking immune to popup blockers and mobile browser restrictions.",
-  "commit": "202"
+  "releaseNotes": "1. Native Web Share API integration (navigator.share) attaches PDF bills directly to WhatsApp chats on mobile. 2. Cloud Supabase Pairing Code Relay eliminates 'Failed to fetch' errors when linking mobile devices. 3. System Inspector and WhatsApp modal accurately reflect Direct Mobile WhatsApp status and Shop PC Bot standby without misleading localhost links. 4. Cache bust to v2.0.4 guarantees latest experience on all mobile devices.",
+  "commit": "204"
 }

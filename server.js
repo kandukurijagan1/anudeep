@@ -403,6 +403,44 @@ function initSupabaseRealtimeListener() {
           console.warn('[Supabase-Realtime] Dispatch error:', dispErr.message);
         }
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'settings' }, async (payload) => {
+        try {
+          const cmd = payload.new ? payload.new.whatsapp_command : null;
+          if (cmd && cmd.action === 'pairing_code' && cmd.phone) {
+            console.log(`⚡ [Supabase-Realtime] Remote pairing code requested for phone: ${cmd.phone}`);
+            await supabase.from('settings').update({ whatsapp_command: null }).eq('id', 'app_settings');
+            if (client && typeof client.requestPairingCode === 'function') {
+              try {
+                let cleanPhone = cmd.phone.replace(/\D/g, '');
+                if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+                const code = await client.requestPairingCode(cleanPhone);
+                lastPairingCode = code;
+                console.log(`✅ [Supabase-Realtime] Remote pairing code generated: ${code}`);
+                syncWhatsappStatusToSupabase();
+              } catch (pErr) {
+                console.warn('[Supabase-Realtime] Pairing code request error:', pErr.message);
+              }
+            }
+          } else if (cmd && cmd.action === 'refresh_qr') {
+            await supabase.from('settings').update({ whatsapp_command: null }).eq('id', 'app_settings');
+            if (client && client.pupPage && !client.pupPage.isClosed()) {
+              try { await client.pupPage.reload({ waitUntil: 'load', timeout: 15000 }); } catch (_) {}
+            }
+          } else if (cmd && cmd.action === 'reset_session') {
+            await supabase.from('settings').update({ whatsapp_command: null }).eq('id', 'app_settings');
+            console.log('⚡ [Supabase-Realtime] Remote WhatsApp session reset requested');
+            lastPairingCode = null;
+            qrCodeDataUrl = null;
+            isWhatsappConnected = false;
+            syncWhatsappStatusToSupabase();
+            if (typeof initWhatsappClient === 'function') {
+              initWhatsappClient(true).catch(() => {});
+            }
+          }
+        } catch (cmdErr) {
+          console.warn('[Supabase-Realtime] Settings listener note:', cmdErr.message);
+        }
+      })
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           isSupabaseSubscribed = true;
@@ -465,6 +503,68 @@ async function sweepPendingSupabaseInvoices() {
 // Start Supabase Realtime Listener
 initSupabaseRealtimeListener();
 
+function syncWhatsappStatusToSupabase() {
+  if (!supabase) return;
+  const statusStr = isWhatsappConnected ? 'ready' : (lastPairingCode ? 'pairing_code_ready' : (qrCodeDataUrl ? 'qr_ready' : (isWhatsappInitializing ? 'initializing' : 'disconnected')));
+  supabase.from('settings').update({
+    whatsapp: {
+      connected: isWhatsappConnected,
+      status: statusStr,
+      qr: isWhatsappConnected ? null : qrCodeDataUrl,
+      pairingCode: isWhatsappConnected ? null : lastPairingCode,
+      user: isWhatsappConnected ? (whatsappUserInfo || getSavedWhatsappUserInfo()) : null,
+      updatedAt: new Date().toISOString()
+    }
+  }).eq('id', 'app_settings').then(() => {}).catch(() => {});
+}
+
+// Active Remote WhatsApp Command Scanner (guarantees pairing code generation even without Postgres Replication on settings)
+let _isCheckingWaCommands = false;
+setInterval(async () => {
+  if (!supabase || _isCheckingWaCommands) return;
+  _isCheckingWaCommands = true;
+  try {
+    const { data } = await supabase.from('settings').select('whatsapp_command').eq('id', 'app_settings').single();
+    if (data && data.whatsapp_command) {
+      const cmd = data.whatsapp_command;
+      if (cmd.action === 'pairing_code' && cmd.phone) {
+        console.log(`⚡ [Supabase] Remote pairing code requested for phone: ${cmd.phone}`);
+        await supabase.from('settings').update({ whatsapp_command: null }).eq('id', 'app_settings');
+        if (client && typeof client.requestPairingCode === 'function') {
+          let cleanPhone = cmd.phone.replace(/\D/g, '');
+          if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+          try {
+            const code = await client.requestPairingCode(cleanPhone);
+            lastPairingCode = code;
+            console.log(`✅ [Supabase] Remote pairing code generated successfully: ${code}`);
+            syncWhatsappStatusToSupabase();
+          } catch (pErr) {
+            console.warn('[Supabase] Pairing code request error:', pErr.message);
+          }
+        }
+      } else if (cmd.action === 'refresh_qr') {
+        await supabase.from('settings').update({ whatsapp_command: null }).eq('id', 'app_settings');
+        if (client && client.pupPage && !client.pupPage.isClosed()) {
+          try { await client.pupPage.reload({ waitUntil: 'load', timeout: 15000 }); } catch (_) {}
+        }
+      } else if (cmd.action === 'reset_session') {
+        await supabase.from('settings').update({ whatsapp_command: null }).eq('id', 'app_settings');
+        console.log('⚡ [Supabase] Remote WhatsApp session reset requested');
+        lastPairingCode = null;
+        qrCodeDataUrl = null;
+        isWhatsappConnected = false;
+        syncWhatsappStatusToSupabase();
+        if (typeof initWhatsappClient === 'function') {
+          initWhatsappClient(true).catch(() => {});
+        }
+      }
+    }
+  } catch (_) {}
+  finally {
+    _isCheckingWaCommands = false;
+  }
+}, 2500);
+
 // Periodic Supabase connection heartbeat & backlog sweeper every 15 seconds
 setInterval(() => {
   if (supabase) {
@@ -472,27 +572,9 @@ setInterval(() => {
       console.log('⚡ [Supabase-Realtime] Verifying/reconnecting Supabase Realtime channel...');
       initSupabaseRealtimeListener();
     }
+    syncWhatsappStatusToSupabase();
     if (isWhatsappConnected && client) {
       sweepPendingSupabaseInvoices().catch(() => {});
-      // Continual WhatsApp status heartbeat in Supabase settings
-      supabase.from('settings').update({
-        whatsapp: {
-          connected: true,
-          status: 'ready',
-          user: whatsappUserInfo || getSavedWhatsappUserInfo(),
-          updatedAt: new Date().toISOString()
-        }
-      }).eq('id', 'app_settings').then(() => {}).catch(() => {});
-    } else {
-      // Accurately reflect disconnected state so remote clients never get misled
-      supabase.from('settings').update({
-        whatsapp: {
-          connected: false,
-          status: isWhatsappInitializing ? 'initializing' : 'disconnected',
-          user: getSavedWhatsappUserInfo(),
-          updatedAt: new Date().toISOString()
-        }
-      }).eq('id', 'app_settings').then(() => {}).catch(() => {});
     }
   }
 }, 15000);
@@ -1354,6 +1436,7 @@ async function initWhatsappClient(forceClean = false) {
           pairingCode: lastPairingCode,
           user: getSavedWhatsappUserInfo()
         });
+        syncWhatsappStatusToSupabase();
       } catch (err) {
         console.error('[WhatsApp] Failed to generate QR Data URL', err);
       }
@@ -3306,6 +3389,7 @@ app.post('/api/whatsapp/pairing-code', async (req, res) => {
       pairingCode: code,
       qr: qrCodeDataUrl
     });
+    syncWhatsappStatusToSupabase();
 
     res.json({
       success: true,

@@ -1,7 +1,7 @@
-// AKB Billing - Production PWA Service Worker (v2.0.1)
+// AKB Billing - Production PWA Service Worker (v2.0.4)
 // Network-First strategy with instant offline fallback
 
-const CACHE_NAME = 'akb-billing-v201';
+const CACHE_NAME = 'akb-billing-v204';
 const STATIC_ASSETS = [
   './',
   './index.html',

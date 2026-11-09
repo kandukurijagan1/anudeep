@@ -3189,7 +3189,7 @@
                     <div id="cloud-update-badge"
                         style="font-size:.78rem;font-weight:600;padding:.3rem .65rem;border-radius:2rem;background:#f0fdf4;border:1px solid #86efac;display:none;align-items:center;gap:.35rem;color:#166534;cursor:pointer"
                         onclick="UI.show('settings-view')" title="Cloud Auto-Updater Active - Click to view">
-                        <i class="ph ph-sparkle" style="color:#16a34a"></i> <span id="cloud-update-text">v1.3.6</span>
+                        <i class="ph ph-sparkle" style="color:#16a34a"></i> <span id="cloud-update-text">v2.0.4</span>
                     </div>
                     <div id="db-sync-badge"
                         style="font-size:.78rem;font-weight:600;padding:.3rem .65rem;border-radius:2rem;background:#f3f4f6;border:1px solid #e5e7eb;display:inline-flex;align-items:center;gap:.35rem;color:#4b5563;cursor:pointer"
@@ -4255,10 +4255,16 @@
                     </div>
                     <div class="share-spinner"></div>
                 </button>
+                <button class="share-btn share-btn-native" id="btn-share-native" onclick="SM.shareNativeInvoice(SM.currentInv)"
+                    style="background:#15803d;color:#fff;">
+                    <div class="share-icon"><i class="ph ph-share-network"></i></div>
+                    <div class="share-text">Share Invoice PDF & Bill<span>Attach PDF directly into WhatsApp / Any App</span></div>
+                    <div class="share-spinner"></div>
+                </button>
                 <button class="share-btn share-btn-whatsapp" id="btn-share-wa" onclick="SM.openDirectMobileWhatsapp(SM.currentInv)"
                     style="background:#25D366;color:#fff;">
                     <div class="share-icon"><i class="ph ph-whatsapp-logo"></i></div>
-                    <div class="share-text">Send via WhatsApp (App / Web)<span>Opens WhatsApp directly on this device (100% Reliable)</span></div>
+                    <div class="share-text">Direct WhatsApp Chat<span>Opens customer chat with pre-filled bill</span></div>
                     <div class="share-spinner"></div>
                 </button>
                 <button class="share-btn" id="btn-share-wa-bot" onclick="SM.sendViaHostBot(SM.currentInv)"
@@ -4276,6 +4282,9 @@
                     <div class="share-icon"><i class="ph ph-copy"></i></div>
                     <div class="share-text">Copy Invoice Text<span>Copy to clipboard and paste anywhere</span></div>
                 </button>
+            </div>
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:9px 12px; margin-top:12px; font-size:0.78rem; color:#475569; text-align:left; line-height:1.45;">
+                <i class="ph ph-folder-notch-open" style="color:#2563eb;"></i> <strong>PDF Location:</strong> Downloaded PDFs are stored in your device's <strong>Downloads</strong> folder. Use <em>Share Invoice PDF & Bill</em> to attach it directly into WhatsApp.
             </div>
             <div class="share-close-row">
                 <button class="btn btn-secondary" onclick="UI.cl('share-modal')" style="min-width:120px">Close</button>
@@ -7168,10 +7177,11 @@
                     U.toast("WhatsApp share cancelled: Valid customer phone number is required.", "warning");
                     return;
                 }
-                var waUrl = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(textMsg);
+                // Direct WhatsApp API endpoint works seamlessly across Android, iOS and Desktop
+                var waUrl = 'https://api.whatsapp.com/send?phone=' + phone + '&text=' + encodeURIComponent(textMsg);
                 U.toast("📱 Opening WhatsApp for Invoice #" + invNo + "...", "info");
 
-                // On mobile devices, always navigate directly so native WhatsApp opens without popup blocking
+                // On mobile devices, navigate directly to open WhatsApp native app without popup blocker blocking
                 if (SM.isMobileDevice()) {
                     window.location.href = waUrl;
                 } else {
@@ -7185,6 +7195,55 @@
                     }
                 }
                 SM.markDeliveredInSupabase(inv);
+            },
+
+            shareNativeInvoice: function (inv) {
+                if (!inv) return;
+                var invNo = U.pi(inv.invoiceNo);
+                var phone = (inv.consignee && inv.consignee.phone) || (inv.receiver && inv.receiver.phone) || inv.customerPhone || "";
+                var cleanPhone = phone ? phone.replace(/\D/g, '') : "";
+                if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) cleanPhone = cleanPhone.slice(1);
+                if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+
+                var textMsg = SM.formatWhatsAppText(inv);
+
+                U.toast("⚡ Preparing invoice PDF for sharing...", "info");
+                SM.generatePdfBlob(inv, async function (blob, pdfName) {
+                    if (!blob) {
+                        SM.openDirectMobileWhatsapp(inv, cleanPhone);
+                        return;
+                    }
+
+                    // Auto-download PDF to Downloads folder
+                    try { SM.downloadPdfBlob(blob, pdfName, inv); } catch (_) {}
+
+                    var file = null;
+                    try {
+                        file = new File([blob], pdfName, { type: 'application/pdf' });
+                    } catch (_) {}
+
+                    if (navigator.share && file && navigator.canShare && navigator.canShare({ files: [file] })) {
+                        try {
+                            await navigator.share({
+                                files: [file],
+                                title: 'Tax Invoice #' + invNo + ' - Anudeep Khadi Bandar',
+                                text: textMsg
+                            });
+                            U.toast("✅ Invoice shared successfully!", "success");
+                            SM.markDeliveredInSupabase(inv);
+                            return;
+                        } catch (err) {
+                            if (err.name !== 'AbortError') {
+                                console.warn('[WebShare fallback]:', err);
+                            } else {
+                                return; // User cancelled share sheet
+                            }
+                        }
+                    }
+
+                    // Direct WhatsApp chat fallback
+                    SM.openDirectMobileWhatsapp(inv, cleanPhone);
+                });
             },
 
             openDirectMobileWhatsapp: function (inv, explicitPhone) {
@@ -10523,8 +10582,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '1.8.3',
-            build: 183,
+            currentVersion: '2.0.4',
+            build: 204,
             hasUpdate: false,
             latestInfo: null,
 
@@ -11478,6 +11537,12 @@
         var _waSavedPhone = localStorage.getItem('akb_wa_phone') || '918367047947';
         var _waActiveTab = 'qr';
 
+        function openPairingCodeTab() {
+            _waActiveTab = 'phone';
+            renderWhatsappModal('pairing_mode', _waStatusState || { connected: false });
+            setTimeout(function() { setWaTab('phone'); }, 30);
+        }
+
         async function setWaTab(tab) {
             _waActiveTab = tab;
             var tabQrBtn = document.getElementById("wa-btn-tab-qr");
@@ -11697,45 +11762,43 @@
                 return;
             }
 
-            if (state === "web_mode" || (data && data.isWebMode)) {
+            if ((state === "web_mode" || (data && data.isWebMode)) && !(data && (data.qr || data.pairingCode || data.status === 'qr_ready' || data.status === 'pairing_code_ready'))) {
                 var existingRoot = document.getElementById("wa-login-tabs-root");
                 if (existingRoot) existingRoot.remove();
                 updateWhatsappSidebarDot(true, false, true);
+                var isBotActive = !!(data && data.connected);
+                var botStatusText = isBotActive 
+                    ? '<span style="color:#16a34a; font-weight:700;"><i class="ph ph-check-circle"></i> Connected & Active (Auto-Dispatch Online)</span>' 
+                    : '<span style="color:#d97706; font-weight:700;"><i class="ph ph-clock"></i> Standby / Offline (Shop Laptop Powered Off)</span>';
+
                 container.innerHTML =
                     '<div style="text-align:center; padding:10px 0;">' +
-                    '<div style="display:inline-flex; align-items:center; gap:8px; background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; font-size:0.95rem; font-weight:700; padding:8px 18px; border-radius:30px; margin-bottom:14px;">' +
-                    '<i class="ph ph-cloud-check" style="font-size:1.3rem; color:#2563eb;"></i> Cloud Web Portal Active' +
+                    '<div style="display:inline-flex; align-items:center; gap:8px; background:#f0fdf4; border:1px solid #86efac; color:#166534; font-size:0.95rem; font-weight:700; padding:8px 18px; border-radius:30px; margin-bottom:14px;">' +
+                    '<i class="ph ph-device-mobile" style="font-size:1.3rem; color:#16a34a;"></i> Direct WhatsApp Sharing Active' +
                     '</div>' +
                     '<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; text-align:left; font-size:0.86rem; margin-bottom:14px; line-height:1.6;">' +
                     '<div style="font-weight:700; color:#1e293b; margin-bottom:6px; font-size:0.95rem;">' +
-                    '<i class="ph ph-desktop" style="color:#2563eb;"></i> Host Workstation Bot' +
+                    '<i class="ph ph-check-circle" style="color:#16a34a;"></i> 100% Reliable Invoicing on This Device' +
                     '</div>' +
                     '<div style="color:var(--tl); margin-bottom:10px;">' +
-                    'The automated background WhatsApp engine runs on your store\'s host computer (<span style="font-family:monospace; font-weight:700;">127.0.0.1:3000</span>) linked with phone <strong style="color:#059669;">+91 8367047947</strong>.' +
+                    'When you create or share an invoice, WhatsApp opens directly with your customer\'s phone number and the complete tax bill pre-filled. You can also share the PDF document in 1 tap.' +
                     '</div>' +
-                    '<div style="display:flex; flex-direction:column; gap:8px;">' +
-                    '<div style="display:flex; align-items:flex-start; gap:8px;">' +
-                    '<i class="ph ph-check-circle" style="color:#10b981; font-size:1.1rem; margin-top:2px;"></i>' +
-                    '<span><strong>Dedicated Desktop App:</strong> Delivers formatted bills & PDF attachments 100% automatically in background.</span>' +
-                    '</div>' +
-                    '<div style="display:flex; align-items:flex-start; gap:8px;">' +
-                    '<i class="ph ph-check-circle" style="color:#10b981; font-size:1.1rem; margin-top:2px;"></i>' +
-                    '<span><strong>Web Browser Mode:</strong> Click any green WhatsApp button to instantly open customer chat with pre-filled bill and download PDF.</span>' +
-                    '</div>' +
+                    '<div style="margin-top:10px; padding-top:10px; border-top:1px dashed #cbd5e1; font-size:0.82rem; color:#475569;">' +
+                    '<strong>Shop PC Automated Bot:</strong> ' + botStatusText +
                     '</div>' +
                     '</div>' +
                     '<div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:14px;">' +
-                    '<a href="http://127.0.0.1:3000/?mode=dedicated_app" class="btn btn-primary" style="background:#2563eb; border-color:#2563eb; padding:9px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">' +
-                    '<i class="ph ph-browsers"></i> Launch Workstation App' +
-                    '</a>' +
-                    '<a href="https://web.whatsapp.com" target="_blank" class="btn" style="background:#25D366; color:#fff; border-color:#25D366; padding:9px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">' +
+                    '<button type="button" class="btn btn-secondary" onclick="openPairingCodeTab()" style="padding:9px 16px; font-size:0.85rem; font-weight:700; display:inline-flex; align-items:center; gap:6px;">' +
+                    '<i class="ph ph-link"></i> Link Shop PC Bot' +
+                    '</button>' +
+                    '<a href="https://web.whatsapp.com" target="_blank" class="btn" style="background:#25D366; color:#fff; border-color:#25D366; padding:9px 16px; font-size:0.85rem; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">' +
                     '<i class="ph ph-whatsapp-logo"></i> Open WhatsApp Web' +
                     '</a>' +
                     '</div>' +
                     '<div style="background:#fff; border:1px solid #bbf7d0; border-radius:10px; padding:12px; text-align:left;">' +
-                    '<div style="font-size:0.82rem; font-weight:700; color:#166534; margin-bottom:6px;"><i class="ph ph-paper-plane-tilt"></i> Test Direct WhatsApp Chat:</div>' +
+                    '<div style="font-size:0.82rem; font-weight:700; color:#166534; margin-bottom:6px;"><i class="ph ph-paper-plane-tilt"></i> Test WhatsApp Chat Delivery:</div>' +
                     '<div style="display:flex; gap:8px;">' +
-                    '<input type="text" id="wa-test-phone" value="8367047947" placeholder="10-digit number" style="flex:1; padding:7px 10px; font-size:0.85rem; border:1px solid var(--bd); border-radius:6px;" />' +
+                    '<input type="text" id="wa-test-phone" placeholder="Enter recipient 10-digit number" style="flex:1; padding:7px 10px; font-size:0.85rem; border:1px solid var(--bd); border-radius:6px;" />' +
                     '<button id="btn-wa-send-test" class="btn btn-primary" onclick="sendWhatsappTestMessage()" style="padding:7px 12px; font-size:0.85rem; white-space:nowrap; background:#25D366; border-color:#25D366;"><i class="ph ph-paper-plane"></i> Test Send</button>' +
                     '</div>' +
                     '</div>' +
@@ -11954,14 +12017,81 @@
                 return;
             }
             _waSavedPhone = phone;
+            var cleanPhone = phone.replace(/\D/g, '');
+            if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) cleanPhone = cleanPhone.slice(1);
+            if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+
             var btn = document.getElementById("btn-request-pairing");
-            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner"></i> Generating...'; }
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Requesting...'; }
+
+            var isWebClient = _isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url')) || (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && location.port !== '3000');
+
+            // If on Mobile Web / Cloud Portal: Request via Supabase Cloud!
+            if (isWebClient) {
+                if (!sbClient) {
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-key"></i> Get Code'; }
+                    U.toast("Cloud database unavailable. Please open app on shop laptop.", "warning");
+                    return;
+                }
+                try {
+                    // Check if shop laptop is active
+                    var chk = await sbClient.from('settings').select('whatsapp').eq('id', 'app_settings').single();
+                    var waHeartbeat = chk && chk.data && chk.data.whatsapp;
+                    var age = waHeartbeat && waHeartbeat.updatedAt ? (Date.now() - new Date(waHeartbeat.updatedAt).getTime()) : 999999;
+                    if (age > 90000) {
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-key"></i> Get Code'; }
+                        U.toast("⚠️ The Shop PC is currently shut down. Pairing codes require the shop laptop to be turned on. Direct WhatsApp on this mobile is ready to send invoices!", "warning");
+                        return;
+                    }
+
+                    U.toast("⚡ Requesting Pairing Code from Shop PC...", "info");
+                    await sbClient.from('settings').update({
+                        whatsapp_command: {
+                            action: 'pairing_code',
+                            phone: cleanPhone,
+                            requestedAt: new Date().toISOString()
+                        }
+                    }).eq('id', 'app_settings');
+
+                    var attempts = 0;
+                    var pollTimer = setInterval(async function () {
+                        attempts++;
+                        try {
+                            var res = await sbClient.from('settings').select('whatsapp').eq('id', 'app_settings').single();
+                            if (res && res.data && res.data.whatsapp && res.data.whatsapp.pairingCode) {
+                                clearInterval(pollTimer);
+                                var code = res.data.whatsapp.pairingCode;
+                                U.toast("⚡ Pairing Code Received: " + code, "success");
+                                _waActiveTab = 'phone';
+                                if (_waStatusState) _waStatusState.pairingCode = code;
+                                else _waStatusState = { connected: false, pairingCode: code };
+                                updateWaPairingDisplay(code);
+                                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-key"></i> Get Code'; }
+                                return;
+                            }
+                        } catch (_) {}
+
+                        if (attempts >= 12) {
+                            clearInterval(pollTimer);
+                            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-key"></i> Get Code'; }
+                            U.toast("Shop computer bot is in standby. Ensure the app is open on the shop laptop.", "warning");
+                        }
+                    }, 1000);
+                    return;
+                } catch (sbErr) {
+                    console.warn('[Supabase Pairing Code error]:', sbErr);
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-key"></i> Get Code'; }
+                    U.toast("Could not contact Shop PC: " + (sbErr.message || 'error'), "error");
+                    return;
+                }
+            }
+
             try {
                 var base = getWaApiUrl();
                 var res = await originalFetch(base + '/whatsapp/pairing-code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone: phone })
+                    body: JSON.stringify({ phone: cleanPhone })
                 });
                 var data = await res.json();
                 if (data && data.success && data.pairingCode) {
@@ -11974,7 +12104,7 @@
                     U.toast(data && data.error ? data.error : "Failed to generate pairing code", "error");
                 }
             } catch (err) {
-                U.toast("Network error requesting pairing code: " + err.message, "error");
+                U.toast("Could not reach local server: " + err.message, "error");
             } finally {
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-key"></i> Get Code'; }
             }
@@ -12029,21 +12159,15 @@
                 if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
 
                 var testMsg = "Hello! 👋 This is a test message from Anudeep Khadi Bandar Billing System. WhatsApp connection verified.";
-                var waUrl = 'https://wa.me/' + cleanPhone + '?text=' + encodeURIComponent(testMsg);
-                window.open(waUrl, '_blank');
+                var waUrl = 'https://api.whatsapp.com/send?phone=' + cleanPhone + '&text=' + encodeURIComponent(testMsg);
                 U.toast("📱 Opening WhatsApp test chat for +" + cleanPhone + "...", "success");
-
-                if (sbClient && typeof SM !== 'undefined' && SM.isHostBotActive && SM.isHostBotActive()) {
-                    sbClient.from('invoices').insert({
-                        id: 'test_' + Date.now(),
-                        invoiceNo: 99999,
-                        date: new Date().toISOString().slice(0, 10),
-                        receiver: { name: 'Test Customer', phone: cleanPhone },
-                        customerPhone: cleanPhone,
-                        totalAmount: 1,
-                        items: [{ description: 'WhatsApp Test Ping', qty: 1, rate: 1, amount: 1 }]
-                    }).catch(function() {});
+                if (typeof SM !== 'undefined' && SM.isMobileDevice && SM.isMobileDevice()) {
+                    window.location.href = waUrl;
+                } else {
+                    var win = window.open(waUrl, '_blank');
+                    if (!win) window.location.href = waUrl;
                 }
+
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-paper-plane"></i> Test Send'; }
                 return;
             }
@@ -12097,17 +12221,29 @@
             renderWhatsappModal("loading", { message: "Step 1/2: Unlinking old phone number..." });
             U.toast("Unlinking current WhatsApp number...", "info");
             
-            try {
-                var directFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
-                var endpoint = (typeof getWaApiUrl === 'function') ? (getWaApiUrl() + '/whatsapp/change-number') : 'http://127.0.0.1:3000/api/whatsapp/change-number';
-                await directFetch(endpoint, { method: 'POST' });
-                
-                setTimeout(function() {
-                    renderWhatsappModal("loading", { message: "Step 2/2: Generating fresh QR & Pairing Code for your new number..." });
-                }, 600);
-            } catch (e) {
-                console.warn("Change number warning:", e);
+            var isWebClient = _isStaticHosting || (location.protocol === 'https:' && !localStorage.getItem('akb_wa_server_url')) || (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && location.port !== '3000');
+            if (isWebClient && sbClient) {
+                try {
+                    await sbClient.from('settings').update({
+                        whatsapp_command: {
+                            action: 'reset_session',
+                            requestedAt: new Date().toISOString()
+                        }
+                    }).eq('id', 'app_settings');
+                } catch (_) {}
+            } else {
+                try {
+                    var directFetch = (typeof originalFetch === 'function') ? originalFetch : fetch;
+                    var endpoint = (typeof getWaApiUrl === 'function') ? (getWaApiUrl() + '/whatsapp/change-number') : 'http://127.0.0.1:3000/api/whatsapp/change-number';
+                    await directFetch(endpoint, { method: 'POST' });
+                } catch (e) {
+                    console.warn("Change number warning:", e);
+                }
             }
+            
+            setTimeout(function() {
+                renderWhatsappModal("loading", { message: "Step 2/2: Generating fresh QR & Pairing Code for your new number..." });
+            }, 600);
             
             var pollCount = 0;
             var pollInterval = setInterval(async function () {
@@ -12193,8 +12329,9 @@
                             if (showToast) U.toast("WhatsApp Bot is connected & active on Host PC", "success");
                             renderWhatsappModal("connected", cloudWa);
                             return;
-                        } else if (cloudWa.qr || cloudWa.pairingCode || cloudWa.status === 'qr_ready') {
-                            if (showToast) U.toast("Please scan QR code to connect WhatsApp bot", "info");
+                        } else if (cloudWa.qr || cloudWa.pairingCode || cloudWa.status === 'qr_ready' || cloudWa.status === 'pairing_code_ready') {
+                            if (showToast) U.toast("QR Code or Pairing Code ready for WhatsApp login", "info");
+                            renderWhatsappModal(cloudWa.pairingCode ? "pairing_ready" : "qr_ready", cloudWa);
                             return;
                         }
                     }
@@ -12212,7 +12349,7 @@
                     renderWhatsappModal("connected", _waStatusState);
                     return;
                 }
-                _waStatusState = { connected: false, isWebMode: true, status: 'web_mode', user: { phone: '918367047947', name: 'Anudeep Khadi Bandar' } };
+                _waStatusState = { connected: false, isWebMode: true, status: 'web_mode', user: null };
                 updateWhatsappSidebarDot(false, false, true);
                 var waBadge = document.getElementById("s-wa-badge");
                 var waBox = document.getElementById("s-wa-status-box");

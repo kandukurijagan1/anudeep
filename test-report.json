@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-11-09T03:22:57.968Z",
+  "timestamp": "2026-11-09T03:45:32.453Z",
   "summary": {
     "total": 24,
     "passed": 24,
     "failed": 0,
     "critical": 0,
-    "durationMs": 2493,
+    "durationMs": 81,
     "overallStatus": "HEALTHY"
   },
   "results": [
@@ -45,8 +45,8 @@
       "line": null,
       "pass": true,
       "severity": "PASS",
-      "expected": "599 closing </div> tags",
-      "actual": "599 closing </div> tags",
+      "expected": "601 closing </div> tags",
+      "actual": "601 closing </div> tags",
       "issue": null,
       "rootCause": null,
       "autoFix": null
@@ -326,7 +326,7 @@
       "pass": true,
       "severity": "PASS",
       "expected": "HTTP 200 with numeric or timestamp version",
-      "actual": "HTTP 200, version=1794193897102",
+      "actual": "HTTP 200, version=1794195923800",
       "issue": null,
       "rootCause": null,
       "autoFix": null
