@@ -1,66 +1,130 @@
-# Anudeep Khadi Bandar - Tax Invoice & Billing System
+# Anudeep Khadi Bandar - GST Billing & Invoicing System
 
-A high-speed, modern GST billing and tax invoice web application with automated WhatsApp invoice delivery, Telegram backup, customer autocomplete, and dual-database support (Local MongoDB & Cloud Google Apps Script).
-
-## 🖥️ Dedicated POS Workstation Application
-
-The system provides multiple ways to run as a dedicated, high-speed POS workstation application:
-
-### 1. Windows Native Launcher (.exe & .bat)
-- **Launchers**: `Launch-AKB-App.bat` and `AKB-Billing.exe`
-- **Desktop Shortcut**: **`Anudeep Khadi Bandar - GST Billing.lnk`** on your Windows Desktop.
-- **Key Capabilities**:
-  - Full-screen distraction-free native desktop workstation window with official AKB branding.
-  - Dedicated isolated user profile keeping credentials and drafts permanently remembered.
-  - Automatic background Node server auto-healing and fallback to Cloud GAS if offline.
-  - System Tray menu (Open, New Bill `F2`, Invoice History, Sync).
-  - To rebuild: `npm run build:exe` and `npm run setup:shortcut`
-
-### 2. Standalone Electron Dedicated App
-- **Run Locally**: `npm run electron`
-- **Package as Standalone Windows Executable**: `npm run package:app`
-- Features single-instance locking, native print spooling, and hardware-accelerated rendering.
-
-### 3. In-Browser Dedicated PWA App
-- Open the application in Chrome or Edge and click **"Dedicated App"** in the sidebar navigation or **"Install PWA App"** in Settings.
-- Installs directly to Windows Apps, taskbar, and start menu with 100% offline support.
-
-### ⚡ Workstation Billing Hotkeys:
-- **`F2`** &rarr; Quick New Invoice (focuses customer name)
-- **`F4`** &rarr; Focus Product Selection
-- **`F8` / `Ctrl + S`** &rarr; Save & Generate Invoice
-- **`Ctrl + P`** &rarr; Direct Print Spooler
-- **`Ctrl + H`** &rarr; Open Invoice History
-- **`Esc`** &rarr; Dismiss any modal or overlay
+A turnkey, enterprise-grade GST billing and inventory system with real-time Supabase cloud synchronization, automated WhatsApp PDF dispatch, Google Sheets ledger backup, and dedicated workstation POS desktop software.
 
 ---
 
-## 🚀 Instant Deployment / Publishing
+## 🏛️ System Architecture
 
-### Option 1: Deploy on Vercel (Fastest & Free)
-1. Go to [vercel.com](https://vercel.com) and log in with your GitHub account.
-2. Click **"Add New Project"** $\rightarrow$ **"Import"** and select **`anudeep-deploy`**.
-3. Keep default settings (the included `vercel.json` automatically configures everything).
-4. Click **Deploy**. Your app will be live with a free SSL domain (e.g., `https://anudeep-deploy.vercel.app`) in under 1 minute!
+```mermaid
+graph TD
+    Client[Store Workstation / Mobile App / Web Portal] -->|Real-Time CRUD &lt;50ms| Supabase[(Supabase Cloud Database)]
+    Client -->|Local API 127.0.0.1:3000| NodeServer[Node.js Express Server]
+    NodeServer -->|Automated Background Dispatch| WABot[WhatsApp Web.js Bot]
+    NodeServer -->|Permanent Cloud Ledger| GoogleSheets[(Google Apps Script / Sheets)]
+    NodeServer -->|Local Fallback Storage| AppData[(%APPDATA%/AnudeepKhadiBandar)]
+    WABot -->|PDF &amp; Formatted Bill| Customer[Customer WhatsApp]
+```
+
+### 1. Dual-Redundant Database Layer
+- **Primary Live Database**: Supabase Cloud PostgreSQL with WebSocket Realtime subscriptions. Every invoice created or modified syncs across all devices in under 50ms.
+- **Secondary Cloud Archive**: Google Apps Script (`backend.gs`) streaming all transactions into Google Sheets.
+- **Local Workstation Fallback**: `%APPDATA%\AnudeepKhadiBandar\data\` (`invoices.json`, `products.json`, `receivers.json`, `consignees.json`, `settings.json`) guaranteeing 100% offline billing continuity.
+
+### 2. Multi-Mode WhatsApp Dispatch Engine
+- **Shop Workstation Bot Mode**: Automated background WhatsApp bot (`whatsapp-web.js`) hosted on the store computer. As soon as an invoice is created on any connected device, the shop PC automatically delivers the formatted receipt and attaches the high-definition PDF bill.
+- **Remote Mobile / Web Mode**: When accessed from smartphones, tablets, or external browsers, invoices are delivered with 1 tap via the **Native Web Share API** (`navigator.share`) or direct WhatsApp deep linking (`https://api.whatsapp.com/send`), allowing the cashier or salesman to send the PDF invoice directly into the customer's chat without needing a local server.
+- **Cloud Pairing Code Relay**: Remote devices can request a WhatsApp pairing code via Supabase cloud without triggering localhost network errors.
+
+### 3. Master Admin Security Policy
+- **Primary Master Admin**: `kandukurijagan99@gmail.com`
+- **Immutable Lock**: Permanently locked at index 0 across Frontend, Backend, and Database tiers.
+- **Undeletable**: Frontend hides delete buttons for the primary admin; backend strictly rejects any attempt to exclude or delete `kandukurijagan99@gmail.com`.
+- **Secondary Admins**: Additional emails can be authorized or removed dynamically for OTP password reset requests.
 
 ---
 
-### Option 2: Deploy on GitHub Pages (100% Free)
-1. Push your commits to GitHub:
-   ```bash
-   git push origin main
-   ```
-2. In your GitHub repository:
-   - Go to **Settings** $\rightarrow$ **Pages** (in the left sidebar).
-   - Under **Build and deployment** > **Source**, choose **"Deploy from a branch"**.
-   - Under **Branch**, select `main` and `/ (root)`, then click **Save**.
-3. Within 1–2 minutes, your website will be live at:
-   `https://kandukurijagan1.github.io/anudeep/`
+## 🖥️ Desktop Workstation POS Application
+
+The workstation app runs in a dedicated, high-speed POS container with full keyboard shortcuts, silent printing, and automatic background server management.
+
+### Launching the Application
+- **Desktop Shortcut**: Double-click **`Anudeep Khadi Bandar - GST Billing`** on your Windows Desktop.
+- **Batch Launcher**: Double-click [`Launch-AKB-App.bat`](file:///c:/Users/ADMIN/Desktop/anudeep-kadir-bandi/Launch-AKB-App.bat).
+- **Executable Launcher**: Run [`AKB-Billing.exe`](file:///c:/Users/ADMIN/Desktop/anudeep-kadir-bandi/AKB-Billing.exe).
+- **NPM Command**:
+  ```bash
+  npm run app
+  ```
+
+### Workstation Hotkeys & Shortcuts
+| Hotkey | Action | Description |
+| :--- | :--- | :--- |
+| <kbd>F2</kbd> | **New Invoice** | Opens billing view and focuses customer name field |
+| <kbd>F4</kbd> | **Focus Products** | Jumps focus directly to product selector / barcode input |
+| <kbd>Ctrl</kbd> + <kbd>S</kbd> / <kbd>F8</kbd> | **Save & Generate** | Finalizes invoice, records to cloud, and triggers WhatsApp |
+| <kbd>Ctrl</kbd> + <kbd>P</kbd> | **Print Invoice** | Direct silent print spooling to default POS printer |
+| <kbd>Ctrl</kbd> + <kbd>H</kbd> | **Invoice History** | Opens invoice ledger with live search & filters |
+| <kbd>Esc</kbd> | **Dismiss** | Closes active modal, dropdown, or search overlay |
 
 ---
 
-### Option 3: Full Stack Backend (with WhatsApp Web Bot & MongoDB)
-For automated WhatsApp sending from a server, deploy using the included `Dockerfile` and `render.yaml` to **Render.com** or **Railway**:
-1. Connect your repository `kandukurijagan1/anudeep` on [render.com](https://render.com).
-2. Render will automatically detect `render.yaml` and `Dockerfile` (with Chromium pre-configured).
-3. Add your `MONGO_URI` environment variable and launch!
+## 📱 Mobile App & Remote Access (PWA)
+
+The billing system is fully installable as a Progressive Web App (PWA) on Android, iPhone, iPad, and tablet devices.
+
+- **Web Portal URL**: [`https://kandukurijagan1.github.io/anudeep/`](https://kandukurijagan1.github.io/anudeep/)
+- **Android Installation**: Open the link in Google Chrome &rarr; tap the top menu (<kbd>⋮</kbd>) &rarr; tap **"Install app"** or **"Add to Home screen"**.
+- **iPhone / iPad Installation**: Open the link in Safari &rarr; tap the Share button (<kbd>📤</kbd>) &rarr; tap **"Add to Home Screen"**.
+- **Features on Mobile**:
+  - Full offline support with Service Worker caching (`sw.js`).
+  - 1-Tap PDF sharing to WhatsApp.
+  - Real-time cloud sync with the store's master computer.
+
+---
+
+## 🧪 Testing & Automated Diagnostics
+
+The repository includes a comprehensive 24-point diagnostic test suite:
+
+```bash
+npm test
+```
+
+### Test Coverage
+- **API & Connectivity**: Health check, Sync Heartbeat, Bootstrap round-trip loader.
+- **Data Integrity**: Local JSON storage, invoice consistency, product pricing validation.
+- **GST Calculations**: Strict validation of CGST (2.5%), SGST (2.5%), IGST (5.0%), taxable totals, and invoice rounding.
+- **WhatsApp Engine**: Bot readiness, pairing code support, session persistence.
+- **Security & RBAC**: Master admin email lock verification, OTP validation endpoints.
+
+To run tests and open the visual HTML report:
+```bash
+npm run test:report
+```
+
+---
+
+## 📂 Project Structure & Organization
+
+```
+anudeep-kadir-bandi/
+├── index.html                   # Core Single-Page Application (POS, Billing, UI)
+├── server.js                    # Node.js Express Backend & WhatsApp Automation Engine
+├── sw.js                        # Production Service Worker for Mobile PWA
+├── manifest.json                # PWA Web Application Manifest
+├── version.json                 # OTA Cloud Version Tracker
+├── backend.gs                   # Google Apps Script cloud database integration
+├── electron-main.js             # Electron desktop workstation shell
+├── Launcher.cs                  # C# Native Windows POS launcher source
+├── AKB-Billing.exe              # Compiled native Windows launcher binary
+├── Launch-AKB-App.bat           # Resilient multi-tier launch pipeline script
+├── create-desktop-shortcut.ps1  # Automated Windows desktop shortcut installer
+├── test-agent.js                # 24-Point automated test & diagnostics agent
+├── test-report.html             # Visual HTML diagnostic test report
+├── test-report.json             # Structured JSON diagnostic test results
+├── icon.ico / icon-*.png        # Application icons & branding assets
+└── data/                        # Master ledger files (Invoices, Products, Settings)
+    ├── invoices.json
+    ├── products.json
+    ├── receivers.json
+    ├── consignees.json
+    └── settings.json
+```
+
+---
+
+## 🔒 Administration & Support
+- **Store**: Anudeep Khadi Bandar, Main Road, Tenali, A.P.
+- **Master Admin**: `kandukurijagan99@gmail.com`
+- **Workstation Port**: `3000` (Default HTTP endpoint: `http://127.0.0.1:3000`)
