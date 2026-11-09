@@ -706,7 +706,11 @@ function getDefaultSettings() {
   return {
     nextInvoiceNo: 1,
     inactivityTimeout: 300000,
-    adminEmails: [],
+    adminEmails: [
+      PRIMARY_ADMIN_EMAIL,
+      'kandukurijagan7@gmail.com',
+      'kandukurijagan642@gmail.com'
+    ],
     telegram: {
       token: process.env.TELEGRAM_BOT_TOKEN || '',
       chatId: process.env.TELEGRAM_CHAT_ID || ''
@@ -3106,6 +3110,16 @@ app.get('/api/settings', requireAuth, (req, res) => {
   const cur = readJsonFile('settings', getDefaultSettings());
   const sanitized = { ...cur };
   delete sanitized.adminPassword; // NEVER leak adminPassword
+
+  // 🔒 Master Admin Email kandukurijagan99@gmail.com is permanently guaranteed & locked at index 0
+  const primaryClean = PRIMARY_ADMIN_EMAIL.toLowerCase();
+  let emails = Array.isArray(sanitized.adminEmails) ? sanitized.adminEmails : [];
+  emails = emails.filter(e => e && typeof e === 'string').map(e => e.toLowerCase().trim());
+  if (!emails.includes(primaryClean)) {
+    emails.unshift(primaryClean);
+  }
+  sanitized.adminEmails = emails;
+
   if (sanitized.telegram) {
     sanitized.telegram = {
       ...sanitized.telegram,
@@ -3133,13 +3147,29 @@ app.put('/api/settings', requireAuth, (req, res) => {
       whatsapp: { ...(cur.whatsapp || {}), ...(incoming.whatsapp || {}) },
       emailSettings: { ...(cur.emailSettings || {}), ...(incoming.emailSettings || {}) }
     };
+
+    // 🔒 Enforce immutable inclusion of primary admin email kandukurijagan99@gmail.com
+    const primaryClean = PRIMARY_ADMIN_EMAIL.toLowerCase();
     if (Array.isArray(incoming.adminEmails)) {
-      updated.adminEmails = incoming.adminEmails;
+      let cleaned = incoming.adminEmails
+        .filter(e => e && typeof e === 'string' && e.trim())
+        .map(e => e.toLowerCase().trim());
+      if (!cleaned.includes(primaryClean)) {
+        cleaned.unshift(primaryClean);
+      }
+      updated.adminEmails = cleaned;
+    } else {
+      let existing = Array.isArray(updated.adminEmails) ? updated.adminEmails : [];
+      if (!existing.includes(primaryClean)) {
+        existing.unshift(primaryClean);
+      }
+      updated.adminEmails = existing;
     }
     delete updated.adminPassword; // NEVER persist adminPassword in settings.json
 
     writeJsonFile('settings', updated);
     forwardToGas('updateSettings', updated);
+    forwardToSupabase('settings', { id: 'app_settings', data: updated });
     scheduleGitLedgerSync();
     res.json({ success: true, settings: updated });
   } catch (err) {

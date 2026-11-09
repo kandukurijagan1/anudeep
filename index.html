@@ -3189,7 +3189,7 @@
                     <div id="cloud-update-badge"
                         style="font-size:.78rem;font-weight:600;padding:.3rem .65rem;border-radius:2rem;background:#f0fdf4;border:1px solid #86efac;display:none;align-items:center;gap:.35rem;color:#166534;cursor:pointer"
                         onclick="UI.show('settings-view')" title="Cloud Auto-Updater Active - Click to view">
-                        <i class="ph ph-sparkle" style="color:#16a34a"></i> <span id="cloud-update-text">v2.0.4</span>
+                        <i class="ph ph-sparkle" style="color:#16a34a"></i> <span id="cloud-update-text">v2.0.5</span>
                     </div>
                     <div id="db-sync-badge"
                         style="font-size:.78rem;font-weight:600;padding:.3rem .65rem;border-radius:2rem;background:#f3f4f6;border:1px solid #e5e7eb;display:inline-flex;align-items:center;gap:.35rem;color:#4b5563;cursor:pointer"
@@ -6093,13 +6093,17 @@
                     STM._settings.nextInvoiceNo = localSt.nextInvoiceNo;
                 }
 
-                // Merge local adminEmails if GAS didn't return any or returned an empty list
-                if ((!STM._settings.adminEmails || STM._settings.adminEmails.length === 0) && localSt.adminEmails && localSt.adminEmails.length > 0) {
-                    STM._settings.adminEmails = localSt.adminEmails;
-                } else if (STM._settings.adminEmails && localSt.adminEmails) {
-                    // Merge unique emails
-                    STM._settings.adminEmails = Array.from(new Set([...STM._settings.adminEmails, ...localSt.adminEmails]));
-                }
+                // Guarantee PRIMARY_ADMIN_EMAIL is ALWAYS permanently included and locked at index 0
+                var rawEmails = [];
+                if (Array.isArray(STM._settings.adminEmails)) rawEmails = rawEmails.concat(STM._settings.adminEmails);
+                if (Array.isArray(localSt.adminEmails)) rawEmails = rawEmails.concat(localSt.adminEmails);
+                var cleanPrimary = PRIMARY_ADMIN_EMAIL.toLowerCase().trim();
+                var mergedEmails = rawEmails.filter(function (e) {
+                    return e && typeof e === 'string' && e.toLowerCase().trim() !== cleanPrimary;
+                }).map(function (e) { return e.toLowerCase().trim(); });
+                mergedEmails = Array.from(new Set(mergedEmails));
+                mergedEmails.unshift(cleanPrimary);
+                STM._settings.adminEmails = mergedEmails;
 
                 D.s("settings", {
                     nextInvoiceNo: STM._settings.nextInvoiceNo,
@@ -6120,7 +6124,7 @@
                     try {
                         var sbRes = await sbClient.from('settings').select('*').eq('id', 'app_settings').single();
                         if (sbRes && sbRes.data) {
-                            var cloudSettings = sbRes.data.data ? Object.assign({}, sbRes.data.data, sbRes.data) : sbRes.data;
+                            var cloudSettings = Object.assign({}, sbRes.data, sbRes.data.data || {});
                             STM.applySettings(cloudSettings);
                             loaded = true;
                         }
@@ -6203,9 +6207,13 @@
                 var inactivityTimeout = STM._settings.inactivityTimeout !== undefined ? STM._settings.inactivityTimeout : (D.go("settings").inactivityTimeout !== undefined ? D.go("settings").inactivityTimeout : 300000);
                 document.getElementById("s-sec-timeout").value = inactivityTimeout;
 
-                if (!STM._settings.adminEmails) {
-                    STM._settings.adminEmails = [];
-                }
+                var adminList = Array.isArray(STM._settings.adminEmails) ? STM._settings.adminEmails : [];
+                var cleanPrimary = PRIMARY_ADMIN_EMAIL.toLowerCase().trim();
+                var cleanAdminList = adminList.filter(function (e) {
+                    return e && typeof e === 'string' && e.toLowerCase().trim() !== cleanPrimary;
+                }).map(function (e) { return e.toLowerCase().trim(); });
+                cleanAdminList.unshift(cleanPrimary);
+                STM._settings.adminEmails = cleanAdminList;
                 STM.renderOtpEmails();
 
                 // WhatsApp settings UI
@@ -6538,35 +6546,40 @@
                 STM.loadUI();
             },
             renderOtpEmails: function () {
-                var emails = STM._settings.adminEmails || [];
+                var emails = (STM._settings && Array.isArray(STM._settings.adminEmails)) ? STM._settings.adminEmails : [];
                 var container = document.getElementById("otp-emails-list");
                 if (!container) return;
 
-                // Filter out PRIMARY_ADMIN_EMAIL from user-deletable list so it's permanently protected & hidden from deletion
+                var cleanPrimary = PRIMARY_ADMIN_EMAIL.toLowerCase().trim();
                 var secondaryEmails = emails.filter(function (e) {
-                    return e && e.toLowerCase().trim() !== PRIMARY_ADMIN_EMAIL.toLowerCase();
+                    return e && typeof e === 'string' && e.toLowerCase().trim() !== cleanPrimary;
                 });
 
-                var h = '<div style="display:flex; flex-direction:column; gap:6px;">';
+                var h = '<div style="display:flex; flex-direction:column; gap:8px;">';
                 
-                // Primary Protected Admin Badge (Permanently locked, no delete button)
-                h += '<div style="display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; padding:8px 10px; border-radius:6px; border:1px solid #bbf7d0;">' +
-                    '<div style="display:flex; align-items:center; gap:8px;">' +
-                    '<i class="ph-fill ph-shield-check" style="color:#16a34a; font-size:1.1rem;"></i>' +
+                // 🔒 Primary Master Admin Badge (Permanently locked, cannot be removed)
+                h += '<div style="display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; padding:10px 14px; border-radius:8px; border:1.5px solid #86efac; box-shadow:0 1px 2px rgba(0,0,0,0.03);">' +
+                    '<div style="display:flex; align-items:center; gap:10px;">' +
+                    '<div style="width:34px; height:34px; border-radius:50%; background:#dcfce7; display:flex; align-items:center; justify-content:center; color:#15803d; font-size:1.15rem; flex-shrink:0;">' +
+                    '<i class="ph-fill ph-shield-check"></i>' +
+                    '</div>' +
                     '<div>' +
-                    '<span style="font-weight:600; color:#166534; font-size:0.88rem;">' + U.esc(PRIMARY_ADMIN_EMAIL) + '</span>' +
-                    '<div style="font-size:0.75rem; color:#15803d;">Primary System Admin (Permanent & Protected)</div>' +
+                    '<div style="font-weight:700; color:#166534; font-size:0.92rem; letter-spacing:0.2px;">' + U.esc(PRIMARY_ADMIN_EMAIL) + '</div>' +
+                    '<div style="font-size:0.75rem; color:#15803d; font-weight:600; display:flex; align-items:center; gap:4px; margin-top:1px;"><i class="ph ph-lock-key"></i> Primary Master Admin &bull; Permanent &amp; Locked</div>' +
                     '</div>' +
                     '</div>' +
-                    '<span style="background:#dcfce7; color:#15803d; font-size:0.72rem; padding:3px 8px; border-radius:12px; font-weight:600;"><i class="ph ph-lock-key"></i> Locked</span>' +
+                    '<span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; font-size:0.75rem; padding:4px 10px; border-radius:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px;"><i class="ph ph-lock"></i> Locked</span>' +
                     '</div>';
 
                 if (secondaryEmails.length > 0) {
                     secondaryEmails.forEach(function (em) {
-                        var realIdx = emails.indexOf(em);
-                        var delBtn = '<button class="btn-tiny" style="color:var(--dg); padding:4px;" onclick="STM.removeOtpEmail(' + realIdx + ')" title="Remove"><i class="ph ph-trash"></i></button>';
-                        h += '<div style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:6px 10px; border-radius:4px; border:1px solid #e2e8f0;">' +
-                            '<span>' + U.esc(em) + '</span>' +
+                        var realIdx = emails.findIndex(function(x){ return x && x.toLowerCase().trim() === em.toLowerCase().trim(); });
+                        var delBtn = '<button class="btn-tiny" style="color:#ef4444; background:#fef2f2; border:1px solid #fee2e2; border-radius:6px; padding:6px 8px; cursor:pointer;" onclick="STM.removeOtpEmail(' + realIdx + ')" title="Remove Email"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>';
+                        h += '<div style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:8px 12px; border-radius:6px; border:1px solid #e2e8f0;">' +
+                            '<div style="display:flex; align-items:center; gap:8px;">' +
+                            '<i class="ph ph-envelope-simple" style="color:var(--tl); font-size:1.05rem;"></i>' +
+                            '<span style="font-size:0.88rem; color:#334155; font-weight:500;">' + U.esc(em) + '</span>' +
+                            '</div>' +
                             delBtn +
                             '</div>';
                     });
@@ -6576,11 +6589,19 @@
             },
             addOtpEmail: async function () {
                 var emInput = document.getElementById("s-new-otp-email");
+                if (!emInput) return;
                 var em = emInput.value.trim().toLowerCase();
-                if (!em || !em.includes("@")) { U.toast("Enter a valid email", "warning"); return; }
-                if (em === PRIMARY_ADMIN_EMAIL.toLowerCase()) { U.toast("Primary Admin Email is already active & protected!", "info"); emInput.value = ""; return; }
-                if (!STM._settings.adminEmails) STM._settings.adminEmails = [PRIMARY_ADMIN_EMAIL];
-                if (STM._settings.adminEmails.map(function(x){ return (x||'').toLowerCase().trim(); }).includes(em)) { U.toast("Email already added", "info"); return; }
+                if (!em || !em.includes("@")) { U.toast("Enter a valid email address", "warning"); return; }
+                if (em === PRIMARY_ADMIN_EMAIL.toLowerCase()) {
+                    U.toast("Primary Admin Email is already active & permanently locked!", "info");
+                    emInput.value = "";
+                    return;
+                }
+                if (!Array.isArray(STM._settings.adminEmails)) STM._settings.adminEmails = [PRIMARY_ADMIN_EMAIL];
+                if (STM._settings.adminEmails.map(function(x){ return (x||'').toLowerCase().trim(); }).includes(em)) {
+                    U.toast("Email already added", "info");
+                    return;
+                }
 
                 STM._settings.adminEmails.push(em);
                 emInput.value = "";
@@ -6588,23 +6609,29 @@
                 await STM.saveOtpEmails();
             },
             removeOtpEmail: async function (idx) {
-                if (!STM._settings.adminEmails) return;
+                if (!STM._settings || !Array.isArray(STM._settings.adminEmails)) return;
                 var target = STM._settings.adminEmails[idx];
                 if (target && target.toLowerCase().trim() === PRIMARY_ADMIN_EMAIL.toLowerCase()) {
-                    U.toast("Primary Admin Email cannot be deleted!", "warning");
+                    U.toast("Master admin email is permanently locked and cannot be removed!", "warning");
                     return;
                 }
                 STM._settings.adminEmails.splice(idx, 1);
+                // Guarantee PRIMARY_ADMIN_EMAIL is never lost
+                if (!STM._settings.adminEmails.map(function(x){ return (x||'').toLowerCase().trim(); }).includes(PRIMARY_ADMIN_EMAIL.toLowerCase())) {
+                    STM._settings.adminEmails.unshift(PRIMARY_ADMIN_EMAIL);
+                }
                 STM.renderOtpEmails();
                 await STM.saveOtpEmails();
             },
             saveOtpEmails: async function () {
-                var emails = STM._settings.adminEmails || [];
-                if (!emails.map(function(x){ return (x||'').toLowerCase().trim(); }).includes(PRIMARY_ADMIN_EMAIL.toLowerCase())) {
-                    emails.unshift(PRIMARY_ADMIN_EMAIL);
-                }
+                var emails = (STM._settings && Array.isArray(STM._settings.adminEmails)) ? STM._settings.adminEmails : [];
+                var cleanPrimary = PRIMARY_ADMIN_EMAIL.toLowerCase().trim();
+                var cleanedList = emails.filter(function(x){ return x && typeof x === 'string' && x.toLowerCase().trim() !== cleanPrimary; }).map(function(x){ return x.toLowerCase().trim(); });
+                cleanedList.unshift(PRIMARY_ADMIN_EMAIL);
+                
+                STM._settings.adminEmails = cleanedList;
                 var st = D.go("settings") || {};
-                st.adminEmails = emails;
+                st.adminEmails = cleanedList;
                 D.s("settings", st);
                 U.toast("⚡ OTP Emails saved locally!", "success");
 
@@ -6612,7 +6639,7 @@
                 fetch((API_URL || location.origin + '/api') + '/settings', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ adminEmails: emails })
+                    body: JSON.stringify({ adminEmails: cleanedList })
                 }).catch(function (e) { console.warn("Background OTP emails sync queued:", e.message) });
             },
             testConnection: function () {
@@ -10582,8 +10609,8 @@
 
         /* ===== CLOUD AUTO-UPDATER UI ENGINE ===== */
         var UpdaterUI = {
-            currentVersion: '2.0.4',
-            build: 204,
+            currentVersion: '2.0.5',
+            build: 205,
             hasUpdate: false,
             latestInfo: null,
 

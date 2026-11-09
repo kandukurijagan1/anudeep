@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "2.0.4",
-  "build": 204,
+  "version": "2.0.5",
+  "build": 205,
   "releaseDate": "2026-11-09",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "Complete Turnkey App - Installable Mobile PWA, Desktop Workstation & 100% Reliable WhatsApp Sharing",
-  "releaseNotes": "1. Native Web Share API integration (navigator.share) attaches PDF bills directly to WhatsApp chats on mobile. 2. Cloud Supabase Pairing Code Relay eliminates 'Failed to fetch' errors when linking mobile devices. 3. System Inspector and WhatsApp modal accurately reflect Direct Mobile WhatsApp status and Shop PC Bot standby without misleading localhost links. 4. Cache bust to v2.0.4 guarantees latest experience on all mobile devices.",
-  "commit": "204"
+  "description": "feat(security): permanently lock primary admin email kandukurijagan99@gmail.com with master admin protection (v2.0.5)",
+  "releaseNotes": "1. Permanently lock primary admin email kandukurijagan99@gmail.com at the top of OTP Allowed Emails with dedicated Master Admin Locked badge and shield icon. 2. Protect primary admin email from deletion in frontend, backend, and database layers. 3. Ensure seamless sync across Supabase cloud, settings.json, and workstation app.",
+  "commit": "205"
 }
