@@ -7154,13 +7154,35 @@
             launchWaDeepLink: function (cleanPhone, textMsg, inv) {
                 var invNo = inv ? U.pi(inv.invoiceNo) : '';
                 var phone = cleanPhone ? cleanPhone.replace(/\D/g, '') : '';
+                if (phone.length === 11 && phone.startsWith('0')) phone = phone.slice(1);
                 if (phone.length === 10) phone = '91' + phone;
-                if (!phone) phone = '919441753678';
+                if (!phone || phone.length < 10) {
+                    var userEntered = prompt("Enter customer's 10-digit WhatsApp phone number for Invoice #" + invNo + ":", "");
+                    if (userEntered) {
+                        phone = userEntered.replace(/\D/g, '');
+                        if (phone.length === 11 && phone.startsWith('0')) phone = phone.slice(1);
+                        if (phone.length === 10) phone = '91' + phone;
+                    }
+                }
+                if (!phone || phone.length < 10) {
+                    U.toast("WhatsApp share cancelled: Valid customer phone number is required.", "warning");
+                    return;
+                }
                 var waUrl = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(textMsg);
                 U.toast("📱 Opening WhatsApp for Invoice #" + invNo + "...", "info");
-                var win = window.open(waUrl, '_blank');
-                if (!win) {
-                    location.href = waUrl;
+
+                // On mobile devices, always navigate directly so native WhatsApp opens without popup blocking
+                if (SM.isMobileDevice()) {
+                    window.location.href = waUrl;
+                } else {
+                    try {
+                        var win = window.open(waUrl, '_blank');
+                        if (!win || win.closed || typeof win.closed === 'undefined') {
+                            window.location.href = waUrl;
+                        }
+                    } catch (_) {
+                        window.location.href = waUrl;
+                    }
                 }
                 SM.markDeliveredInSupabase(inv);
             },
@@ -7169,8 +7191,8 @@
                 if (!inv) return;
                 var phone = explicitPhone || (inv.consignee && inv.consignee.phone) || (inv.receiver && inv.receiver.phone) || inv.customerPhone || "";
                 var cleanPhone = phone ? phone.replace(/\D/g, '') : "";
+                if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) cleanPhone = cleanPhone.slice(1);
                 if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-                if (!cleanPhone) cleanPhone = '919441753678';
 
                 var invNo = U.pi(inv.invoiceNo);
                 var textMsg = SM.formatWhatsAppText(inv);
@@ -7182,7 +7204,7 @@
                     });
                 } catch (_) {}
 
-                // Directly and synchronously launch WhatsApp (100% immune to popup blockers & gesture expiry)
+                // Directly launch WhatsApp
                 SM.launchWaDeepLink(cleanPhone, textMsg, inv);
             },
 
@@ -7212,8 +7234,8 @@
                 }
                 var phone = explicitPhone || (inv.consignee && inv.consignee.phone) || (inv.receiver && inv.receiver.phone) || inv.customerPhone || "";
                 var cleanPhone = phone ? phone.replace(/\D/g, '') : "";
+                if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) cleanPhone = cleanPhone.slice(1);
                 if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-                if (!cleanPhone) cleanPhone = '919441753678';
 
                 var invNo = U.pi(inv.invoiceNo);
                 var textMsg = SM.formatWhatsAppText(inv);
