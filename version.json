@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "2.0.6",
-  "build": 206,
+  "version": "2.0.7",
+  "build": 207,
   "releaseDate": "2026-11-09",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "fix(whatsapp): persistent connection, guaranteed auto-dispatch, and locked master admin email (v2.0.6)",
-  "releaseNotes": "1. Resolved premature exit in autoDispatchBots so WhatsApp dispatch always executes regardless of Telegram configuration. 2. Enhanced WhatsApp client with takeoverOnConflict, Chromium background anti-throttling flags, and state change listeners for 100% persistent connection. 3. Added direct JID fallback in resolveChatId to ensure universal deliverability to all numbers. 4. Primary admin email kandukurijagan99@gmail.com permanently locked across all layers.",
-  "commit": "206"
+  "description": "feat(whatsapp): direct Meta WhatsApp Business Cloud API integration & enterprise dual-engine system (v2.0.7)",
+  "releaseNotes": "1. Official Meta WhatsApp Business Cloud API: Direct 24/7 cloud dispatch via Graph API (v21.0) with zero local PC or browser dependencies. Works from any mobile device, web portal, or desktop even when the shop laptop is powered off. 2. Dual-Engine WhatsApp Architecture: Meta Cloud API for 100% 24/7 cloud reliability + Local Workstation Web Bot fallback. 3. Settings UI with engine switcher, credentials input (Phone Number ID, Access Token, WABA ID), and live direct test messaging. 4. Master admin email kandukurijagan99@gmail.com permanently locked.",
+  "commit": "207"
 }

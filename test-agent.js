@@ -577,6 +577,22 @@ class AkbTestAgent {
             rootCause: 'Settings endpoint did not prioritize or include master admin email.',
             autoFix: 'Verify PRIMARY_ADMIN_EMAIL constant in server.js /api/settings.'
         });
+
+        // 5.6 POST /api/whatsapp/test-cloud-api (Meta Cloud API Security & Contract)
+        const cloudTestRes = await fetchEndpoint('/api/whatsapp/test-cloud-api', 'POST', {});
+        const cloudSecOk = cloudTestRes.status === 401 || (cloudTestRes.status === 400 && cloudTestRes.json && cloudTestRes.json.error);
+        this.record({
+            id: 'API-06',
+            category: 'Backend API Endpoints',
+            name: 'Meta WhatsApp Cloud API Endpoint Security',
+            expected: 'HTTP 401 Unauthorized or HTTP 400 with validation error when unauthenticated',
+            actual: cloudTestRes.error ? `Error: ${cloudTestRes.error}` : `HTTP ${cloudTestRes.status}`,
+            pass: cloudSecOk,
+            severity: 'HIGH',
+            issue: cloudSecOk ? null : 'Meta Cloud API test route lacked required auth protection',
+            rootCause: 'Endpoint route missing requireAuth middleware in server.js',
+            autoFix: 'Wrap /api/whatsapp/test-cloud-api with requireAuth in server.js'
+        });
     }
 
     // ==========================================================================

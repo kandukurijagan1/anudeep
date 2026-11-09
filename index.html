@@ -3189,7 +3189,7 @@
                     <div id="cloud-update-badge"
                         style="font-size:.78rem;font-weight:600;padding:.3rem .65rem;border-radius:2rem;background:#f0fdf4;border:1px solid #86efac;display:none;align-items:center;gap:.35rem;color:#166534;cursor:pointer"
                         onclick="UI.show('settings-view')" title="Cloud Auto-Updater Active - Click to view">
-                        <i class="ph ph-sparkle" style="color:#16a34a"></i> <span id="cloud-update-text">v2.0.6</span>
+                        <i class="ph ph-sparkle" style="color:#16a34a"></i> <span id="cloud-update-text">v2.0.7</span>
                     </div>
                     <div id="db-sync-badge"
                         style="font-size:.78rem;font-weight:600;padding:.3rem .65rem;border-radius:2rem;background:#f3f4f6;border:1px solid #e5e7eb;display:inline-flex;align-items:center;gap:.35rem;color:#4b5563;cursor:pointer"
@@ -3634,194 +3634,160 @@
                 <div class="settings-grid">
 
                     <div class="settings-card">
-                        <div class="settings-card-head"><i class="ph ph-lock-key"></i> Security & Login Settings</div>
-                        <div class="settings-card-body">
-                            <button class="btn btn-secondary" id="btn-reveal-pwd-change"
-                                onclick="document.getElementById('pwd-change-form').style.display='block'; this.style.display='none'; setTimeout(function(){ var el = document.getElementById('s-cur-pwd'); if(el) el.focus(); }, 50);"
-                                style="width:100%; justify-content:center; margin-bottom: 1rem;"><i
-                                    class="ph ph-key"></i> Change App Password</button>
-
-                            <div id="pwd-change-form"
-                                style="display:none; background:#f8fafc; border:1px solid #e2e8f0; padding:14px; border-radius:8px; margin-bottom:1rem;">
-                                <div class="form-group" style="margin-bottom: 0.8rem">
-                                    <label style="font-weight:600;">Current App Password</label>
-                                    <input type="password" id="s-cur-pwd" class="form-control"
-                                        placeholder="Enter current password"
-                                        onkeydown="if(event.key==='Enter') STM.savePassword()">
-                                </div>
-                                <div class="form-group" style="margin-bottom: 0.8rem">
-                                    <label style="font-weight:600;">New App Password</label>
-                                    <input type="password" id="s-new-pwd" class="form-control"
-                                        placeholder="Enter new password (min. 4 characters)"
-                                        oninput="STM.checkPwdMatch()"
-                                        onkeydown="if(event.key==='Enter') STM.savePassword()">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight:600;">Confirm New Password <span id="pwd-match-indicator"
-                                            style="float:right; font-size: 0.85rem; font-weight: 600;"></span></label>
-                                    <input type="password" id="s-confirm-pwd" class="form-control"
-                                        placeholder="Re-enter new password" oninput="STM.checkPwdMatch()"
-                                        onkeydown="if(event.key==='Enter') STM.savePassword()">
-                                    <div class="settings-hint">Default initial password is sridhar@1975. You must enter
-                                        your correct current password to make changes.</div>
-                                </div>
-                                <div style="display:flex; gap:10px; margin-top:.85rem;">
-                                    <button type="button" class="btn btn-primary" onclick="STM.savePassword()"><i
-                                            class="ph ph-floppy-disk"></i> Save Password</button>
-                                    <button type="button" class="btn btn-secondary" onclick="STM.cancelPwdChange()"><i
-                                            class="ph ph-x"></i> Cancel</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-card">
-                        <div class="settings-card-head"><i class="ph ph-envelope"></i> OTP Allowed Emails</div>
-                        <div class="settings-card-body">
-                            <div class="form-group">
-                                <label>Add New Email for OTP Validation</label>
-                                <div style="display:flex;gap:10px;">
-                                    <input type="email" id="s-new-otp-email" class="form-control"
-                                        placeholder="example@email.com">
-                                    <button class="btn btn-primary" onclick="STM.addOtpEmail()"><i
-                                            class="ph ph-plus"></i> Add</button>
-                                </div>
-                                <div class="settings-hint">Add emails that are authorized to request OTP password
-                                    resets.</div>
-                            </div>
-                            <div id="otp-emails-list"
-                                style="margin-top:1rem; font-size:0.9rem; background:#f9fafb; padding:10px; border-radius:6px; border:1px solid var(--bd);">
-                                Loading emails...
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-card">
-                        <div class="settings-card-head"><i class="ph ph-printer"></i> Invoice / Bill Print Settings
-                        </div>
-                        <div class="settings-card-body">
-                            <div class="form-group">
-                                <label>Watermark Logo Opacity</label>
-                                <div style="display:flex;align-items:center;gap:10px;">
-                                    <input type="range" id="s-wm-opacity" min="0" max="30" value="10"
-                                        style="flex:1;cursor:pointer;"
-                                        oninput="document.getElementById('s-wm-opacity-val').textContent=this.value+'%'">
-                                    <span id="s-wm-opacity-val" style="font-weight:700;min-width:40px;">10%</span>
-                                </div>
-                                <div class="settings-hint">Controls how visible the background AKB logo watermark
-                                    appears on printed bills. 0% = invisible, 30% = very visible.</div>
-                            </div>
-                            <div class="form-group">
-                                <label>Bill Copy Type</label>
-                                <select id="s-copy-type" class="form-control">
-                                    <option value="ORIGINAL">ORIGINAL</option>
-                                    <option value="DUPLICATE">DUPLICATE</option>
-                                    <option value="TRIPLICATE">TRIPLICATE</option>
-                                </select>
-                                <div class="settings-hint">Stamps each printed bill with "ORIGINAL FOR BUYER" /
-                                    "DUPLICATE FOR SUPPLIER" / "TRIPLICATE" label. Required for GST compliance.</div>
-                            </div>
-                            <div class="form-group">
-                                <label>Terms & Conditions (Line 1)</label>
-                                <input type="text" id="s-tc-line1" class="form-control"
-                                    value="Goods once sold cannot be taken back or exchanged">
-                            </div>
-                            <div class="form-group">
-                                <label>Terms & Conditions (Line 2)</label>
-                                <input type="text" id="s-tc-line2" class="form-control"
-                                    value="SUBJECT TO TENALI JURISDICTION">
-                            </div>
-                            <div class="form-group">
-                                <label>Terms & Conditions (Line 3 — optional)</label>
-                                <input type="text" id="s-tc-line3" class="form-control"
-                                    value="Interest @ 24% p.a. will be charged on overdue bills">
-                            </div>
-                            <button class="btn btn-primary" onclick="STM.savePrintSettings()"
-                                style="margin-top:.75rem"><i class="ph ph-floppy-disk"></i> Save Print Settings</button>
-                        </div>
-                    </div>
-
-                    <div class="settings-card">
-                        <div class="settings-card-head"><i class="ph ph-telegram-logo"></i> Telegram Bot Integration
-                        </div>
-                        <div class="settings-card-body">
-                            <div class="form-group">
-                                <label>Bot Token</label>
-                                <input type="text" id="s-tg-token" placeholder="123456:ABC-DEF..." autocomplete="off">
-                                <div class="settings-hint">Get from @BotFather on Telegram</div>
-                            </div>
-                            <div class="form-group">
-                                <label>Default Chat ID</label>
-                                <input type="text" id="s-tg-chat" placeholder="6877857251">
-                                <div class="settings-hint">The chat where invoices will be sent. Send /start to your bot
-                                    first, then check the API for the chat_id.</div>
-                            </div>
-                            <div id="tg-conn-status"></div>
-                            <button class="tg-test-btn" onclick="STM.testConnection()"><i
-                                    class="ph ph-plug-connected"></i> Test Connection</button>
-                            <button class="btn btn-primary mt-4" onclick="STM.save()" style="margin-top:.75rem"><i
-                                    class="ph ph-floppy-disk"></i> Save Telegram Settings</button>
-                        </div>
-                    </div>
-
-                    <div class="settings-card">
                         <div class="settings-card-head"
                             style="display:flex; justify-content:space-between; align-items:center;">
-                            <span><i class="ph ph-whatsapp-logo" style="color:#25D366;"></i> WhatsApp Bot
-                                Integration</span>
+                            <span><i class="ph ph-whatsapp-logo" style="color:#25D366;"></i> WhatsApp Integration &amp; Business API</span>
                             <span id="s-wa-badge"
                                 style="font-size:0.75rem; padding:2px 8px; border-radius:12px; background:#f1f5f9; color:#475569; font-weight:700;">Checking...</span>
                         </div>
                         <div class="settings-card-body">
-                            <div class="form-group">
+                            <div class="form-group" style="margin-bottom:12px;">
                                 <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
                                     <input type="checkbox" id="s-wa-auto-send" checked
                                         style="width:18px; height:18px; cursor:pointer;"
                                         onchange="STM.updateWaAutoSend(this.checked)">
-                                    <span style="font-weight:700; font-size:0.9rem;">Auto-Dispatch Invoices to
-                                        WhatsApp</span>
+                                    <span style="font-weight:700; font-size:0.9rem;">Auto-Dispatch Invoices to WhatsApp</span>
                                 </label>
-                                <div class="settings-hint">When enabled, newly generated invoices are automatically
-                                    delivered to customer WhatsApp and store numbers in the background. Uncheck to turn
-                                    off WhatsApp messages.</div>
+                                <div class="settings-hint">When enabled, newly generated invoices are automatically delivered to customer WhatsApp and store numbers in the background.</div>
                             </div>
-                            <div id="s-wa-status-box"
-                                style="padding:10px; border-radius:8px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.84rem; margin-bottom:12px;">
-                                Loading WhatsApp status...
+
+                            <!-- Engine Tab Switcher -->
+                            <div style="display:flex; gap:6px; margin-bottom:14px; background:#f1f5f9; padding:4px; border-radius:8px;">
+                                <button type="button" id="tab-btn-wa-cloud" class="btn btn-tiny"
+                                    style="flex:1; font-weight:700; background:#25D366; color:#fff; border-radius:6px; padding:7px 10px; border:none; cursor:pointer; font-size:0.82rem;"
+                                    onclick="STM.switchWaTab('cloud')">
+                                    <i class="ph ph-lightning"></i> Official Meta Cloud API (24/7 Always Connected)
+                                </button>
+                                <button type="button" id="tab-btn-wa-local" class="btn btn-tiny"
+                                    style="flex:1; font-weight:600; background:transparent; color:#475569; border-radius:6px; padding:7px 10px; border:none; cursor:pointer; font-size:0.82rem;"
+                                    onclick="STM.switchWaTab('local')">
+                                    <i class="ph ph-desktop"></i> Workstation Web Bot (Linked Phone)
+                                </button>
                             </div>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-                                <button class="btn btn-primary" onclick="openWhatsappModal()"
-                                    style="background:#25D366; border-color:#25D366;"><i
-                                        class="ph ph-whatsapp-logo"></i> Open WhatsApp Manager</button>
-                                <button class="btn btn-secondary" onclick="fetchWhatsappStatus(true)"><i
-                                        class="ph ph-arrows-clockwise"></i> Check Status</button>
-                                <button class="btn btn-secondary" onclick="resetWhatsappSession()"
-                                    style="font-size:0.82rem; color:#9a3412; border-color:#fed7aa; background:#fff7ed;"><i
-                                        class="ph ph-arrows-clockwise"></i> Change Phone Number</button>
-                            </div>
-                            <div class="form-group" style="margin-top:10px; border-top:1px dashed #e2e8f0; padding-top:10px;">
-                                <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 12px; margin-bottom:10px;">
-                                    <div style="font-weight:700; color:#1e40af; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
-                                        <i class="ph ph-desktop" style="font-size:1.1rem;"></i> Client Counter Terminal Access (LAN):
+
+                            <!-- ⚡ PANEL 1: OFFICIAL META CLOUD API -->
+                            <div id="wa-cloud-api-panel">
+                                <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px; margin-bottom:12px;">
+                                    <div style="font-weight:700; color:#15803d; font-size:0.86rem; display:flex; align-items:center; gap:6px;">
+                                        <i class="ph ph-shield-check" style="font-size:1.15rem;"></i> Official WhatsApp Business Cloud API (Direct Meta REST API)
                                     </div>
-                                    <div style="font-size:0.8rem; color:#1e3a8a; margin-top:4px;">
-                                        Open this URL on your second laptop / billing counter PC to connect directly to this workstation with 0ms latency:
-                                    </div>
-                                    <div style="display:flex; gap:6px; margin-top:6px; align-items:center;">
-                                        <input type="text" id="s-lan-url" readonly value="http://10.209.191.184:3000" style="flex:1; padding:5px 8px; font-size:0.82rem; font-family:monospace; font-weight:700; background:#fff; border:1px solid #93c5fd; border-radius:4px;" />
-                                        <button type="button" class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('s-lan-url').value); U.toast('LAN URL copied to clipboard!', 'success');" style="font-size:0.75rem; padding:5px 10px; background:#2563eb; border-color:#2563eb; white-space:nowrap;"><i class="ph ph-copy"></i> Copy</button>
+                                    <div style="font-size:0.8rem; color:#166534; margin-top:3px; line-height:1.4;">
+                                        Sends messages directly from Meta's global cloud. <strong>Never disconnects</strong>, requires <strong>no computer turned on</strong>, and works seamlessly from any mobile device, desktop, or web portal. <strong>1,000 conversations/month free</strong> from Meta.
                                     </div>
                                 </div>
-                                <label style="font-size:0.8rem; font-weight:600; color:var(--tl);">WhatsApp Server URL (Optional — for Client PCs on LAN)</label>
-                                <div style="display:flex; gap:6px; margin-top:4px;">
-                                    <input type="text" id="s-wa-server-url" class="form-control"
-                                        placeholder="http://127.0.0.1:3000/api (Default) or Host PC IP"
-                                        style="font-size:0.82rem; padding:6px 10px; flex:1;"
-                                        onchange="localStorage.setItem('akb_wa_server_url', this.value.trim()); fetchWhatsappStatus(false);">
-                                    <button type="button" class="btn btn-secondary" style="font-size:0.78rem; padding:6px 10px;"
-                                        onclick="localStorage.removeItem('akb_wa_server_url'); document.getElementById('s-wa-server-url').value=''; fetchWhatsappStatus(true);">Reset</button>
+
+                                <div class="form-group" style="margin-bottom:10px;">
+                                    <label style="font-size:0.82rem; font-weight:700; color:var(--fg); display:flex; justify-content:space-between;">
+                                        <span>Phone Number ID <span style="color:#ef4444;">*</span></span>
+                                        <span style="font-weight:400; color:var(--tl); font-size:0.75rem;">From Meta App Dashboard &gt; WhatsApp &gt; API Setup</span>
+                                    </label>
+                                    <input type="text" id="s-wa-cloud-phone-id" class="form-control" placeholder="e.g. 109283746591023" style="font-size:0.84rem; padding:7px 10px; margin-top:3px;" />
                                 </div>
-                                <div class="settings-hint" style="margin-top:4px;">When using a client laptop on the store Wi-Fi, you can set this to <code>http://10.209.191.184:3000/api</code> to link directly to the host bot.</div>
+
+                                <div class="form-group" style="margin-bottom:10px;">
+                                    <label style="font-size:0.82rem; font-weight:700; color:var(--fg); display:flex; justify-content:space-between;">
+                                        <span>Permanent Access Token <span style="color:#ef4444;">*</span></span>
+                                        <span style="font-weight:400; color:var(--tl); font-size:0.75rem;">System User Token with whatsapp_business_messaging</span>
+                                    </label>
+                                    <div style="display:flex; gap:6px; margin-top:3px;">
+                                        <input type="password" id="s-wa-cloud-token" class="form-control" placeholder="Bearer Token (e.g. EAA...)" style="font-size:0.84rem; padding:7px 10px; flex:1;" />
+                                        <button type="button" class="btn btn-secondary" onclick="var el=document.getElementById('s-wa-cloud-token'); el.type = el.type === 'password' ? 'text' : 'password';" style="font-size:0.78rem; padding:6px 10px;"><i class="ph ph-eye"></i></button>
+                                    </div>
+                                </div>
+
+                                <div class="form-group" style="margin-bottom:12px;">
+                                    <label style="font-size:0.82rem; font-weight:700; color:var(--fg); display:flex; justify-content:space-between;">
+                                        <span>WhatsApp Business Account ID (WABA ID)</span>
+                                        <span style="font-weight:400; color:var(--tl); font-size:0.75rem;">Optional</span>
+                                    </label>
+                                    <input type="text" id="s-wa-cloud-waba-id" class="form-control" placeholder="e.g. 102938475619283" style="font-size:0.84rem; padding:7px 10px; margin-top:3px;" />
+                                </div>
+
+                                <div class="form-group" style="margin-bottom:14px;">
+                                    <label style="font-size:0.82rem; font-weight:700; color:var(--fg);">Dispatch Preference</label>
+                                    <select id="s-wa-provider-mode" class="form-control" style="font-size:0.84rem; padding:7px 10px; margin-top:3px;">
+                                        <option value="auto">Auto (Meta Cloud API if configured, fallback to Local Bot)</option>
+                                        <option value="cloud_api">Meta Cloud API Only (Direct 24/7)</option>
+                                        <option value="local_web">Workstation Web Bot Only (whatsapp-web.js)</option>
+                                    </select>
+                                </div>
+
+                                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                                    <button type="button" class="btn btn-primary" onclick="STM.saveWaCloudApi()" style="background:#059669; border-color:#059669; font-size:0.85rem; padding:8px 14px;">
+                                        <i class="ph ph-floppy-disk"></i> Save Cloud API Settings
+                                    </button>
+                                </div>
+
+                                <!-- Test Direct Send Section -->
+                                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; margin-bottom:12px;">
+                                    <label style="font-size:0.8rem; font-weight:700; color:var(--fg); display:block; margin-bottom:4px;">
+                                        <i class="ph ph-paper-plane-tilt"></i> Verify Meta Cloud API Connection
+                                    </label>
+                                    <div style="display:flex; gap:6px; align-items:center;">
+                                        <input type="text" id="s-wa-cloud-test-phone" class="form-control" placeholder="10-digit mobile number" value="918367047947" style="flex:1; font-size:0.82rem; padding:6px 10px;" />
+                                        <button type="button" class="btn btn-secondary" onclick="STM.testWaCloudApi()" style="font-size:0.8rem; padding:6px 12px; white-space:nowrap; background:#fff; border-color:#cbd5e1;">
+                                            <i class="ph ph-paper-plane-tilt"></i> Send Test Message
+                                        </button>
+                                    </div>
+                                    <div id="s-wa-cloud-test-status" style="font-size:0.78rem; margin-top:6px;"></div>
+                                </div>
+
+                                <!-- Collapsible Setup Instructions -->
+                                <details style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:0.82rem; color:#334155; cursor:pointer;">
+                                    <summary style="font-weight:700; color:#1e40af;"><i class="ph ph-book-open"></i> 📖 Quick 5-Minute Guide: How to get your free Meta WhatsApp API credentials</summary>
+                                    <div style="margin-top:8px; line-height:1.5; font-size:0.8rem;">
+                                        <ol style="padding-left:18px; margin:0; display:flex; flex-direction:column; gap:6px;">
+                                            <li>Visit <a href="https://developers.facebook.com" target="_blank" style="color:#2563eb; font-weight:600;">developers.facebook.com</a> and sign in with your Facebook account.</li>
+                                            <li>Click <strong>My Apps</strong> &gt; <strong>Create App</strong> &gt; Select <strong>Other</strong> &gt; Choose <strong>Business</strong>.</li>
+                                            <li>Under "Add products to your app", click <strong>Set up</strong> on <strong>WhatsApp</strong>.</li>
+                                            <li>In the left sidebar under <strong>WhatsApp &gt; API Setup</strong>, you will see your <strong>Phone Number ID</strong> and a temporary token.</li>
+                                            <li>To get a <strong>Permanent Token</strong> (never expires): Go to <em>Business Settings &gt; System Users &gt; Add</em> with Admin role &gt; Click <strong>Generate Token</strong> &gt; check <code>whatsapp_business_messaging</code> &gt; Copy the token.</li>
+                                            <li>Paste the <strong>Phone Number ID</strong> and <strong>Access Token</strong> above and click <strong>Save Cloud API Settings</strong>!</li>
+                                        </ol>
+                                    </div>
+                                </details>
+                            </div>
+
+                            <!-- 💻 PANEL 2: LOCAL WORKSTATION BOT -->
+                            <div id="wa-local-bot-panel" style="display:none;">
+                                <div id="s-wa-status-box"
+                                    style="padding:10px; border-radius:8px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.84rem; margin-bottom:12px;">
+                                    Loading WhatsApp status...
+                                </div>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                                    <button class="btn btn-primary" onclick="openWhatsappModal()"
+                                        style="background:#25D366; border-color:#25D366;"><i
+                                            class="ph ph-whatsapp-logo"></i> Open WhatsApp Manager</button>
+                                    <button class="btn btn-secondary" onclick="fetchWhatsappStatus(true)"><i
+                                            class="ph ph-arrows-clockwise"></i> Check Status</button>
+                                    <button class="btn btn-secondary" onclick="resetWhatsappSession()"
+                                        style="font-size:0.82rem; color:#9a3412; border-color:#fed7aa; background:#fff7ed;"><i
+                                            class="ph ph-arrows-clockwise"></i> Change Phone Number</button>
+                                </div>
+                                <div class="form-group" style="margin-top:10px; border-top:1px dashed #e2e8f0; padding-top:10px;">
+                                    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 12px; margin-bottom:10px;">
+                                        <div style="font-weight:700; color:#1e40af; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
+                                            <i class="ph ph-desktop" style="font-size:1.1rem;"></i> Client Counter Terminal Access (LAN):
+                                        </div>
+                                        <div style="font-size:0.8rem; color:#1e3a8a; margin-top:4px;">
+                                            Open this URL on your second laptop / billing counter PC to connect directly to this workstation with 0ms latency:
+                                        </div>
+                                        <div style="display:flex; gap:6px; margin-top:6px; align-items:center;">
+                                            <input type="text" id="s-lan-url" readonly value="http://10.209.191.184:3000" style="flex:1; padding:5px 8px; font-size:0.82rem; font-family:monospace; font-weight:700; background:#fff; border:1px solid #93c5fd; border-radius:4px;" />
+                                            <button type="button" class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('s-lan-url').value); U.toast('LAN URL copied to clipboard!', 'success');" style="font-size:0.75rem; padding:5px 10px; background:#2563eb; border-color:#2563eb; white-space:nowrap;"><i class="ph ph-copy"></i> Copy</button>
+                                        </div>
+                                    </div>
+                                    <label style="font-size:0.8rem; font-weight:600; color:var(--tl);">WhatsApp Server URL (Optional — for Client PCs on LAN)</label>
+                                    <div style="display:flex; gap:6px; margin-top:4px;">
+                                        <input type="text" id="s-wa-server-url" class="form-control"
+                                            placeholder="http://127.0.0.1:3000/api (Default) or Host PC IP"
+                                            style="font-size:0.82rem; padding:6px 10px; flex:1;"
+                                            onchange="localStorage.setItem('akb_wa_server_url', this.value.trim()); fetchWhatsappStatus(false);">
+                                        <button type="button" class="btn btn-secondary" style="font-size:0.78rem; padding:6px 10px;"
+                                            onclick="localStorage.removeItem('akb_wa_server_url'); document.getElementById('s-wa-server-url').value=''; fetchWhatsappStatus(true);">Reset</button>
+                                    </div>
+                                    <div class="settings-hint" style="margin-top:4px;">When using a client laptop on the store Wi-Fi, you can set this to <code>http://10.209.191.184:3000/api</code> to link directly to the host bot.</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -6222,6 +6188,17 @@
                 if (waAutoEl) waAutoEl.checked = waSt.enabled !== false;
                 var customWaEl = document.getElementById("s-wa-server-url");
                 if (customWaEl) customWaEl.value = localStorage.getItem("akb_wa_server_url") || "";
+                // Populate Meta Cloud API fields if available
+                var waCloud = waSt.cloudApi || {};
+                var cPhoneEl = document.getElementById("s-wa-cloud-phone-id");
+                if (cPhoneEl) cPhoneEl.value = waCloud.phoneNumberId || "";
+                var cTokEl = document.getElementById("s-wa-cloud-token");
+                if (cTokEl) cTokEl.value = waCloud.accessToken || "";
+                var cWabaEl = document.getElementById("s-wa-cloud-waba-id");
+                if (cWabaEl) cWabaEl.value = waCloud.wabaId || "";
+                var cProvEl = document.getElementById("s-wa-provider-mode");
+                if (cProvEl) cProvEl.value = waSt.provider || "auto";
+
                 var waBadge = document.getElementById("s-wa-badge");
                 var waBox = document.getElementById("s-wa-status-box");
                 if (waBadge && waBox) {
@@ -6641,6 +6618,115 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ adminEmails: cleanedList })
                 }).catch(function (e) { console.warn("Background OTP emails sync queued:", e.message) });
+            },
+            switchWaTab: function (tab) {
+                var cloudPanel = document.getElementById("wa-cloud-api-panel");
+                var localPanel = document.getElementById("wa-local-bot-panel");
+                var btnCloud = document.getElementById("tab-btn-wa-cloud");
+                var btnLocal = document.getElementById("tab-btn-wa-local");
+                if (tab === 'cloud') {
+                    if (cloudPanel) cloudPanel.style.display = 'block';
+                    if (localPanel) localPanel.style.display = 'none';
+                    if (btnCloud) { btnCloud.style.background = '#25D366'; btnCloud.style.color = '#fff'; }
+                    if (btnLocal) { btnLocal.style.background = 'transparent'; btnLocal.style.color = '#475569'; }
+                } else {
+                    if (cloudPanel) cloudPanel.style.display = 'none';
+                    if (localPanel) localPanel.style.display = 'block';
+                    if (btnCloud) { btnCloud.style.background = 'transparent'; btnCloud.style.color = '#475569'; }
+                    if (btnLocal) { btnLocal.style.background = '#2563eb'; btnLocal.style.color = '#fff'; }
+                }
+            },
+            saveWaCloudApi: async function () {
+                var phoneIdEl = document.getElementById("s-wa-cloud-phone-id");
+                var tokenEl = document.getElementById("s-wa-cloud-token");
+                var wabaIdEl = document.getElementById("s-wa-cloud-waba-id");
+                var providerEl = document.getElementById("s-wa-provider-mode");
+
+                var phoneId = phoneIdEl ? phoneIdEl.value.trim() : "";
+                var token = tokenEl ? tokenEl.value.trim() : "";
+                var wabaId = wabaIdEl ? wabaIdEl.value.trim() : "";
+                var provider = providerEl ? providerEl.value : "auto";
+
+                var curWa = (STM._settings && STM._settings.whatsapp) || {};
+                var curCloud = curWa.cloudApi || {};
+
+                var newCloud = {
+                    phoneNumberId: phoneId,
+                    accessToken: token ? token : (curCloud.accessToken || ""),
+                    wabaId: wabaId
+                };
+
+                var newWa = Object.assign({}, curWa, {
+                    provider: provider,
+                    cloudApi: newCloud
+                });
+
+                STM._settings.whatsapp = newWa;
+                var st = D.go("settings") || {};
+                st.whatsapp = newWa;
+                D.s("settings", st);
+                U.toast("⚡ Meta Cloud API settings saved locally!", "success");
+
+                try {
+                    await fetch((API_URL || location.origin + '/api') + '/settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ whatsapp: newWa })
+                    });
+                    U.toast("✅ Meta Cloud API settings synchronized with server & cloud!", "success");
+                    fetchWhatsappStatus(true);
+                } catch (e) {
+                    console.warn("Background Cloud API sync error:", e.message);
+                }
+            },
+            testWaCloudApi: async function () {
+                var phoneIdEl = document.getElementById("s-wa-cloud-phone-id");
+                var tokenEl = document.getElementById("s-wa-cloud-token");
+                var testPhoneEl = document.getElementById("s-wa-cloud-test-phone");
+                var statusEl = document.getElementById("s-wa-cloud-test-status");
+
+                var phoneId = phoneIdEl ? phoneIdEl.value.trim() : "";
+                var token = tokenEl ? tokenEl.value.trim() : "";
+                var testPhone = testPhoneEl ? testPhoneEl.value.trim() : "918367047947";
+
+                if (!phoneId) {
+                    U.toast("Please enter your Meta Phone Number ID first", "warning");
+                    return;
+                }
+
+                if (statusEl) {
+                    statusEl.innerHTML = '<span style="color:#0284c7;"><i class="ph ph-spinner ph-spin"></i> Contacting Meta WhatsApp Cloud API...</span>';
+                }
+
+                try {
+                    var res = await fetch((API_URL || location.origin + '/api') + '/whatsapp/test-cloud-api', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            phoneNumberId: phoneId,
+                            token: token,
+                            testPhone: testPhone
+                        })
+                    });
+                    var data = await res.json();
+                    if (data && data.success) {
+                        if (statusEl) {
+                            statusEl.innerHTML = '<span style="color:#16a34a; font-weight:700;"><i class="ph ph-check-circle"></i> ' + U.esc(data.message) + '</span>';
+                        }
+                        U.toast(data.message, "success");
+                    } else {
+                        var errStr = data && data.error ? data.error : "Failed to send test message";
+                        if (statusEl) {
+                            statusEl.innerHTML = '<span style="color:#dc2626; font-weight:600;"><i class="ph ph-x-circle"></i> ' + U.esc(errStr) + '</span>';
+                        }
+                        U.toast("Meta API Error: " + errStr, "error");
+                    }
+                } catch (err) {
+                    if (statusEl) {
+                        statusEl.innerHTML = '<span style="color:#dc2626; font-weight:600;"><i class="ph ph-x-circle"></i> ' + U.esc(err.message) + '</span>';
+                    }
+                    U.toast("Network error testing Cloud API: " + err.message, "error");
+                }
             },
             testConnection: function () {
                 var tg = STM._settings.telegram || D.go("telegram") || {};
@@ -11469,7 +11555,8 @@
         function applyWhatsappStatusState(data) {
             if (!data) return;
             _waStatusState = data;
-            var isConn = !!(data.connected === true || data.status === 'authenticated' || data.status === 'ready' || data.status === 'connected');
+            var isCloud = !!(data.status === 'cloud_active' || data.provider === 'meta_cloud' || (data.cloudApi && data.cloudApi.isConfigured));
+            var isConn = isCloud || !!(data.connected === true || data.status === 'authenticated' || data.status === 'ready' || data.status === 'connected');
             var isPending = !isConn && (data.status === 'initializing' || data.status === 'connecting_saved' || !!(data.qr || data.pairingCode));
 
             updateWhatsappSidebarDot(isConn, isPending);
@@ -11477,7 +11564,12 @@
             var waBadge = document.getElementById("s-wa-badge");
             var waBox = document.getElementById("s-wa-status-box");
             if (waBadge && waBox) {
-                if (isConn) {
+                if (isCloud) {
+                    waBadge.style.background = "#ecfdf5";
+                    waBadge.style.color = "#065f46";
+                    waBadge.textContent = "META CLOUD (24/7)";
+                    waBox.innerHTML = '<span style="color:#059669; font-weight:700;"><i class="ph ph-lightning"></i> Official Meta Cloud API Active (24/7)</span><br><span style="color:var(--tl)">Direct cloud delivery enabled. Zero PC or browser dependency.</span>';
+                } else if (isConn) {
                     waBadge.style.background = "#ecfdf5";
                     waBadge.style.color = "#065f46";
                     waBadge.textContent = "CONNECTED";
@@ -11503,7 +11595,9 @@
 
             var waModal = document.getElementById('whatsapp-modal');
             if (waModal && waModal.classList.contains('active')) {
-                if (isConn) {
+                if (isCloud) {
+                    renderWhatsappModal("cloud", data);
+                } else if (isConn) {
                     renderWhatsappModal("connected", data);
                 } else if (data.status === 'connecting_saved' || (data.status === 'initializing' && data.hasSavedSession)) {
                     renderWhatsappModal("loading", { message: "Reconnecting to linked WhatsApp account...", user: data.user });
@@ -11717,6 +11811,51 @@
             }
             var container = document.getElementById("wa-modal-body");
             if (!container) return;
+
+            var isCloud = !!(state === 'cloud' || (data && (data.status === 'cloud_active' || data.provider === 'meta_cloud' || (data.cloudApi && data.cloudApi.isConfigured))));
+
+            if (isCloud) {
+                var existingRoot = document.getElementById("wa-login-tabs-root");
+                if (existingRoot) existingRoot.remove();
+                updateWhatsappSidebarDot(true, false);
+                var phoneId = (data && data.cloudApi && data.cloudApi.phoneNumberId) ? data.cloudApi.phoneNumberId : "Configured in Settings";
+                var wabaId = (data && data.cloudApi && data.cloudApi.wabaId) ? data.cloudApi.wabaId : "";
+
+                container.innerHTML =
+                    '<div style="text-align:center; padding:6px 0;">' +
+                    '<div style="display:inline-flex; align-items:center; gap:8px; background:#ecfdf5; border:1px solid #10b981; color:#065f46; font-size:0.95rem; font-weight:700; padding:8px 18px; border-radius:30px; margin-bottom:14px;">' +
+                    '<i class="ph ph-lightning" style="font-size:1.3rem; color:#10b981;"></i> Meta WhatsApp Cloud API Active (24/7)' +
+                    '</div>' +
+                    '<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; text-align:left; font-size:0.86rem; margin-bottom:14px; line-height:1.6;">' +
+                    '<div style="display:flex; justify-content:space-between; margin-bottom:6px; border-bottom:1px dashed #cbd5e1; padding-bottom:5px;">' +
+                    '<span style="color:var(--tl)">Integration:</span>' +
+                    '<span style="font-weight:700; color:#059669;"><i class="ph ph-shield-check"></i> Official Meta Cloud API</span>' +
+                    '</div>' +
+                    '<div style="display:flex; justify-content:space-between; margin-bottom:6px; border-bottom:1px dashed #cbd5e1; padding-bottom:5px;">' +
+                    '<span style="color:var(--tl)">Phone Number ID:</span>' +
+                    '<span style="font-weight:700; color:var(--fg); font-family:monospace;">' + U.esc(phoneId) + '</span>' +
+                    '</div>' +
+                    (wabaId ? '<div style="display:flex; justify-content:space-between; margin-bottom:6px; border-bottom:1px dashed #cbd5e1; padding-bottom:5px;"><span style="color:var(--tl)">WABA ID:</span><span style="font-weight:700; color:var(--fg); font-family:monospace;">' + U.esc(wabaId) + '</span></div>' : '') +
+                    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                    '<span style="color:var(--tl)">Cloud Delivery Status:</span>' +
+                    '<span style="font-weight:700; color:#16a34a;"><i class="ph ph-check-circle"></i> 100% Online (Zero Local PC Dependency)</span>' +
+                    '</div>' +
+                    '</div>' +
+                    '<div style="background:#fff; border:1px solid #bbf7d0; border-radius:10px; padding:12px; margin-bottom:14px; text-align:left;">' +
+                    '<div style="font-size:0.82rem; font-weight:700; color:#166534; margin-bottom:6px;"><i class="ph ph-paper-plane-tilt"></i> Send Test Message via Meta Cloud API:</div>' +
+                    '<div style="display:flex; gap:8px; margin-bottom:6px;">' +
+                    '<input type="text" id="wa-test-phone" placeholder="Enter recipient 10-digit number (e.g. 8367047947)" value="8367047947" style="flex:1; padding:7px 10px; font-size:0.85rem; border:1px solid var(--bd); border-radius:6px;" />' +
+                    '<button id="btn-wa-send-test" class="btn btn-primary" onclick="sendWhatsappTestMessage()" style="padding:7px 12px; font-size:0.85rem; white-space:nowrap; background:#25D366; border-color:#25D366;"><i class="ph ph-paper-plane"></i> Test Send</button>' +
+                    '</div>' +
+                    '<div id="wa-test-phone-result" style="font-size:0.75rem; color:#4b5563; min-height:16px;"></div>' +
+                    '</div>' +
+                    '<div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">' +
+                    '<button class="btn btn-primary" onclick="document.getElementById(\'whatsapp-modal\').classList.remove(\'active\'); navigate(\'settings\'); STM.switchWaTab(\'cloud\');" style="font-size:0.85rem;"><i class="ph ph-gear"></i> Manage Cloud API Settings</button>' +
+                    '<button class="btn btn-secondary" onclick="fetchWhatsappStatus(true)" style="font-size:0.85rem;"><i class="ph ph-arrows-clockwise"></i> Refresh</button>' +
+                    '</div>' +
+                    '</div>';
+                return;
+            }
 
             var isBotConnected = !!(data && (data.connected === true || data.status === 'authenticated' || data.status === 'ready'));
 
@@ -12339,8 +12478,21 @@
                     var stRes = await sbClient.from('settings').select('whatsapp').eq('id', 'app_settings').single();
                     if (stRes && stRes.data && stRes.data.whatsapp) {
                         var cloudWa = stRes.data.whatsapp;
+                        var isMetaCloudActive = !!(cloudWa.cloudApi && cloudWa.cloudApi.isConfigured);
                         var ageMs = cloudWa.updatedAt ? (Date.now() - new Date(cloudWa.updatedAt).getTime()) : 999999;
                         var isLiveBot = !!(cloudWa.connected && !isNaN(ageMs) && ageMs < 75000);
+
+                        if (isMetaCloudActive) {
+                            cloudWa.connected = true;
+                            cloudWa.status = 'cloud_active';
+                            cloudWa.provider = 'meta_cloud';
+                            _waStatusState = cloudWa;
+                            try { localStorage.setItem('akb_wa_status', JSON.stringify(cloudWa)); } catch (_) {}
+                            applyWhatsappStatusState(cloudWa);
+                            if (showToast) U.toast("Meta WhatsApp Cloud API is active (24/7)", "success");
+                            renderWhatsappModal("cloud", cloudWa);
+                            return;
+                        }
 
                         if (!isLiveBot && cloudWa.connected) {
                             // Heartbeat expired - host bot is sleeping or laptop is powered off

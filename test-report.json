@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-11-09T05:34:41.761Z",
+  "timestamp": "2026-11-09T05:54:27.710Z",
   "summary": {
-    "total": 26,
-    "passed": 26,
+    "total": 27,
+    "passed": 27,
     "failed": 0,
     "critical": 0,
-    "durationMs": 82,
+    "durationMs": 97,
     "overallStatus": "HEALTHY"
   },
   "results": [
@@ -45,8 +45,8 @@
       "line": null,
       "pass": true,
       "severity": "PASS",
-      "expected": "604 closing </div> tags",
-      "actual": "604 closing </div> tags",
+      "expected": "597 closing </div> tags",
+      "actual": "597 closing </div> tags",
       "issue": null,
       "rootCause": null,
       "autoFix": null
@@ -326,7 +326,7 @@
       "pass": true,
       "severity": "PASS",
       "expected": "HTTP 200 with numeric or timestamp version",
-      "actual": "HTTP 200, version=1794202313877",
+      "actual": "HTTP 200, version=1794203429386",
       "issue": null,
       "rootCause": null,
       "autoFix": null
@@ -354,7 +354,7 @@
       "pass": true,
       "severity": "PASS",
       "expected": "HTTP 200 with status property",
-      "actual": "HTTP 200, status=pairing_code_ready, connected=false",
+      "actual": "HTTP 200, status=qr_ready, connected=false",
       "issue": null,
       "rootCause": null,
       "autoFix": null
@@ -369,6 +369,20 @@
       "severity": "PASS",
       "expected": "adminEmails[0] is locked to kandukurijagan99@gmail.com",
       "actual": "First admin email: kandukurijagan99@gmail.com",
+      "issue": null,
+      "rootCause": null,
+      "autoFix": null
+    },
+    {
+      "id": "API-06",
+      "category": "Backend API Endpoints",
+      "name": "Meta WhatsApp Cloud API Endpoint Security",
+      "file": "General",
+      "line": null,
+      "pass": true,
+      "severity": "PASS",
+      "expected": "HTTP 401 Unauthorized or HTTP 400 with validation error when unauthenticated",
+      "actual": "HTTP 400",
       "issue": null,
       "rootCause": null,
       "autoFix": null

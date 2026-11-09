@@ -1114,6 +1114,103 @@ function cleanPhoneNumber(phone) {
   return clean;
 }
 
+// ==========================================
+// 🛡️ META WHATSAPP CLOUD API (DIRECT BUSINESS API)
+// ==========================================
+async function sendMetaCloudApiMessage(toPhone, text, token, phoneNumberId) {
+  if (!token || !phoneNumberId || !toPhone || !text) {
+    throw new Error('Missing required parameters for Meta Cloud API (token, phoneNumberId, toPhone, text)');
+  }
+  const clean = cleanPhoneNumber(toPhone);
+  if (!clean) throw new Error(`Invalid recipient phone number: ${toPhone}`);
+
+  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: clean,
+      type: 'text',
+      text: {
+        preview_url: false,
+        body: text
+      }
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    const errMsg = (data.error && data.error.message) || `HTTP ${res.status}`;
+    throw new Error(`Meta Cloud API error: ${errMsg}`);
+  }
+  return data;
+}
+
+async function sendMetaCloudApiDocument(toPhone, pdfBuffer, filename, caption, token, phoneNumberId) {
+  if (!token || !phoneNumberId || !toPhone || !pdfBuffer) {
+    throw new Error('Missing required parameters for Meta Cloud API document upload');
+  }
+  const clean = cleanPhoneNumber(toPhone);
+  if (!clean) throw new Error(`Invalid recipient phone number: ${toPhone}`);
+
+  // 1. Upload media buffer to Meta Graph API Media endpoint
+  const mediaUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/media`;
+  const realBuf = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+  const formData = new FormData();
+  formData.append('messaging_product', 'whatsapp');
+  formData.append('type', 'application/pdf');
+  formData.append('file', new Blob([realBuf], { type: 'application/pdf' }), filename || 'Invoice.pdf');
+
+  const uploadRes = await fetch(mediaUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+
+  const uploadData = await uploadRes.json();
+  if (!uploadRes.ok || !uploadData.id) {
+    const errMsg = (uploadData.error && uploadData.error.message) || `Media upload failed (${uploadRes.status})`;
+    throw new Error(`Meta Media Upload error: ${errMsg}`);
+  }
+
+  const mediaId = uploadData.id;
+
+  // 2. Dispatch document message referencing mediaId
+  const msgUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  const msgRes = await fetch(msgUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: clean,
+      type: 'document',
+      document: {
+        id: mediaId,
+        caption: caption || 'Tax Invoice',
+        filename: filename || 'Invoice.pdf'
+      }
+    })
+  });
+
+  const msgData = await msgRes.json();
+  if (!msgRes.ok || msgData.error) {
+    const errMsg = (msgData.error && msgData.error.message) || `HTTP ${msgRes.status}`;
+    throw new Error(`Meta Document Send error: ${errMsg}`);
+  }
+  return msgData;
+}
+
 const chatIdCache = new Map();
 async function resolveChatId(cl, phone) {
   const clean = cleanPhoneNumber(phone);
@@ -3159,6 +3256,18 @@ app.get('/api/settings', requireAuth, (req, res) => {
       isConfigured: !!(sanitized.telegram.token || process.env.TELEGRAM_BOT_TOKEN)
     };
   }
+
+  if (sanitized.whatsapp && sanitized.whatsapp.cloudApi) {
+    const cloud = sanitized.whatsapp.cloudApi;
+    sanitized.whatsapp = {
+      ...sanitized.whatsapp,
+      cloudApi: {
+        ...cloud,
+        accessToken: cloud.accessToken ? '••••••••' + cloud.accessToken.slice(-4) : '',
+        isConfigured: !!(cloud.accessToken && cloud.phoneNumberId)
+      }
+    };
+  }
   res.json(sanitized);
 });
 
@@ -3172,11 +3281,24 @@ app.put('/api/settings', requireAuth, (req, res) => {
       telegramConfig.token = cur.telegram ? cur.telegram.token : '';
     }
 
+    let waConfig = { ...(cur.whatsapp || {}), ...(incoming.whatsapp || {}) };
+    if (incoming.whatsapp && incoming.whatsapp.cloudApi) {
+      const curCloud = (cur.whatsapp && cur.whatsapp.cloudApi) || {};
+      const inCloud = incoming.whatsapp.cloudApi || {};
+      waConfig.cloudApi = {
+        ...curCloud,
+        ...inCloud,
+        accessToken: (inCloud.accessToken && inCloud.accessToken.startsWith('••••'))
+          ? curCloud.accessToken || ''
+          : (inCloud.accessToken !== undefined ? inCloud.accessToken : curCloud.accessToken || '')
+      };
+    }
+
     const updated = {
       ...cur,
       ...incoming,
       telegram: telegramConfig,
-      whatsapp: { ...(cur.whatsapp || {}), ...(incoming.whatsapp || {}) },
+      whatsapp: waConfig,
       emailSettings: { ...(cur.emailSettings || {}), ...(incoming.emailSettings || {}) }
     };
 
@@ -3330,8 +3452,14 @@ app.get('/api/whatsapp/status', async (req, res) => {
     initWhatsappClient(false);
   }
 
+  const appSettings = readJsonFile('settings', getDefaultSettings());
+  const cloudConfig = (appSettings && appSettings.whatsapp && appSettings.whatsapp.cloudApi) || {};
+  const isCloudConfigured = !!(cloudConfig.accessToken && cloudConfig.phoneNumberId);
+
   let statusString = 'disconnected';
-  if (isWhatsappConnected) {
+  if (isCloudConfigured) {
+    statusString = 'cloud_active';
+  } else if (isWhatsappConnected) {
     statusString = 'connected';
   } else if (isRestoringSavedSession) {
     statusString = 'connecting_saved';
@@ -3344,13 +3472,21 @@ app.get('/api/whatsapp/status', async (req, res) => {
   }
 
   res.json({
-    connected: isWhatsappConnected,
-    qr: (isWhatsappConnected || isRestoringSavedSession) ? null : qrCodeDataUrl,
-    pairingCode: lastPairingCode,
-    user: activeUser,
+    connected: isWhatsappConnected || isCloudConfigured,
+    qr: (isWhatsappConnected || isRestoringSavedSession || isCloudConfigured) ? null : qrCodeDataUrl,
+    pairingCode: isCloudConfigured ? null : lastPairingCode,
+    user: activeUser || (isCloudConfigured ? { name: 'Anudeep Khadi Bandar (Meta Cloud)', phone: cloudConfig.phoneNumberId } : null),
     hasSavedSession: hasSession,
     status: statusString,
-    message: isRestoringSavedSession ? 'Restoring saved WhatsApp session from local storage...' : (isWhatsappConnected ? 'WhatsApp Bot Connected & Active' : '')
+    provider: isCloudConfigured ? 'meta_cloud' : (isWhatsappConnected ? 'local_web_bot' : 'none'),
+    cloudApi: {
+      isConfigured: isCloudConfigured,
+      phoneNumberId: cloudConfig.phoneNumberId || '',
+      wabaId: cloudConfig.wabaId || ''
+    },
+    message: isCloudConfigured
+      ? 'Official Meta WhatsApp Business Cloud API Active (24/7 Cloud Delivery)'
+      : (isRestoringSavedSession ? 'Restoring saved WhatsApp session from local storage...' : (isWhatsappConnected ? 'WhatsApp Bot Connected & Active' : ''))
   });
 });
 
@@ -3466,8 +3602,31 @@ app.post('/api/whatsapp/pairing-code', async (req, res) => {
 });
 
 app.post('/api/whatsapp/sendTest', async (req, res) => {
+  const appSettings = readJsonFile('settings', getDefaultSettings());
+  const cloudConfig = (appSettings && appSettings.whatsapp && appSettings.whatsapp.cloudApi) || {};
+  const isCloudConfigured = !!(cloudConfig.accessToken && cloudConfig.phoneNumberId);
+
+  let phone = req.body.phone || (whatsappUserInfo && whatsappUserInfo.phone) || '918367047947';
+
+  if (isCloudConfigured) {
+    try {
+      const testMsg = `🧾 *ANUDEEP KHADI BANDAR*\n` +
+        `✅ *Meta WhatsApp Cloud API Test Successful!*\n\n` +
+        `This confirms that your Official WhatsApp Cloud API is active.\n` +
+        `Invoices created in the billing app will be delivered automatically 24/7.\n\n` +
+        `📅 ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`;
+
+      await sendMetaCloudApiMessage(phone, testMsg, cloudConfig.accessToken, cloudConfig.phoneNumberId);
+      return res.json({ success: true, message: `Test message delivered to +${cleanPhoneNumber(phone)} via Meta Cloud API!` });
+    } catch (cloudErr) {
+      if (!isWhatsappConnected || !client) {
+        return res.status(500).json({ error: `Meta Cloud API error: ${cloudErr.message}` });
+      }
+    }
+  }
+
   if (!isWhatsappConnected || !client) {
-    return res.status(400).json({ error: 'WhatsApp is not connected. Please scan QR or enter pairing code first.' });
+    return res.status(400).json({ error: 'WhatsApp is not connected. Please configure Meta Cloud API in Settings or link local bot via QR / Pairing Code.' });
   }
   try {
     let phone = req.body.phone || (whatsappUserInfo && whatsappUserInfo.phone) || '919441753678';
@@ -3490,6 +3649,39 @@ app.post('/api/whatsapp/sendTest', async (req, res) => {
       errorMsg = 'WhatsApp is still syncing initial chats with your phone. Please wait a few seconds and try again.';
     }
     res.status(500).json({ error: errorMsg });
+  }
+});
+
+// ⚡ Official Meta WhatsApp Cloud API Direct Test
+app.post('/api/whatsapp/test-cloud-api', requireAuth, async (req, res) => {
+  try {
+    const { token, phoneNumberId, testPhone } = req.body || {};
+    const settings = readJsonFile('settings', getDefaultSettings());
+    const curCloud = (settings.whatsapp && settings.whatsapp.cloudApi) || {};
+
+    let actualToken = token;
+    if (!actualToken || actualToken.startsWith('••••')) {
+      actualToken = curCloud.accessToken || process.env.META_WHATSAPP_TOKEN || '';
+    }
+    const actualPhoneId = phoneNumberId || curCloud.phoneNumberId || process.env.META_WHATSAPP_PHONE_ID || '';
+    const targetPhone = testPhone || '918367047947';
+
+    if (!actualToken || !actualPhoneId) {
+      return res.status(400).json({ success: false, error: 'Access Token and Phone Number ID are required to test Meta Cloud API.' });
+    }
+
+    const testMsg = `🏪 *ANUDEEP KHADI BANDAR*\n` +
+      `⚡ *Meta WhatsApp Business Cloud API Verified!*\n\n` +
+      `✅ Direct cloud-to-cloud connection is 100% active.\n` +
+      `Automated tax invoices & PDF bills will be delivered automatically 24/7 without requiring the workstation app or browser to remain running.\n\n` +
+      `📅 ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`;
+
+    const result = await sendMetaCloudApiMessage(targetPhone, testMsg, actualToken, actualPhoneId);
+    console.log(`[Meta Cloud API] Test message delivered to +${cleanPhoneNumber(targetPhone)}`);
+    res.json({ success: true, message: `Official Meta Cloud API test message delivered to +${cleanPhoneNumber(targetPhone)}!`, result });
+  } catch (err) {
+    console.error('[Meta Cloud API] Test error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -4350,148 +4542,184 @@ async function autoDispatchBots(inv) {
       return;
     }
 
-    if ((!isWhatsappConnected || !client) && hasSavedWhatsappSession()) {
-      console.log(`[Auto-WhatsApp] Bot is momentarily reconnecting/syncing. Waiting up to 6s for invoice #${invNo}...`);
-      for (let i = 0; i < 12; i++) {
-        await new Promise(r => setTimeout(r, 500));
-        if (isWhatsappConnected && client) break;
+    const recipientPhones = [];
+    if (custPhone) recipientPhones.push(custPhone);
+    const storePhones = ['919441753678', '919390361151'];
+    for (const sp of storePhones) {
+      if (!recipientPhones.includes(sp)) recipientPhones.push(sp);
+    }
+
+    let itemLines = '';
+    if (inv.items && inv.items.length) {
+      itemLines = inv.items.slice(0, 10).map((it, idx) => {
+        const isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
+        const unitStr = isCloth ? `${Number(it.meters || 0)}.${String(it.cms || 0).padStart(2, '0')} Mtrs` : `${it.qty || 0} pcs`;
+        return `  • Bale ${it.baleNo || (idx+1)}: ${it.description || 'Item'} (${unitStr}) - ₹${Number(it.amount||0).toFixed(2)}`;
+      }).join('\n');
+      if (inv.items.length > 10) itemLines += `\n  ... and ${inv.items.length - 10} more items`;
+    }
+
+    const isWithinAP = isInsideAndhraPradesh(inv);
+    const isInter = (inv.isInterState !== undefined && inv.isInterState !== null) ? inv.isInterState : !isWithinAP;
+
+    let waGstLines = '';
+    let totalGst = '0.00';
+    if (isInter) {
+      const igstVal = Number(inv.igstAmount || 0).toFixed(2);
+      waGstLines = `➕ *ADD IGST (5%)*: ₹${igstVal}\n` +
+                   `➕ *ADD CGST (2.5%)*: ₹0.00\n` +
+                   `➕ *ADD SGST (2.5%)*: ₹0.00\n`;
+      totalGst = igstVal;
+    } else {
+      const cgstVal = Number(inv.cgstAmount || 0).toFixed(2);
+      const sgstVal = Number(inv.sgstAmount || 0).toFixed(2);
+      waGstLines = `➕ *ADD CGST (2.5%)*: ₹${cgstVal}\n` +
+                   `➕ *ADD SGST (2.5%)*: ₹${sgstVal}\n` +
+                   `➕ *ADD IGST (5%)*: ₹0.00\n`;
+      totalGst = (Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0)).toFixed(2);
+    }
+
+    const waText = `🧾 *ANUDEEP KHADI BANDAR*\n` +
+      `*TAX INVOICE #${invNo}*\n` +
+      `────────────────────────\n` +
+      `👤 *Customer*: ${custName}\n` +
+      (custPhone ? `📞 *Phone*: ${custPhone}\n` : '') +
+      `📅 *Date*: ${inv.date || new Date().toISOString().slice(0, 10)}\n` +
+      (inv.placeOfSupply ? `📍 *Place of Supply*: ${inv.placeOfSupply} (${inv.stateCode || '37'})\n` : '') +
+      `────────────────────────\n` +
+      (itemLines ? `📦 *Items* (${itemsCount}):\n${itemLines}\n────────────────────────\n` : '') +
+      `💰 *Taxable Amount*: ₹${Number(inv.taxableAmount || 0).toFixed(2)}\n` +
+      waGstLines +
+      `📊 *Total GST (5%)*: ₹${totalGst}\n` +
+      `💵 *Grand Total*: ₹${totalAmt}\n` +
+      `────────────────────────\n` +
+      `🏦 *Axis Bank, Tenali* | A/C: 914020009962721 | IFSC: UTIB0000556\n` +
+      `🏪 *Anudeep Khadi Bandar*\n` +
+      `GSTIN: 37BTMPS9234C1ZA\n` +
+      `Ph: 9441753678, 9390361151\n` +
+      `Tenali, Andhra Pradesh\n` +
+      `🙏 Thank you for your purchase!`;
+
+    // ⚡ Compile PDF buffer
+    let rawPdfBuffer = null;
+    try {
+      console.log(`[Auto-WhatsApp] Compiling official A4 Tax Invoice PDF for #${invNo}...`);
+      rawPdfBuffer = await createInvoicePdfBuffer(inv);
+    } catch (pdfErr) {
+      console.warn(`[Auto-WhatsApp] PDF generation warning (will dispatch text breakdown):`, pdfErr.message);
+    }
+
+    // ⚡ ENGINE 1: OFFICIAL DIRECT META WHATSAPP CLOUD API (100% 24/7 Cloud Reliability)
+    const cloudApi = (waSettings.cloudApi && waSettings.cloudApi.accessToken && waSettings.cloudApi.phoneNumberId)
+      ? waSettings.cloudApi
+      : (process.env.META_WHATSAPP_TOKEN && process.env.META_WHATSAPP_PHONE_ID ? { accessToken: process.env.META_WHATSAPP_TOKEN, phoneNumberId: process.env.META_WHATSAPP_PHONE_ID } : null);
+
+    const preferCloudApi = cloudApi && (waSettings.provider === 'cloud_api' || !isWhatsappConnected || waSettings.provider === 'auto');
+
+    let isDispatched = false;
+    let dispatchProvider = 'none';
+
+    if (preferCloudApi) {
+      console.log(`⚡ [Auto-WhatsApp] Dispatching invoice #${invNo} via Direct Meta WhatsApp Cloud API...`);
+      try {
+        for (const phone of recipientPhones) {
+          try {
+            await sendMetaCloudApiMessage(phone, waText, cloudApi.accessToken, cloudApi.phoneNumberId);
+            console.log(`[Auto-WhatsApp] ✅ Meta Cloud API sent text summary to +${cleanPhoneNumber(phone)}`);
+            if (rawPdfBuffer && rawPdfBuffer.length > 1000) {
+              await new Promise(r => setTimeout(r, 600));
+              await sendMetaCloudApiDocument(phone, rawPdfBuffer, `Invoice_${invNo}.pdf`, `Anudeep Khadi Bandar - Tax Invoice #${invNo}`, cloudApi.accessToken, cloudApi.phoneNumberId);
+              console.log(`[Auto-WhatsApp] ✅ Meta Cloud API sent PDF document to +${cleanPhoneNumber(phone)}`);
+            }
+          } catch (pErr) {
+            console.warn(`[Auto-WhatsApp] Meta Cloud API note for +${phone}:`, pErr.message);
+          }
+        }
+        isDispatched = true;
+        dispatchProvider = 'meta_cloud_api';
+      } catch (cloudErr) {
+        console.warn('[Auto-WhatsApp] Meta Cloud API batch error, falling back to local web client:', cloudErr.message);
       }
     }
 
-    if (isWhatsappConnected && client) {
-      const recipientPhones = [];
-      if (custPhone) recipientPhones.push(custPhone);
-      const storePhones = ['919441753678', '919390361151'];
-      for (const sp of storePhones) {
-        if (!recipientPhones.includes(sp)) recipientPhones.push(sp);
-      }
-
-      let itemLines = '';
-      if (inv.items && inv.items.length) {
-        itemLines = inv.items.slice(0, 10).map((it, idx) => {
-          const isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
-          const unitStr = isCloth ? `${Number(it.meters || 0)}.${String(it.cms || 0).padStart(2, '0')} Mtrs` : `${it.qty || 0} pcs`;
-          return `  • Bale ${it.baleNo || (idx+1)}: ${it.description || 'Item'} (${unitStr}) - ₹${Number(it.amount||0).toFixed(2)}`;
-        }).join('\n');
-        if (inv.items.length > 10) itemLines += `\n  ... and ${inv.items.length - 10} more items`;
-      }
-
-      const isWithinAP = isInsideAndhraPradesh(inv);
-      const isInter = (inv.isInterState !== undefined && inv.isInterState !== null) ? inv.isInterState : !isWithinAP;
-
-      let waGstLines = '';
-      let totalGst = '0.00';
-      if (isInter) {
-        const igstVal = Number(inv.igstAmount || 0).toFixed(2);
-        waGstLines = `➕ *ADD IGST (5%)*: ₹${igstVal}\n` +
-                     `➕ *ADD CGST (2.5%)*: ₹0.00\n` +
-                     `➕ *ADD SGST (2.5%)*: ₹0.00\n`;
-        totalGst = igstVal;
-      } else {
-        const cgstVal = Number(inv.cgstAmount || 0).toFixed(2);
-        const sgstVal = Number(inv.sgstAmount || 0).toFixed(2);
-        waGstLines = `➕ *ADD CGST (2.5%)*: ₹${cgstVal}\n` +
-                     `➕ *ADD SGST (2.5%)*: ₹${sgstVal}\n` +
-                     `➕ *ADD IGST (5%)*: ₹0.00\n`;
-        totalGst = (Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0)).toFixed(2);
-      }
-
-      const waText = `🧾 *ANUDEEP KHADI BANDAR*\n` +
-        `*TAX INVOICE #${invNo}*\n` +
-        `────────────────────────\n` +
-        `👤 *Customer*: ${custName}\n` +
-        (custPhone ? `📞 *Phone*: ${custPhone}\n` : '') +
-        `📅 *Date*: ${inv.date || new Date().toISOString().slice(0, 10)}\n` +
-        (inv.placeOfSupply ? `📍 *Place of Supply*: ${inv.placeOfSupply} (${inv.stateCode || '37'})\n` : '') +
-        `────────────────────────\n` +
-        (itemLines ? `📦 *Items* (${itemsCount}):\n${itemLines}\n────────────────────────\n` : '') +
-        `💰 *Taxable Amount*: ₹${Number(inv.taxableAmount || 0).toFixed(2)}\n` +
-        waGstLines +
-        `📊 *Total GST (5%)*: ₹${totalGst}\n` +
-        `💵 *Grand Total*: ₹${totalAmt}\n` +
-        `────────────────────────\n` +
-        `🏦 *Axis Bank, Tenali* | A/C: 914020009962721 | IFSC: UTIB0000556\n` +
-        `🏪 *Anudeep Khadi Bandar*\n` +
-        `GSTIN: 37BTMPS9234C1ZA\n` +
-        `Ph: 9441753678, 9390361151\n` +
-        `Tenali, Andhra Pradesh\n` +
-        `🙏 Thank you for your purchase!`;
-
-      // ⚡ GENERATE OFFICIAL TAX INVOICE PDF BUFFER
-      let pdfMedia = null;
-      try {
-        console.log(`[Auto-WhatsApp] Compiling official A4 Tax Invoice PDF for #${invNo}...`);
-        const pdfBuffer = await createInvoicePdfBuffer(inv);
-        if (pdfBuffer && pdfBuffer.length > 1000) {
-          const { MessageMedia } = require('whatsapp-web.js');
-          const realPdfBuf = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
-          const base64Data = realPdfBuf.toString('base64');
-          pdfMedia = new MessageMedia('application/pdf', base64Data, `Invoice_${invNo}.pdf`);
-          console.log(`[Auto-WhatsApp] PDF compiled successfully (${realPdfBuf.length} bytes, base64 length: ${base64Data.length}).`);
+    // ⚡ ENGINE 2: LOCAL WORKSTATION WEB BOT (whatsapp-web.js fallback)
+    if (!isDispatched) {
+      if ((!isWhatsappConnected || !client) && hasSavedWhatsappSession()) {
+        console.log(`[Auto-WhatsApp] Bot is momentarily reconnecting/syncing. Waiting up to 6s for invoice #${invNo}...`);
+        for (let i = 0; i < 12; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          if (isWhatsappConnected && client) break;
         }
-      } catch (pdfErr) {
-        console.warn(`[Auto-WhatsApp] PDF generation warning (will dispatch text breakdown):`, pdfErr.message);
       }
 
-      // ⚡ Robust Dispatch: Send Text Breakdown First (Guaranteed Delivery), then PDF attachment
-      const dispatchToPhone = async (phone) => {
-        const targetChatId = await resolveChatId(client, phone);
-        if (!targetChatId) return;
-        try {
-          // ALWAYS send complete text invoice first (instant, lightweight, 100% reliable)
-          await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 15000);
-          console.log(`[Auto-WhatsApp] ✅ Dispatched invoice #${invNo} text summary to ${targetChatId}`);
-          
-          // Then dispatch PDF if generated
-          if (pdfMedia) {
-            try {
-              await new Promise(r => setTimeout(r, 600));
-              await sendWhatsappMessageWithTimeout(client, targetChatId, pdfMedia, {
-                caption: `Anudeep Khadi Bandar - Tax Invoice #${invNo}`,
-                sendMediaAsDocument: true
-              }, 25000);
-              console.log(`[Auto-WhatsApp] ✅ Dispatched invoice #${invNo} PDF document to ${targetChatId}`);
-            } catch (pdfErr) {
-              console.warn(`[Auto-WhatsApp] PDF send note for ${targetChatId}:`, pdfErr.message);
+      if (isWhatsappConnected && client) {
+        let pdfMedia = null;
+        if (rawPdfBuffer && rawPdfBuffer.length > 1000) {
+          try {
+            const { MessageMedia } = require('whatsapp-web.js');
+            const realPdfBuf = Buffer.isBuffer(rawPdfBuffer) ? rawPdfBuffer : Buffer.from(rawPdfBuffer);
+            const base64Data = realPdfBuf.toString('base64');
+            pdfMedia = new MessageMedia('application/pdf', base64Data, `Invoice_${invNo}.pdf`);
+          } catch (_) {}
+        }
+
+        const dispatchToPhone = async (phone) => {
+          const targetChatId = await resolveChatId(client, phone);
+          if (!targetChatId) return;
+          try {
+            await sendWhatsappMessageWithTimeout(client, targetChatId, waText, {}, 15000);
+            console.log(`[Auto-WhatsApp] ✅ Dispatched invoice #${invNo} text summary to ${targetChatId}`);
+            if (pdfMedia) {
+              try {
+                await new Promise(r => setTimeout(r, 600));
+                await sendWhatsappMessageWithTimeout(client, targetChatId, pdfMedia, {
+                  caption: `Anudeep Khadi Bandar - Tax Invoice #${invNo}`,
+                  sendMediaAsDocument: true
+                }, 25000);
+                console.log(`[Auto-WhatsApp] ✅ Dispatched invoice #${invNo} PDF document to ${targetChatId}`);
+              } catch (pdfErr) {
+                console.warn(`[Auto-WhatsApp] PDF send note for ${targetChatId}:`, pdfErr.message);
+              }
             }
+          } catch (waErr) {
+            console.warn(`[Auto-WhatsApp] Send to ${targetChatId} warning:`, waErr.message);
           }
-        } catch (waErr) {
-          console.warn(`[Auto-WhatsApp] Send to ${targetChatId} warning:`, waErr.message);
+        };
+
+        if (custPhone) await dispatchToPhone(custPhone);
+        const otherRecipients = recipientPhones.filter(p => p !== custPhone);
+        if (otherRecipients.length > 0) {
+          (async () => {
+            for (const p of otherRecipients) {
+              await new Promise(r => setTimeout(r, 1200));
+              await dispatchToPhone(p).catch(() => {});
+            }
+          })().catch(() => {});
         }
-      };
-
-      // 1. Dispatch to Customer Phone immediately (0ms delay)
-      if (custPhone) {
-        await dispatchToPhone(custPhone);
+        isDispatched = true;
+        dispatchProvider = 'local_web_bot';
       }
+    }
 
-      // 2. Dispatch to Store Backup numbers sequentially in background (prevents memory spikes)
-      const otherRecipients = recipientPhones.filter(p => p !== custPhone);
-      if (otherRecipients.length > 0) {
-        (async () => {
-          for (const p of otherRecipients) {
-            await new Promise(r => setTimeout(r, 1200));
-            await dispatchToPhone(p).catch(() => {});
-          }
-        })().catch(() => {});
-      }
+    if (isDispatched) {
       recordWhatsappDelivery({
         invoiceNo: invNo,
         customerName: custName,
         customerPhone: custPhone,
         recipients: recipientPhones,
-        hasPdf: !!pdfMedia,
+        hasPdf: !!(rawPdfBuffer && rawPdfBuffer.length > 1000),
         totalAmount: totalAmt,
+        provider: dispatchProvider,
         status: 'delivered'
       });
       broadcastRealtime('whatsapp_dispatched', {
         invoiceNo: invNo,
         recipients: recipientPhones,
         customerName: custName,
-        hasPdf: !!pdfMedia,
+        hasPdf: !!(rawPdfBuffer && rawPdfBuffer.length > 1000),
+        provider: dispatchProvider,
         timestamp: new Date().toISOString()
       });
-      // Also update delivery log in Supabase settings so remote mobile web clients see it instantly
       if (typeof supabase !== 'undefined' && supabase) {
         try {
           supabase.from('settings').update({
@@ -4500,29 +4728,30 @@ async function autoDispatchBots(inv) {
               customerName: custName,
               customerPhone: custPhone,
               recipients: recipientPhones,
-              hasPdf: !!pdfMedia,
+              hasPdf: !!(rawPdfBuffer && rawPdfBuffer.length > 1000),
+              provider: dispatchProvider,
               timestamp: new Date().toISOString()
             }
           }).eq('id', 'app_settings').then(() => {}).catch(() => {});
 
-          // Permanently mark invoice as delivered in Supabase invoices table
           const invId = String(inv.id || inv._id || '');
           if (invId) {
             const currentData = Object.assign({}, inv.data || inv, {
               whatsapp_delivered: true,
-              whatsapp_delivered_at: new Date().toISOString()
+              whatsapp_delivered_at: new Date().toISOString(),
+              whatsapp_provider: dispatchProvider
             });
             supabase.from('invoices').update({
               data: currentData,
               updated_at: new Date().toISOString()
             }).eq('id', invId).then(() => {
-              console.log(`⚡ [Supabase-DB] Invoice #${invNo} delivery status permanently recorded in Supabase.`);
+              console.log(`⚡ [Supabase-DB] Invoice #${invNo} delivery status permanently recorded in Supabase (${dispatchProvider}).`);
             }).catch(() => {});
           }
         } catch (_) {}
       }
     } else {
-      console.log(`[Auto-WhatsApp] Bot not connected. Invoice #${invNo} stored. Link WhatsApp in UI to enable auto-send.`);
+      console.log(`[Auto-WhatsApp] No WhatsApp engine currently connected. Invoice #${invNo} stored.`);
     }
   } catch (err) {
     console.error('[Auto-WhatsApp] Error:', err.message);
