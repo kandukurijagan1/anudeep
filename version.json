@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "2.0.5",
-  "build": 205,
+  "version": "2.0.6",
+  "build": 206,
   "releaseDate": "2026-11-09",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(security): permanently lock primary admin email kandukurijagan99@gmail.com with master admin protection (v2.0.5)",
-  "releaseNotes": "1. Permanently lock primary admin email kandukurijagan99@gmail.com at the top of OTP Allowed Emails with dedicated Master Admin Locked badge and shield icon. 2. Protect primary admin email from deletion in frontend, backend, and database layers. 3. Ensure seamless sync across Supabase cloud, settings.json, and workstation app.",
-  "commit": "205"
+  "description": "fix(whatsapp): persistent connection, guaranteed auto-dispatch, and locked master admin email (v2.0.6)",
+  "releaseNotes": "1. Resolved premature exit in autoDispatchBots so WhatsApp dispatch always executes regardless of Telegram configuration. 2. Enhanced WhatsApp client with takeoverOnConflict, Chromium background anti-throttling flags, and state change listeners for 100% persistent connection. 3. Added direct JID fallback in resolveChatId to ensure universal deliverability to all numbers. 4. Primary admin email kandukurijagan99@gmail.com permanently locked across all layers.",
+  "commit": "206"
 }

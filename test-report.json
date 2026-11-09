@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-11-09T05:19:26.513Z",
+  "timestamp": "2026-11-09T05:34:41.761Z",
   "summary": {
-    "total": 24,
-    "passed": 24,
+    "total": 26,
+    "passed": 26,
     "failed": 0,
     "critical": 0,
-    "durationMs": 83,
+    "durationMs": 82,
     "overallStatus": "HEALTHY"
   },
   "results": [
@@ -326,7 +326,7 @@
       "pass": true,
       "severity": "PASS",
       "expected": "HTTP 200 with numeric or timestamp version",
-      "actual": "HTTP 200, version=1794200291528",
+      "actual": "HTTP 200, version=1794202313877",
       "issue": null,
       "rootCause": null,
       "autoFix": null
@@ -341,6 +341,34 @@
       "severity": "PASS",
       "expected": "HTTP 200 with invoices, products, and settings payload",
       "actual": "HTTP 200, contains invoices=true",
+      "issue": null,
+      "rootCause": null,
+      "autoFix": null
+    },
+    {
+      "id": "API-04",
+      "category": "Backend API Endpoints",
+      "name": "GET /api/whatsapp/status (WhatsApp Bot Diagnostic)",
+      "file": "General",
+      "line": null,
+      "pass": true,
+      "severity": "PASS",
+      "expected": "HTTP 200 with status property",
+      "actual": "HTTP 200, status=pairing_code_ready, connected=false",
+      "issue": null,
+      "rootCause": null,
+      "autoFix": null
+    },
+    {
+      "id": "API-05",
+      "category": "Backend API Endpoints",
+      "name": "Master Admin Email Security (kandukurijagan99@gmail.com)",
+      "file": "General",
+      "line": null,
+      "pass": true,
+      "severity": "PASS",
+      "expected": "adminEmails[0] is locked to kandukurijagan99@gmail.com",
+      "actual": "First admin email: kandukurijagan99@gmail.com",
       "issue": null,
       "rootCause": null,
       "autoFix": null

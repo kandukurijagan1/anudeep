@@ -1145,9 +1145,10 @@ async function resolveChatId(cl, phone) {
         return finalJid;
       }
       if (contactId === null) {
-        // Explicitly reported not registered by WhatsApp servers
-        console.warn(`[WhatsApp] Number +${clean} is NOT registered on WhatsApp.`);
-        return null;
+        // WhatsApp getNumberId returned null; fall back to universal direct JID
+        console.log(`[WhatsApp] getNumberId returned null for +${clean}; routing to direct JID: ${directId}`);
+        chatIdCache.set(clean, directId);
+        return directId;
       }
     } catch (e) {
       // Instant direct fallback on timeout or error
@@ -1197,25 +1198,33 @@ async function sendWhatsappMessageWithTimeout(cl, targetChatId, content, options
     throw new Error('WhatsApp is still syncing initial data with your phone. Please try again in 5 seconds.');
   }
 
-  try {
-    return await Promise.race([
-      cl.sendMessage(targetChatId, content, options),
-      new Promise((_, reject) => setTimeout(() => reject(new Error(`WhatsApp message send timed out after ${Math.round(timeoutMs / 1000)}s`)), timeoutMs))
-    ]);
-  } catch (err) {
-    if (err && err.message && err.message.includes('getChat') && cl.pupPage) {
-      console.warn('[WhatsApp] getChat missing on evaluate, injecting LoadUtils and retrying once...');
-      try {
-        const { LoadUtils } = require('whatsapp-web.js/src/util/Injected/Utils');
-        await cl.pupPage.evaluate(LoadUtils);
-        await new Promise(r => setTimeout(r, 600));
-        return await cl.sendMessage(targetChatId, content, options);
-      } catch (retryErr) {
-        throw new Error('WhatsApp is still syncing initial chats. Please try again in 5 seconds.');
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      return await Promise.race([
+        cl.sendMessage(targetChatId, content, options),
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`WhatsApp message send timed out after ${Math.round(timeoutMs / 1000)}s`)), timeoutMs))
+      ]);
+    } catch (err) {
+      lastErr = err;
+      if (err && err.message && err.message.includes('getChat') && cl.pupPage) {
+        console.warn('[WhatsApp] getChat missing on evaluate, injecting LoadUtils and retrying once...');
+        try {
+          const { LoadUtils } = require('whatsapp-web.js/src/util/Injected/Utils');
+          await cl.pupPage.evaluate(LoadUtils);
+          await new Promise(r => setTimeout(r, 600));
+          return await cl.sendMessage(targetChatId, content, options);
+        } catch (retryErr) {
+          throw new Error('WhatsApp is still syncing initial chats. Please try again in 5 seconds.');
+        }
+      }
+      if (attempt === 1) {
+        console.warn(`[WhatsApp] Send attempt 1 to ${targetChatId} failed (${err.message}). Retrying in 1200ms...`);
+        await new Promise(r => setTimeout(r, 1200));
       }
     }
-    throw err;
   }
+  throw lastErr;
 }
 
 async function initWhatsappClient(forceClean = false) {
@@ -1361,7 +1370,7 @@ async function initWhatsappClient(forceClean = false) {
       authStrategy: authStrategy,
       authTimeoutMs: 180000,
       qrMaxRetries: 0,
-      takeoverOnConflict: false,
+      takeoverOnConflict: true,
       puppeteer: {
         headless: true,
         executablePath: detectedChrome,
@@ -1372,7 +1381,11 @@ async function initWhatsappClient(forceClean = false) {
           '--disable-dev-shm-usage',
           '--disable-gpu',
           '--no-first-run',
-          '--no-default-browser-check'
+          '--no-default-browser-check',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-features=Translate,OptimizationHints,MediaRouter'
         ]
       }
     };
@@ -1443,6 +1456,23 @@ async function initWhatsappClient(forceClean = false) {
         syncWhatsappStatusToSupabase();
       } catch (err) {
         console.error('[WhatsApp] Failed to generate QR Data URL', err);
+      }
+    });
+
+    client.on('change_state', async (state) => {
+      console.log(`⚡ [WhatsApp] Connection state changed: ${state}`);
+      if (state === 'CONFLICT' || state === 'UNPAIRED_IDLE') {
+        console.log('🔄 [WhatsApp] Session conflict or idle detected. Taking over active session...');
+        try {
+          if (typeof client.takeover === 'function') {
+            await client.takeover();
+          }
+        } catch (takeoverErr) {
+          console.warn('[WhatsApp] Takeover note:', takeoverErr.message);
+        }
+      }
+      if (state === 'CONNECTED') {
+        isWhatsappConnected = true;
       }
     });
 
@@ -1566,11 +1596,9 @@ async function initWhatsappClient(forceClean = false) {
       console.log(`[WhatsApp] Loading screen: ${percent}% - ${message}`);
       qrCodeDataUrl = null;
       lastPairingCode = null;
-      // As soon as loading screen appears, device is authenticated with Meta!
-      isWhatsappConnected = true;
       broadcastRealtime('whatsapp_status', {
-        connected: isWhatsappConnected,
-        status: isWhatsappConnected ? 'connected' : 'loading',
+        connected: false,
+        status: 'loading',
         percent: percent,
         message: message || 'Syncing chats...'
       });
@@ -1698,7 +1726,7 @@ async function initWhatsappClient(forceClean = false) {
 // Actively monitors WhatsApp process & DOM every 20 seconds. Never kills idle sessions!
 let keepAliveFailures = 0;
 setInterval(async () => {
-  if (client && isWhatsappConnected) {
+  if (client && isWhatsappConnected && !isWhatsappInitializing && !isRestoringSavedSession) {
     try {
       // 1. Check if the Puppeteer browser and page are still alive
       const isBrowserDead = client.pupBrowser && typeof client.pupBrowser.isConnected === 'function' && !client.pupBrowser.isConnected();
@@ -1706,8 +1734,8 @@ setInterval(async () => {
       
       if (isBrowserDead || isPageDead) {
         keepAliveFailures++;
-        console.warn(`[WhatsApp KeepAlive] Browser target unavailable (Failure ${keepAliveFailures}/3).`);
-        if (keepAliveFailures >= 3) {
+        console.warn(`[WhatsApp KeepAlive] Browser target unavailable (Failure ${keepAliveFailures}/4).`);
+        if (keepAliveFailures >= 4) {
           console.log('🔄 [WhatsApp KeepAlive] Browser target lost. Initiating seamless recovery...');
           isWhatsappConnected = false;
           isWhatsappInitializing = false;
@@ -1746,7 +1774,7 @@ setInterval(async () => {
     } catch (err) {
       if (err.message && (err.message.includes('detached Frame') || err.message.includes('Session closed') || err.message.includes('Target closed') || err.message.includes('destroyed'))) {
         keepAliveFailures++;
-        if (keepAliveFailures >= 3) {
+        if (keepAliveFailures >= 4) {
           console.log('🔄 [WhatsApp KeepAlive] Browser target closed or detached. Reconnecting WhatsApp client...');
           isWhatsappConnected = false;
           isWhatsappInitializing = false;
@@ -1756,10 +1784,14 @@ setInterval(async () => {
         }
       }
     }
-  } else if (!isWhatsappConnected && !isWhatsappInitializing && !client && !qrCodeDataUrl && !lastPairingCode && hasSavedWhatsappSession()) {
+  } else if (!isWhatsappConnected && !isWhatsappInitializing && !isRestoringSavedSession && !qrCodeDataUrl && !lastPairingCode && hasSavedWhatsappSession()) {
     // If client ever dropped offline and has saved session, revive it automatically!
     console.log('⚡ [WhatsApp KeepAlive] Detected offline client with saved credentials. Auto-reviving...');
-    initWhatsappClient(false);
+    safeDestroyClient().then(() => {
+      initWhatsappClient(false);
+    }).catch(() => {
+      initWhatsappClient(false);
+    });
   }
 }, 20000);
 
@@ -4227,77 +4259,81 @@ async function autoDispatchBots(inv) {
   try {
     const settings = readJsonFile('settings', {});
     const customTg = settings.telegram || {};
-    const tgToken = process.env.TELEGRAM_BOT_TOKEN || customTg.token || '';
+    let tgToken = process.env.TELEGRAM_BOT_TOKEN || customTg.token || '';
     const tgChatId = process.env.TELEGRAM_CHAT_ID || customTg.chatId || '';
 
+    // If masked in memory, fall back to disk settings if valid
+    if (tgToken.startsWith('••') && customTg.token && !customTg.token.startsWith('••')) {
+      tgToken = customTg.token;
+    }
+
     if (!tgToken || !tgChatId || tgToken.startsWith('••')) {
-      console.log(`[Auto-Telegram] Bot token or chatId not configured or masked. Skipping.`);
-      return;
-    }
-
-    const baseTokens = [tgToken].filter(Boolean);
-    const baseChats = [tgChatId].filter(Boolean);
-
-    const uniqueTokens = [...new Set(baseTokens)];
-    const uniqueChats = [...new Set(baseChats)];
-
-    let itemLines = '';
-    if (inv.items && inv.items.length) {
-      itemLines = inv.items.slice(0, 10).map((it, idx) => {
-        const isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
-        const unitStr = isCloth ? `${Number(it.meters || 0)}.${String(it.cms || 0).padStart(2, '0')} Mtrs` : `${it.qty || 0} pcs`;
-        return `  • Bale ${it.baleNo || (idx+1)}: ${it.description || 'Item'} (${unitStr}) - ₹${Number(it.amount||0).toFixed(2)}`;
-      }).join('\n');
-      if (inv.items.length > 10) itemLines += `\n  ... and ${inv.items.length - 10} more items`;
-    }
-
-    const isWithinAP = isInsideAndhraPradesh(inv);
-    const isInter = (inv.isInterState !== undefined && inv.isInterState !== null) ? inv.isInterState : !isWithinAP;
-
-    let tgGstLines = '';
-    if (isInter) {
-      const igstVal = Number(inv.igstAmount || 0).toFixed(2);
-      tgGstLines = `➕ *ADD IGST (5%)*: ₹${igstVal}\n` +
-                   `➕ *ADD CGST (2.5%)*: ₹0.00\n` +
-                   `➕ *ADD SGST (2.5%)*: ₹0.00\n` +
-                   `📊 *Total GST (5%)*: ₹${igstVal}\n`;
+      console.log(`[Auto-Telegram] Bot token or chatId not configured or masked. Skipping Telegram.`);
     } else {
-      const cgstVal = Number(inv.cgstAmount || 0).toFixed(2);
-      const sgstVal = Number(inv.sgstAmount || 0).toFixed(2);
-      const totGstVal = (Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0)).toFixed(2);
-      tgGstLines = `➕ *ADD CGST (2.5%)*: ₹${cgstVal}\n` +
-                   `➕ *ADD SGST (2.5%)*: ₹${sgstVal}\n` +
-                   `➕ *ADD IGST (5%)*: ₹0.00\n` +
-                   `📊 *Total GST (5%)*: ₹${totGstVal}\n`;
-    }
+      const baseTokens = [tgToken].filter(Boolean);
+      const baseChats = [tgChatId].filter(Boolean);
 
-    const tgText = `🧾 *TAX INVOICE #${invNo}*\n` +
-      `🏪 *ANUDEEP KHADI BANDAR, TENALI*\n` +
-      `────────────────────────\n` +
-      `👤 *Customer*: ${custName}\n` +
-      (custPhone ? `📞 *Phone*: ${custPhone}\n` : '') +
-      `📅 *Date*: ${inv.date || new Date().toISOString().slice(0, 10)}\n` +
-      (inv.placeOfSupply ? `📍 *Place of Supply*: ${inv.placeOfSupply} (${inv.stateCode || '37'})\n` : '') +
-      `────────────────────────\n` +
-      (itemLines ? `📦 *Items* (${itemsCount}):\n${itemLines}\n────────────────────────\n` : '') +
-      `💰 *Taxable Amount*: ₹${Number(inv.taxableAmount || 0).toFixed(2)}\n` +
-      tgGstLines +
-      `💵 *Grand Total*: ₹${totalAmt}\n` +
-      `────────────────────────\n` +
-      `⚡ *Status*: Automatic Message Sent (No Waiting / No Asking)`;
+      const uniqueTokens = [...new Set(baseTokens)];
+      const uniqueChats = [...new Set(baseChats)];
 
-    for (const token of uniqueTokens) {
-      for (const chatId of uniqueChats) {
-        try {
-          const tgUrl = `https://api.telegram.org/bot${token}/sendMessage`;
-          await fetchWithRetry(tgUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: tgText, parse_mode: 'Markdown' })
-          });
-          console.log(`[Auto-Telegram] Dispatched invoice #${invNo} to Telegram chat ${chatId}`);
-        } catch (tgErr) {
-          console.warn(`[Auto-Telegram] Chat ${chatId} warning:`, tgErr.message);
+      let itemLines = '';
+      if (inv.items && inv.items.length) {
+        itemLines = inv.items.slice(0, 10).map((it, idx) => {
+          const isCloth = (it.calcType === 'meters' || (Number(it.meters || 0) > 0 || Number(it.cms || 0) > 0));
+          const unitStr = isCloth ? `${Number(it.meters || 0)}.${String(it.cms || 0).padStart(2, '0')} Mtrs` : `${it.qty || 0} pcs`;
+          return `  • Bale ${it.baleNo || (idx+1)}: ${it.description || 'Item'} (${unitStr}) - ₹${Number(it.amount||0).toFixed(2)}`;
+        }).join('\n');
+        if (inv.items.length > 10) itemLines += `\n  ... and ${inv.items.length - 10} more items`;
+      }
+
+      const isWithinAP = isInsideAndhraPradesh(inv);
+      const isInter = (inv.isInterState !== undefined && inv.isInterState !== null) ? inv.isInterState : !isWithinAP;
+
+      let tgGstLines = '';
+      if (isInter) {
+        const igstVal = Number(inv.igstAmount || 0).toFixed(2);
+        tgGstLines = `➕ *ADD IGST (5%)*: ₹${igstVal}\n` +
+                     `➕ *ADD CGST (2.5%)*: ₹0.00\n` +
+                     `➕ *ADD SGST (2.5%)*: ₹0.00\n` +
+                     `📊 *Total GST (5%)*: ₹${igstVal}\n`;
+      } else {
+        const cgstVal = Number(inv.cgstAmount || 0).toFixed(2);
+        const sgstVal = Number(inv.sgstAmount || 0).toFixed(2);
+        const totGstVal = (Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0)).toFixed(2);
+        tgGstLines = `➕ *ADD CGST (2.5%)*: ₹${cgstVal}\n` +
+                     `➕ *ADD SGST (2.5%)*: ₹${sgstVal}\n` +
+                     `➕ *ADD IGST (5%)*: ₹0.00\n` +
+                     `📊 *Total GST (5%)*: ₹${totGstVal}\n`;
+      }
+
+      const tgText = `🧾 *TAX INVOICE #${invNo}*\n` +
+        `🏪 *ANUDEEP KHADI BANDAR, TENALI*\n` +
+        `────────────────────────\n` +
+        `👤 *Customer*: ${custName}\n` +
+        (custPhone ? `📞 *Phone*: ${custPhone}\n` : '') +
+        `📅 *Date*: ${inv.date || new Date().toISOString().slice(0, 10)}\n` +
+        (inv.placeOfSupply ? `📍 *Place of Supply*: ${inv.placeOfSupply} (${inv.stateCode || '37'})\n` : '') +
+        `────────────────────────\n` +
+        (itemLines ? `📦 *Items* (${itemsCount}):\n${itemLines}\n────────────────────────\n` : '') +
+        `💰 *Taxable Amount*: ₹${Number(inv.taxableAmount || 0).toFixed(2)}\n` +
+        tgGstLines +
+        `💵 *Grand Total*: ₹${totalAmt}\n` +
+        `────────────────────────\n` +
+        `⚡ *Status*: Automatic Message Sent (No Waiting / No Asking)`;
+
+      for (const token of uniqueTokens) {
+        for (const chatId of uniqueChats) {
+          try {
+            const tgUrl = `https://api.telegram.org/bot${token}/sendMessage`;
+            await fetchWithRetry(tgUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: tgText, parse_mode: 'Markdown' })
+            });
+            console.log(`[Auto-Telegram] Dispatched invoice #${invNo} to Telegram chat ${chatId}`);
+          } catch (tgErr) {
+            console.warn(`[Auto-Telegram] Chat ${chatId} warning:`, tgErr.message);
+          }
         }
       }
     }
@@ -4312,6 +4348,14 @@ async function autoDispatchBots(inv) {
     if (waSettings.enabled === false) {
       console.log(`[Auto-WhatsApp] Automatic WhatsApp dispatch is disabled in settings. Skipping invoice #${invNo}`);
       return;
+    }
+
+    if ((!isWhatsappConnected || !client) && hasSavedWhatsappSession()) {
+      console.log(`[Auto-WhatsApp] Bot is momentarily reconnecting/syncing. Waiting up to 6s for invoice #${invNo}...`);
+      for (let i = 0; i < 12; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        if (isWhatsappConnected && client) break;
+      }
     }
 
     if (isWhatsappConnected && client) {

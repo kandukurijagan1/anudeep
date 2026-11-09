@@ -545,6 +545,38 @@ class AkbTestAgent {
             rootCause: 'Data loading error in server.js /api/bootstrap.',
             autoFix: 'Verify /api/bootstrap route reads local JSON files properly.'
         });
+
+        // 5.4 GET /api/whatsapp/status
+        const waRes = await fetchEndpoint('/api/whatsapp/status');
+        const waOk = waRes.status === 200 && waRes.json && waRes.json.status !== undefined;
+        this.record({
+            id: 'API-04',
+            category: 'Backend API Endpoints',
+            name: 'GET /api/whatsapp/status (WhatsApp Bot Diagnostic)',
+            expected: 'HTTP 200 with status property',
+            actual: waRes.error ? `Error: ${waRes.error}` : `HTTP ${waRes.status}, status=${waRes.json ? waRes.json.status : 'null'}, connected=${waRes.json ? waRes.json.connected : 'false'}`,
+            pass: waOk,
+            severity: 'HIGH',
+            issue: waOk ? null : 'WhatsApp status endpoint failed or returned invalid response',
+            rootCause: 'WhatsApp status route error in server.js.',
+            autoFix: 'Verify /api/whatsapp/status endpoint in server.js.'
+        });
+
+        // 5.5 GET /api/settings (Master Admin Email Lock)
+        const stRes = await fetchEndpoint('/api/settings');
+        const stOk = stRes.status === 200 && stRes.json && Array.isArray(stRes.json.adminEmails) && stRes.json.adminEmails[0] === 'kandukurijagan99@gmail.com';
+        this.record({
+            id: 'API-05',
+            category: 'Backend API Endpoints',
+            name: 'Master Admin Email Security (kandukurijagan99@gmail.com)',
+            expected: 'adminEmails[0] is locked to kandukurijagan99@gmail.com',
+            actual: stRes.error ? `Error: ${stRes.error}` : `First admin email: ${stRes.json && stRes.json.adminEmails ? stRes.json.adminEmails[0] : 'null'}`,
+            pass: stOk,
+            severity: 'CRITICAL',
+            issue: stOk ? null : 'Primary admin email kandukurijagan99@gmail.com is not locked at index 0',
+            rootCause: 'Settings endpoint did not prioritize or include master admin email.',
+            autoFix: 'Verify PRIMARY_ADMIN_EMAIL constant in server.js /api/settings.'
+        });
     }
 
     // ==========================================================================
