@@ -1475,37 +1475,45 @@ async function initWhatsappClient(forceClean = false) {
       };
     }
 
+    const TARGET_WA_VERSION = '2.3000.1055357543-alpha';
     const cachedInfo = getCachedWebVersionInfo();
-    const cachedVersion = cachedInfo ? cachedInfo.version : undefined;
-    console.log('[WhatsApp] Fast-boot Web Version:', cachedVersion || 'Dynamic Remote Fetch', cachedInfo ? `(from ${cachedInfo.path})` : '');
+    const activeWaVersion = (cachedInfo && cachedInfo.version) ? cachedInfo.version : TARGET_WA_VERSION;
+    console.log('[WhatsApp] Fast-boot Web Version:', activeWaVersion, cachedInfo ? `(from ${cachedInfo.path})` : '');
 
     const modernUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
     const cacheDir = (cachedInfo && cachedInfo.path) ? cachedInfo.path : (
       fs.existsSync(path.join(AKB_DIR, '.wwebjs_cache')) ? path.join(AKB_DIR, '.wwebjs_cache') : path.join(__dirname, '.wwebjs_cache')
     );
-    const hasCacheFiles = fs.existsSync(cacheDir) && fs.readdirSync(cacheDir).some(f => f.endsWith('.html'));
+    const hasCacheFiles = fs.existsSync(cacheDir) && fs.existsSync(path.join(cacheDir, `${activeWaVersion}.html`));
     const webVersionCacheConfig = hasCacheFiles ? {
       type: 'local',
       path: cacheDir,
       strict: false
     } : {
       type: 'remote',
-      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1049282529-alpha.html',
+      remotePath: `https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/${TARGET_WA_VERSION}.html`,
       strict: false
     };
 
     const clientOptions = {
       authStrategy: authStrategy,
       userAgent: modernUserAgent,
+      webVersion: activeWaVersion,
       webVersionCache: webVersionCacheConfig,
       authTimeoutMs: 180000,
       qrMaxRetries: 0,
       takeoverOnConflict: true,
       takeoverTimeoutMs: 10000,
+      evalOnNewDoc: () => {
+        try {
+          Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        } catch (_) {}
+      },
       puppeteer: {
         headless: true,
         executablePath: detectedChrome,
+        ignoreDefaultArgs: ['--enable-automation'],
         timeout: 90000,
         args: [
           '--no-sandbox',
@@ -3650,6 +3658,22 @@ app.post('/api/whatsapp/pairing-code', async (req, res) => {
     if (phone.length === 10) phone = '91' + phone;
 
     console.log(`[WhatsApp] Requesting pairing code for phone: ${phone}...`);
+    if (client.pupPage && !client.pupPage.isClosed()) {
+      try {
+        await client.pupPage.exposeFunction('onCodeReceivedEvent', (c) => {
+          client.emit('code', c);
+          return c;
+        });
+      } catch (_) {}
+      try {
+        await client.pupPage.evaluate(() => {
+          if (typeof window.onCodeReceivedEvent !== 'function') {
+            window.onCodeReceivedEvent = function(c) { return c; };
+          }
+        });
+      } catch (_) {}
+    }
+
     let code;
     try {
       code = await client.requestPairingCode(phone);
@@ -3658,6 +3682,13 @@ app.post('/api/whatsapp/pairing-code', async (req, res) => {
         console.warn('[WhatsApp] Frame detached during pairing code request. Reloading and retrying once...');
         await client.pupPage.reload({ waitUntil: 'load', timeout: 15000 });
         await new Promise(r => setTimeout(r, 2000));
+        try {
+          await client.pupPage.evaluate(() => {
+            if (typeof window.onCodeReceivedEvent !== 'function') {
+              window.onCodeReceivedEvent = function(c) { return c; };
+            }
+          });
+        } catch (_) {}
         code = await client.requestPairingCode(phone);
       } else {
         throw reqErr;

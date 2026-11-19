@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-11-19T10:54:52.289Z",
+  "timestamp": "2026-11-19T12:55:33.162Z",
   "summary": {
     "total": 27,
     "passed": 27,
     "failed": 0,
     "critical": 0,
-    "durationMs": 119,
+    "durationMs": 87,
     "overallStatus": "HEALTHY"
   },
   "results": [
@@ -326,7 +326,7 @@
       "pass": true,
       "severity": "PASS",
       "expected": "HTTP 200 with numeric or timestamp version",
-      "actual": "HTTP 200, version=1795085095762",
+      "actual": "HTTP 200, version=1795092856867",
       "issue": null,
       "rootCause": null,
       "autoFix": null
@@ -354,7 +354,7 @@
       "pass": true,
       "severity": "PASS",
       "expected": "HTTP 200 with status property",
-      "actual": "HTTP 200, status=qr_ready, connected=false",
+      "actual": "HTTP 200, status=pairing_code_ready, connected=false",
       "issue": null,
       "rootCause": null,
       "autoFix": null
