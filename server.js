@@ -1409,7 +1409,7 @@ async function initWhatsappClient(forceClean = false) {
     if (savedSessionGraceTimer) clearTimeout(savedSessionGraceTimer);
     savedSessionGraceTimer = setTimeout(() => {
       if (isRestoringSavedSession && !isWhatsappConnected) {
-        console.warn('⚠️ [WhatsApp] Saved session restoration grace period (5s) elapsed. Switching to QR login mode...');
+        console.warn('⚠️ [WhatsApp] Saved session restoration grace period (90s) elapsed. Switching to QR login mode...');
         isRestoringSavedSession = false;
         if (pendingQrDataUrl) {
           qrCodeDataUrl = pendingQrDataUrl;
@@ -1422,7 +1422,7 @@ async function initWhatsappClient(forceClean = false) {
           });
         }
       }
-    }, 5000);
+    }, 90000);
   } else {
     isRestoringSavedSession = false;
   }
@@ -1479,14 +1479,30 @@ async function initWhatsappClient(forceClean = false) {
     const cachedVersion = cachedInfo ? cachedInfo.version : undefined;
     console.log('[WhatsApp] Fast-boot Web Version:', cachedVersion || 'Dynamic Remote Fetch', cachedInfo ? `(from ${cachedInfo.path})` : '');
 
+    const modernUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+
+    const cacheDir = (cachedInfo && cachedInfo.path) ? cachedInfo.path : (
+      fs.existsSync(path.join(AKB_DIR, '.wwebjs_cache')) ? path.join(AKB_DIR, '.wwebjs_cache') : path.join(__dirname, '.wwebjs_cache')
+    );
+    const hasCacheFiles = fs.existsSync(cacheDir) && fs.readdirSync(cacheDir).some(f => f.endsWith('.html'));
+    const webVersionCacheConfig = hasCacheFiles ? {
+      type: 'local',
+      path: cacheDir,
+      strict: false
+    } : {
+      type: 'remote',
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1049282529-alpha.html',
+      strict: false
+    };
+
     const clientOptions = {
-      webVersionCache: {
-        type: 'none'
-      },
       authStrategy: authStrategy,
+      userAgent: modernUserAgent,
+      webVersionCache: webVersionCacheConfig,
       authTimeoutMs: 180000,
       qrMaxRetries: 0,
       takeoverOnConflict: true,
+      takeoverTimeoutMs: 10000,
       puppeteer: {
         headless: true,
         executablePath: detectedChrome,
@@ -1501,6 +1517,8 @@ async function initWhatsappClient(forceClean = false) {
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
+          '--disable-blink-features=AutomationControlled',
+          `--user-agent=${modernUserAgent}`,
           '--disable-features=Translate,OptimizationHints,MediaRouter'
         ]
       }
@@ -1587,6 +1605,20 @@ async function initWhatsappClient(forceClean = false) {
         try {
           if (typeof client.takeover === 'function') {
             await client.takeover();
+          }
+          if (client.pupPage && !client.pupPage.isClosed()) {
+            await client.pupPage.evaluate(() => {
+              try {
+                const btns = Array.from(document.querySelectorAll('div[role="button"], button'));
+                for (const b of btns) {
+                  const txt = (b.textContent || '').trim().toLowerCase();
+                  if (txt.includes('use here') || txt.includes('use_here') || txt.includes('continue')) {
+                    b.click();
+                    break;
+                  }
+                }
+              } catch (_) {}
+            }).catch(() => {});
           }
         } catch (takeoverErr) {
           console.warn('[WhatsApp] Takeover note:', takeoverErr.message);
@@ -1875,8 +1907,35 @@ setInterval(async () => {
           if (window.Store && window.Store.AppState) {
             window.Store.AppState.trigger('idle_mode:change', false);
           }
+          // Auto-click "Use Here" conflict prompt if active
+          const btns = Array.from(document.querySelectorAll('div[role="button"], button'));
+          for (const b of btns) {
+            const txt = (b.textContent || '').trim().toLowerCase();
+            if (txt.includes('use here') || txt.includes('use_here') || txt.includes('continue')) {
+              b.click();
+              break;
+            }
+          }
         } catch (_) {}
       }).catch(() => {});
+
+      // 3. Deep status check: ensure connection state matches DOM state
+      try {
+        const domState = await client.pupPage.evaluate(() => {
+          try {
+            if (window.Store && window.Store.Conn) {
+              return window.Store.Conn.status;
+            }
+          } catch (_) {}
+          return '';
+        }).catch(() => '');
+        if (domState === 'CONNECTED' && !isWhatsappConnected) {
+          console.log('⚡ [WhatsApp KeepAlive] DOM confirmed CONNECTED. Syncing bot state...');
+          isWhatsappConnected = true;
+          qrCodeDataUrl = null;
+          lastPairingCode = null;
+        }
+      } catch (_) {}
 
       // 3. Periodically ensure Supabase Cloud settings has fresh connected timestamp
       if (typeof supabase !== 'undefined' && supabase) {

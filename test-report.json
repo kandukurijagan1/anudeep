@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-11-19T10:32:41.309Z",
+  "timestamp": "2026-11-19T10:54:52.289Z",
   "summary": {
     "total": 27,
     "passed": 27,
     "failed": 0,
     "critical": 0,
-    "durationMs": 106,
+    "durationMs": 119,
     "overallStatus": "HEALTHY"
   },
   "results": [
@@ -172,7 +172,7 @@
       "pass": true,
       "severity": "PASS",
       "expected": "nextInvoiceNo >= 1",
-      "actual": "nextInvoiceNo = 1, max existing invoice = #0",
+      "actual": "nextInvoiceNo = 100000, max existing invoice = #0",
       "issue": null,
       "rootCause": null,
       "autoFix": null
@@ -326,7 +326,7 @@
       "pass": true,
       "severity": "PASS",
       "expected": "HTTP 200 with numeric or timestamp version",
-      "actual": "HTTP 200, version=1795083982762",
+      "actual": "HTTP 200, version=1795085095762",
       "issue": null,
       "rootCause": null,
       "autoFix": null
