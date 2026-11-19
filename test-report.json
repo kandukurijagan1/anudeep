@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-11-19T10:00:38.773Z",
+  "timestamp": "2026-11-19T10:32:41.309Z",
   "summary": {
     "total": 27,
     "passed": 27,
     "failed": 0,
     "critical": 0,
-    "durationMs": 174,
+    "durationMs": 106,
     "overallStatus": "HEALTHY"
   },
   "results": [
@@ -326,7 +326,7 @@
       "pass": true,
       "severity": "PASS",
       "expected": "HTTP 200 with numeric or timestamp version",
-      "actual": "HTTP 200, version=1795082378421",
+      "actual": "HTTP 200, version=1795083982762",
       "issue": null,
       "rootCause": null,
       "autoFix": null

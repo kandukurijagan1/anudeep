@@ -48,6 +48,10 @@ if errorlevel 1 (
         echo [AKB Launcher] Connected to Host Workstation on LAN: http://10.209.191.184:3000
         set "TARGET_HOST_URL=http://10.209.191.184:3000"
     ) else (
+        echo [AKB Launcher] Freeing port 3000 from any stale process...
+        for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3000 " ^| findstr "LISTENING"') do (
+            taskkill /F /PID %%a >nul 2>&1
+        )
         echo [AKB Launcher] Starting local background server on port 3000...
         if exist "C:\Program Files\nodejs\node.exe" (
             start "AKB-Backend-Server" /min "C:\Program Files\nodejs\node.exe" "%~dp0server.js"

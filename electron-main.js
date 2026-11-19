@@ -276,6 +276,23 @@ function startBackend() {
                 return true;
             }
 
+            // Free port 3000 if occupied by a non-responsive or stale process
+            try {
+                const { execSync } = require('child_process');
+                const netOutput = execSync('netstat -ano', { encoding: 'utf8' });
+                const nLines = netOutput.split('\n');
+                for (const nLine of nLines) {
+                    if (nLine.includes(':3000') && nLine.includes('LISTENING')) {
+                        const parts = nLine.trim().split(/\s+/);
+                        const stalePid = parts[parts.length - 1];
+                        if (stalePid && stalePid !== '0' && stalePid !== String(process.pid)) {
+                            console.log(`[Electron] Freeing occupied port 3000 from stale PID ${stalePid}...`);
+                            try { execSync(`taskkill /F /PID ${stalePid}`, { stdio: 'ignore' }); } catch (_) {}
+                        }
+                    }
+                }
+            } catch (_) {}
+
             console.log('[Electron] Starting background Node backend...');
             const appDataDir = path.join(app.getPath('appData'), 'AnudeepKhadiBandar');
             if (!fs.existsSync(appDataDir)) {
@@ -561,7 +578,8 @@ async function createMainWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: true,
+            webSecurity: false,
+            allowRunningInsecureContent: true,
             preload: path.join(__dirname, 'preload.js')
         }
     });
@@ -574,6 +592,11 @@ async function createMainWindow() {
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
         mainWindow.focus();
+    });
+
+    // Logging for diagnostics
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+        console.warn(`[Electron] Page failed to load: ${validatedURL} (${errorCode} - ${errorDescription})`);
     });
 
     // ⚡ Intercept all downloads and silently save directly to Downloads folder without prompting Save As dialog
@@ -599,16 +622,22 @@ async function createMainWindow() {
         try {
             await mainWindow.loadURL(`http://127.0.0.1:3000/?mode=dedicated_app&app_token=${APP_SECRET_TOKEN}`);
         } catch (e) {
-            console.warn('[Electron] Failed to load local server URL, loading local index.html directly:', e.message);
-            const appDataIndex = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'index.html');
-            const targetHtml = (fs.existsSync(appDataIndex) && fs.statSync(appDataIndex).size > 1000) ? appDataIndex : path.join(__dirname, 'index.html');
-            await mainWindow.loadFile(targetHtml, { query: { mode: 'dedicated_app', app_token: APP_SECRET_TOKEN } });
+            console.warn('[Electron] Initial loadURL failed, retrying in 1s...', e.message);
+            await new Promise(r => setTimeout(r, 1000));
+            try {
+                await mainWindow.loadURL(`http://127.0.0.1:3000/?mode=dedicated_app&app_token=${APP_SECRET_TOKEN}`);
+            } catch (e2) {
+                console.warn('[Electron] Failed to load local server URL, loading local index.html directly:', e2.message);
+                const appDataIndex = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'index.html');
+                const targetHtml = (fs.existsSync(appDataIndex) && fs.statSync(appDataIndex).size > 1000) ? appDataIndex : path.join(__dirname, 'index.html');
+                await mainWindow.loadFile(targetHtml, { query: { mode: 'dedicated_app', app_token: APP_SECRET_TOKEN } });
+            }
         }
     } else {
         console.log('[Electron] Loading local index.html file directly...');
         const appDataIndex = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'index.html');
-            const targetHtml = (fs.existsSync(appDataIndex) && fs.statSync(appDataIndex).size > 1000) ? appDataIndex : path.join(__dirname, 'index.html');
-            await mainWindow.loadFile(targetHtml, { query: { mode: 'dedicated_app', app_token: APP_SECRET_TOKEN } });
+        const targetHtml = (fs.existsSync(appDataIndex) && fs.statSync(appDataIndex).size > 1000) ? appDataIndex : path.join(__dirname, 'index.html');
+        await mainWindow.loadFile(targetHtml, { query: { mode: 'dedicated_app', app_token: APP_SECRET_TOKEN } });
     }
 
     // Intercept external links and prevent multiple internal windows from opening
