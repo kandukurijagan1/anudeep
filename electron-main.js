@@ -277,14 +277,25 @@ function startBackend() {
             }
 
             console.log('[Electron] Starting background Node backend...');
-            const appDataServerJs = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'server.js');
+            const appDataDir = path.join(app.getPath('appData'), 'AnudeepKhadiBandar');
+            if (!fs.existsSync(appDataDir)) {
+                try { fs.mkdirSync(appDataDir, { recursive: true }); } catch (_) {}
+            }
+            const appDataServerJs = path.join(appDataDir, 'server.js');
+            // If server.js doesn't exist in appDataDir or is stale, ensure it is copied
+            if (!fs.existsSync(appDataServerJs) || fs.statSync(appDataServerJs).size < 1000) {
+                try {
+                    const fallbackSource = path.join(__dirname, 'server.js');
+                    if (fs.existsSync(fallbackSource)) {
+                        fs.writeFileSync(appDataServerJs, fs.readFileSync(fallbackSource));
+                    }
+                } catch (_) {}
+            }
             const serverJs = (fs.existsSync(appDataServerJs) && fs.statSync(appDataServerJs).size > 1000) ? appDataServerJs : path.join(__dirname, 'server.js');
 
             let stdioConfig = 'ignore';
             try {
-                const logDir = path.join(app.getPath('appData'), 'AnudeepKhadiBandar');
-                if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-                const logPath = path.join(logDir, 'server.log');
+                const logPath = path.join(appDataDir, 'server.log');
                 const logFile = fs.openSync(logPath, 'a');
                 stdioConfig = ['ignore', logFile, logFile];
             } catch (err) {
@@ -297,10 +308,29 @@ function startBackend() {
             const execBinary = useNode ? nodeExe : process.execPath;
             const extraEnv = useNode ? {} : { ELECTRON_RUN_AS_NODE: '1' };
 
-            console.log(`[Electron] Launching backend server with: ${execBinary} (useNode: ${useNode})`);
+            // Determine safe CWD: NEVER use an .asar path as cwd!
+            let backendCwd = __dirname;
+            if (backendCwd.includes('.asar') || !fs.existsSync(backendCwd)) {
+                backendCwd = appDataDir;
+            }
+
+            // Ensure node can resolve modules from appData, workspace, and unpacked
+            const nodePaths = [
+                path.join(appDataDir, 'node_modules'),
+                path.join(__dirname, 'node_modules'),
+                path.join(process.resourcesPath || '', 'app.asar.unpacked', 'node_modules')
+            ].filter(p => fs.existsSync(p));
+
+            console.log(`[Electron] Launching backend server with: ${execBinary} (useNode: ${useNode}, cwd: ${backendCwd})`);
             serverChild = spawn(execBinary, [serverJs], {
-                cwd: __dirname,
-                env: { ...process.env, PORT: '3000', APP_SECRET_TOKEN, ...extraEnv },
+                cwd: backendCwd,
+                env: {
+                    ...process.env,
+                    PORT: '3000',
+                    APP_SECRET_TOKEN,
+                    NODE_PATH: nodePaths.join(path.delimiter),
+                    ...extraEnv
+                },
                 stdio: stdioConfig,
                 windowsHide: true
             });

@@ -925,7 +925,16 @@ function backupAuthDirectory() {
     const levelDbDir = path.join(authDefault, 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
     if (fs.existsSync(levelDbDir)) {
       const files = fs.readdirSync(levelDbDir).filter(f => f.endsWith('.ldb'));
-      if (files.length > 0) {
+      // Only back up if file count is reasonable (< 150) and total size is sane (< 50MB) to prevent freezing Node
+      if (files.length > 0 && files.length < 150) {
+        let totalSize = 0;
+        for (const f of files) {
+          try { totalSize += fs.statSync(path.join(levelDbDir, f)).size; } catch (_) {}
+        }
+        if (totalSize > 50 * 1024 * 1024) {
+          console.warn('[WhatsApp Auth] LevelDB storage exceeds 50MB limit; skipping full sync backup to prevent freezing.');
+          return;
+        }
         ['IndexedDB', 'Local Storage'].forEach(sub => {
           const src = path.join(authDefault, sub);
           const dest = path.join(backupDefault, sub);
@@ -933,7 +942,7 @@ function backupAuthDirectory() {
             fs.cpSync(src, dest, {
               recursive: true,
               force: true,
-              filter: (file) => path.basename(file) !== 'LOCK'
+              filter: (file) => path.basename(file) !== 'LOCK' && !file.includes('.blob')
             });
           }
         });
@@ -953,9 +962,10 @@ function ensureAuthSessionFromBackup() {
     const backupLevelDbDir = path.join(backupDefault, 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
 
     const hasLdb = fs.existsSync(levelDbDir) && fs.readdirSync(levelDbDir).some(f => f.endsWith('.ldb') && fs.statSync(path.join(levelDbDir, f)).size > 10000);
-    const backupHasLdb = fs.existsSync(backupLevelDbDir) && fs.readdirSync(backupLevelDbDir).some(f => f.endsWith('.ldb') && fs.statSync(path.join(backupLevelDbDir, f)).size > 10000);
+    const backupFiles = (fs.existsSync(backupLevelDbDir) ? fs.readdirSync(backupLevelDbDir).filter(f => f.endsWith('.ldb')) : []);
+    const backupHasLdb = backupFiles.some(f => fs.statSync(path.join(backupLevelDbDir, f)).size > 10000);
 
-    if (!hasLdb && backupHasLdb) {
+    if (!hasLdb && backupHasLdb && backupFiles.length < 150) {
       console.log('🛡️ [WhatsApp Auth] Detected missing session files. Restoring from .wwebjs_auth_backup...');
       ['IndexedDB', 'Local Storage'].forEach(sub => {
         const src = path.join(backupDefault, sub);
@@ -964,7 +974,7 @@ function ensureAuthSessionFromBackup() {
           fs.cpSync(src, dest, {
             recursive: true,
             force: true,
-            filter: (file) => path.basename(file) !== 'LOCK'
+            filter: (file) => path.basename(file) !== 'LOCK' && !file.includes('.blob')
           });
         }
       });
@@ -1071,6 +1081,7 @@ function killOrphanAuthBrowsers(forceKillAll = false) {
 function cleanAuthDirectory() {
   killOrphanAuthBrowsers(true);
   const authDir = path.join(AKB_DIR, '.wwebjs_auth');
+  const backupDir = path.join(AKB_DIR, '.wwebjs_auth_backup');
   try {
     if (fs.existsSync(authDir)) {
       fs.rmSync(authDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
@@ -1078,6 +1089,14 @@ function cleanAuthDirectory() {
     }
   } catch (err) {
     console.warn('[WhatsApp] auth directory cleanup note:', err.message);
+  }
+  try {
+    if (fs.existsSync(backupDir)) {
+      fs.rmSync(backupDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
+      console.log('[WhatsApp] Cleared authentication backup directory for new number.');
+    }
+  } catch (err) {
+    console.warn('[WhatsApp] auth backup cleanup note:', err.message);
   }
   try {
     const sessFile = path.join(AKB_DIR, 'whatsapp_session.json');
@@ -1390,7 +1409,7 @@ async function initWhatsappClient(forceClean = false) {
     if (savedSessionGraceTimer) clearTimeout(savedSessionGraceTimer);
     savedSessionGraceTimer = setTimeout(() => {
       if (isRestoringSavedSession && !isWhatsappConnected) {
-        console.warn('⚠️ [WhatsApp] Saved session restoration grace period (60s) timed out. Switching to QR login mode...');
+        console.warn('⚠️ [WhatsApp] Saved session restoration grace period (5s) elapsed. Switching to QR login mode...');
         isRestoringSavedSession = false;
         if (pendingQrDataUrl) {
           qrCodeDataUrl = pendingQrDataUrl;
@@ -1403,7 +1422,7 @@ async function initWhatsappClient(forceClean = false) {
           });
         }
       }
-    }, 60000);
+    }, 5000);
   } else {
     isRestoringSavedSession = false;
   }
@@ -1526,15 +1545,20 @@ async function initWhatsappClient(forceClean = false) {
         // while it decrypts and synchronizes IndexedDB from disk.
         // If a saved session is currently restoring, DO NOT broadcast QR code to the user!
         if (isRestoringSavedSession) {
-          pendingQrDataUrl = qrUrl;
-          console.log('[WhatsApp] Early transient QR code suppressed. Saved session is actively restoring from disk...');
-          broadcastRealtime('whatsapp_status', {
-            connected: false,
-            status: 'connecting_saved',
-            user: getSavedWhatsappUserInfo(),
-            message: 'Restoring saved WhatsApp session... Please wait.'
-          });
-          return;
+          if (pendingQrDataUrl) {
+            // Second QR received while restoring means saved session is definitely expired
+            isRestoringSavedSession = false;
+          } else {
+            pendingQrDataUrl = qrUrl;
+            console.log('[WhatsApp] Early transient QR code received while restoring saved session...');
+            broadcastRealtime('whatsapp_status', {
+              connected: false,
+              status: 'connecting_saved',
+              user: getSavedWhatsappUserInfo(),
+              message: 'Checking saved WhatsApp session... Please wait.'
+            });
+            return;
+          }
         }
 
         // Only broadcast QR code if there is genuinely no saved session or after 60s timeout
