@@ -3477,8 +3477,10 @@ app.get('/api/whatsapp/status', async (req, res) => {
   }
 
   const appSettings = readJsonFile('settings', getDefaultSettings());
-  const cloudConfig = (appSettings && appSettings.whatsapp && appSettings.whatsapp.cloudApi) || {};
-  const isCloudConfigured = !!(cloudConfig.accessToken && cloudConfig.phoneNumberId);
+  const waSettings = (appSettings && appSettings.whatsapp) || {};
+  const isCloudProvider = waSettings.provider === 'cloud_api';
+  const cloudConfig = waSettings.cloudApi || {};
+  const isCloudConfigured = !!(isCloudProvider && cloudConfig.accessToken && cloudConfig.phoneNumberId);
 
   let statusString = 'disconnected';
   if (isCloudConfigured) {
@@ -3627,8 +3629,10 @@ app.post('/api/whatsapp/pairing-code', async (req, res) => {
 
 app.post('/api/whatsapp/sendTest', async (req, res) => {
   const appSettings = readJsonFile('settings', getDefaultSettings());
-  const cloudConfig = (appSettings && appSettings.whatsapp && appSettings.whatsapp.cloudApi) || {};
-  const isCloudConfigured = !!(cloudConfig.accessToken && cloudConfig.phoneNumberId);
+  const waSettings = (appSettings && appSettings.whatsapp) || {};
+  const isCloudProvider = waSettings.provider === 'cloud_api';
+  const cloudConfig = waSettings.cloudApi || {};
+  const isCloudConfigured = !!(isCloudProvider && cloudConfig.accessToken && cloudConfig.phoneNumberId);
 
   let phone = req.body.phone || (whatsappUserInfo && whatsappUserInfo.phone) || '918367047947';
 
@@ -4638,7 +4642,7 @@ async function autoDispatchBots(inv) {
       ? waSettings.cloudApi
       : (process.env.META_WHATSAPP_TOKEN && process.env.META_WHATSAPP_PHONE_ID ? { accessToken: process.env.META_WHATSAPP_TOKEN, phoneNumberId: process.env.META_WHATSAPP_PHONE_ID } : null);
 
-    const preferCloudApi = cloudApi && (waSettings.provider === 'cloud_api' || !isWhatsappConnected || waSettings.provider === 'auto');
+    const preferCloudApi = cloudApi && waSettings.provider === 'cloud_api';
 
     let isDispatched = false;
     let dispatchProvider = 'none';

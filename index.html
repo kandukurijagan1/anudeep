@@ -3653,20 +3653,20 @@
 
                             <!-- Engine Tab Switcher -->
                             <div style="display:flex; gap:6px; margin-bottom:14px; background:#f1f5f9; padding:4px; border-radius:8px;">
-                                <button type="button" id="tab-btn-wa-cloud" class="btn btn-tiny"
-                                    style="flex:1; font-weight:700; background:#25D366; color:#fff; border-radius:6px; padding:7px 10px; border:none; cursor:pointer; font-size:0.82rem;"
-                                    onclick="STM.switchWaTab('cloud')">
-                                    <i class="ph ph-lightning"></i> Official Meta Cloud API (24/7 Always Connected)
-                                </button>
                                 <button type="button" id="tab-btn-wa-local" class="btn btn-tiny"
-                                    style="flex:1; font-weight:600; background:transparent; color:#475569; border-radius:6px; padding:7px 10px; border:none; cursor:pointer; font-size:0.82rem;"
+                                    style="flex:1; font-weight:700; background:#2563eb; color:#fff; border-radius:6px; padding:7px 10px; border:none; cursor:pointer; font-size:0.82rem;"
                                     onclick="STM.switchWaTab('local')">
-                                    <i class="ph ph-desktop"></i> Workstation Web Bot (Linked Phone)
+                                    <i class="ph ph-desktop"></i> Workstation Web Bot (Linked Phone - Default)
+                                </button>
+                                <button type="button" id="tab-btn-wa-cloud" class="btn btn-tiny"
+                                    style="flex:1; font-weight:600; background:transparent; color:#475569; border-radius:6px; padding:7px 10px; border:none; cursor:pointer; font-size:0.82rem;"
+                                    onclick="STM.switchWaTab('cloud')">
+                                    <i class="ph ph-lightning"></i> Meta Cloud API (Optional 24/7)
                                 </button>
                             </div>
 
                             <!-- ⚡ PANEL 1: OFFICIAL META CLOUD API -->
-                            <div id="wa-cloud-api-panel">
+                            <div id="wa-cloud-api-panel" style="display:none;">
                                 <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px; margin-bottom:12px;">
                                     <div style="font-weight:700; color:#15803d; font-size:0.86rem; display:flex; align-items:center; gap:6px;">
                                         <i class="ph ph-shield-check" style="font-size:1.15rem;"></i> Official WhatsApp Business Cloud API (Direct Meta REST API)
@@ -3749,7 +3749,7 @@
                             </div>
 
                             <!-- 💻 PANEL 2: LOCAL WORKSTATION BOT -->
-                            <div id="wa-local-bot-panel" style="display:none;">
+                            <div id="wa-local-bot-panel" style="display:block;">
                                 <div id="s-wa-status-box"
                                     style="padding:10px; border-radius:8px; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.84rem; margin-bottom:12px;">
                                     Loading WhatsApp status...
@@ -11555,7 +11555,7 @@
         function applyWhatsappStatusState(data) {
             if (!data) return;
             _waStatusState = data;
-            var isCloud = !!(data.status === 'cloud_active' || data.provider === 'meta_cloud' || (data.cloudApi && data.cloudApi.isConfigured));
+            var isCloud = !!(data.provider === 'meta_cloud' && (data.status === 'cloud_active' || (data.cloudApi && data.cloudApi.isConfigured)));
             var isConn = isCloud || !!(data.connected === true || data.status === 'authenticated' || data.status === 'ready' || data.status === 'connected');
             var isPending = !isConn && (data.status === 'initializing' || data.status === 'connecting_saved' || !!(data.qr || data.pairingCode));
 
@@ -11812,7 +11812,7 @@
             var container = document.getElementById("wa-modal-body");
             if (!container) return;
 
-            var isCloud = !!(state === 'cloud' || (data && (data.status === 'cloud_active' || data.provider === 'meta_cloud' || (data.cloudApi && data.cloudApi.isConfigured))));
+            var isCloud = !!(state === 'cloud' || (data && data.provider === 'meta_cloud' && (data.status === 'cloud_active' || (data.cloudApi && data.cloudApi.isConfigured))));
 
             if (isCloud) {
                 var existingRoot = document.getElementById("wa-login-tabs-root");
@@ -12478,7 +12478,7 @@
                     var stRes = await sbClient.from('settings').select('whatsapp').eq('id', 'app_settings').single();
                     if (stRes && stRes.data && stRes.data.whatsapp) {
                         var cloudWa = stRes.data.whatsapp;
-                        var isMetaCloudActive = !!(cloudWa.cloudApi && cloudWa.cloudApi.isConfigured);
+                        var isMetaCloudActive = !!(cloudWa.provider === 'cloud_api' && cloudWa.cloudApi && cloudWa.cloudApi.isConfigured);
                         var ageMs = cloudWa.updatedAt ? (Date.now() - new Date(cloudWa.updatedAt).getTime()) : 999999;
                         var isLiveBot = !!(cloudWa.connected && !isNaN(ageMs) && ageMs < 75000);
 
