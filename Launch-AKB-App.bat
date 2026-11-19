@@ -41,9 +41,13 @@ if exist "%APPDATA%\AnudeepKhadiBandar\version.json.tmp" (
 :: ========================================================
 set "TARGET_HOST_URL=http://127.0.0.1:3000"
 
-curl -s -m 1 http://127.0.0.1:3000/api/health >nul 2>&1
+curl -s -m 2 -f http://127.0.0.1:3000/api/health >nul 2>&1
 if errorlevel 1 (
-    curl -s -m 1 http://10.209.191.184:3000/api/health >nul 2>&1
+    timeout /t 1 /nobreak >nul 2>&1
+    curl -s -m 2 -f http://127.0.0.1:3000/api/health >nul 2>&1
+)
+if errorlevel 1 (
+    curl -s -m 2 -f http://10.209.191.184:3000/api/health >nul 2>&1
     if not errorlevel 1 (
         echo [AKB Launcher] Connected to Host Workstation on LAN: http://10.209.191.184:3000
         set "TARGET_HOST_URL=http://10.209.191.184:3000"
