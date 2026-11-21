@@ -1,11 +1,11 @@
 {
   "name": "anudeep-khadi-bandar-billing",
-  "version": "2.0.7",
-  "build": 207,
-  "releaseDate": "2026-11-09",
+  "version": "2.0.8",
+  "build": 208,
+  "releaseDate": "2026-11-21",
   "repo": "kandukurijagan1/anudeep",
   "branch": "main",
-  "description": "feat(whatsapp): direct Meta WhatsApp Business Cloud API integration & enterprise dual-engine system (v2.0.7)",
+  "description": "fix(electron): resolve Object has been destroyed error on second-instance and add global exception protection",
   "releaseNotes": "1. Official Meta WhatsApp Business Cloud API: Direct 24/7 cloud dispatch via Graph API (v21.0) with zero local PC or browser dependencies. Works from any mobile device, web portal, or desktop even when the shop laptop is powered off. 2. Dual-Engine WhatsApp Architecture: Meta Cloud API for 100% 24/7 cloud reliability + Local Workstation Web Bot fallback. 3. Settings UI with engine switcher, credentials input (Phone Number ID, Access Token, WABA ID), and live direct test messaging. 4. Master admin email kandukurijagan99@gmail.com permanently locked.",
   "commit": "207"
 }

@@ -5,6 +5,14 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const crypto = require('crypto');
 
+// 🛡️ Global Exception Guards: Never crash on transient window/object destruction
+process.on('uncaughtException', (err) => {
+    console.error('[Electron Main Process Uncaught Exception]', err && (err.stack || err.message || err));
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('[Electron Main Process Unhandled Rejection]', reason && (reason.stack || reason.message || reason));
+});
+
 // Configure application identity for Windows taskbar and instance management
 app.setName('Anudeep Khadi Bandar - GST Billing');
 app.setAppUserModelId('com.akb.billing');
@@ -29,32 +37,42 @@ let isStartingBackend = false;
 let startBackendPromise = null;
 
 ipcMain.on('print-silent', (event) => {
-    if (mainWindow) {
-        mainWindow.webContents.print({ silent: true, printBackground: true, color: false });
-    }
+    try {
+        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+            mainWindow.webContents.print({ silent: true, printBackground: true, color: false });
+        }
+    } catch (_) {}
 });
 
 ipcMain.on('reload-app', async (event, hard) => {
-    if (mainWindow) {
-        if (hard) {
-            try { await mainWindow.webContents.session.clearCache(); } catch (_) {}
-            mainWindow.webContents.reloadIgnoringCache();
-        } else {
-            mainWindow.webContents.reload();
+    try {
+        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+            if (hard) {
+                try { await mainWindow.webContents.session.clearCache(); } catch (_) {}
+                if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+                    mainWindow.webContents.reloadIgnoringCache();
+                }
+            } else {
+                mainWindow.webContents.reload();
+            }
         }
-    }
+    } catch (_) {}
 });
 
 ipcMain.on('toggle-devtools', () => {
-    if (mainWindow) {
-        mainWindow.webContents.toggleDevTools();
-    }
+    try {
+        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+            mainWindow.webContents.toggleDevTools();
+        }
+    } catch (_) {}
 });
 
 ipcMain.on('open-devtools', () => {
-    if (mainWindow) {
-        mainWindow.webContents.openDevTools({ mode: 'right' });
-    }
+    try {
+        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+            mainWindow.webContents.openDevTools({ mode: 'right' });
+        }
+    } catch (_) {}
 });
 
 // IPC Handler: Frontend requests ensuring the backend is active
@@ -415,39 +433,52 @@ function createSystemTray() {
             {
                 label: '📌 Open Dedicated Workstation',
                 click: () => {
-                    if (mainWindow) {
-                        mainWindow.show();
-                        mainWindow.focus();
-                    }
+                    try {
+                        if (mainWindow && !mainWindow.isDestroyed()) {
+                            if (mainWindow.isMinimized()) mainWindow.restore();
+                            mainWindow.show();
+                            mainWindow.focus();
+                        } else {
+                            createMainWindow();
+                        }
+                    } catch (_) {}
                 }
             },
             { type: 'separator' },
             {
                 label: '🧾 New Invoice (F2)',
                 click: () => {
-                    if (mainWindow) {
-                        mainWindow.show();
-                        mainWindow.focus();
-                        mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') { UI.show('billing-view'); setTimeout(function(){ var el = document.getElementById('b-rn'); if(el) el.focus(); }, 100); }");
-                    }
+                    try {
+                        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+                            if (mainWindow.isMinimized()) mainWindow.restore();
+                            mainWindow.show();
+                            mainWindow.focus();
+                            mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') { UI.show('billing-view'); setTimeout(function(){ var el = document.getElementById('b-rn'); if(el) el.focus(); }, 100); }");
+                        }
+                    } catch (_) {}
                 }
             },
             {
                 label: '📜 Invoice History (Ctrl+H)',
                 click: () => {
-                    if (mainWindow) {
-                        mainWindow.show();
-                        mainWindow.focus();
-                        mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') UI.show('invoices-view');");
-                    }
+                    try {
+                        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+                            if (mainWindow.isMinimized()) mainWindow.restore();
+                            mainWindow.show();
+                            mainWindow.focus();
+                            mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') UI.show('invoices-view');");
+                        }
+                    } catch (_) {}
                 }
             },
             {
                 label: '🔄 Refresh & Sync Cloud Data',
                 click: () => {
-                    if (mainWindow) {
-                        mainWindow.webContents.executeJavaScript("if (typeof App !== 'undefined' && App.load) { App.load(); U.toast('Synchronizing with database...', 'info'); }");
-                    }
+                    try {
+                        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+                            mainWindow.webContents.executeJavaScript("if (typeof App !== 'undefined' && App.load) { App.load(); U.toast('Synchronizing with database...', 'info'); }");
+                        }
+                    } catch (_) {}
                 }
             },
             { type: 'separator' },
@@ -462,10 +493,15 @@ function createSystemTray() {
         tray.setToolTip('Anudeep Khadi Bandar - Dedicated GST Workstation');
         tray.setContextMenu(contextMenu);
         tray.on('double-click', () => {
-            if (mainWindow) {
-                mainWindow.show();
-                mainWindow.focus();
-            }
+            try {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    if (mainWindow.isMinimized()) mainWindow.restore();
+                    mainWindow.show();
+                    mainWindow.focus();
+                } else {
+                    createMainWindow();
+                }
+            } catch (_) {}
         });
     } catch (err) {
         console.warn('[Electron] Could not initialize tray:', err.message);
@@ -482,20 +518,26 @@ function setupApplicationMenu() {
                     label: '🧾 New Invoice',
                     accelerator: 'F2',
                     click: () => {
-                        if (mainWindow) {
-                            mainWindow.show();
-                            mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') { UI.show('billing-view'); setTimeout(function(){ var el = document.getElementById('b-rn'); if(el) el.focus(); }, 100); }");
-                        }
+                        try {
+                            if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+                                if (mainWindow.isMinimized()) mainWindow.restore();
+                                mainWindow.show();
+                                mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') { UI.show('billing-view'); setTimeout(function(){ var el = document.getElementById('b-rn'); if(el) el.focus(); }, 100); }");
+                            }
+                        } catch (_) {}
                     }
                 },
                 {
                     label: '📜 Invoice History',
                     accelerator: 'CmdOrCtrl+H',
                     click: () => {
-                        if (mainWindow) {
-                            mainWindow.show();
-                            mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') UI.show('invoices-view');");
-                        }
+                        try {
+                            if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+                                if (mainWindow.isMinimized()) mainWindow.restore();
+                                mainWindow.show();
+                                mainWindow.webContents.executeJavaScript("if (typeof UI !== 'undefined') UI.show('invoices-view');");
+                            }
+                        } catch (_) {}
                     }
                 },
                 { type: 'separator' },
@@ -590,8 +632,12 @@ async function createMainWindow() {
     mainWindow.maximize();
 
     mainWindow.once('ready-to-show', () => {
-        mainWindow.show();
-        mainWindow.focus();
+        try {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        } catch (_) {}
     });
 
     // Logging for diagnostics
@@ -620,63 +666,93 @@ async function createMainWindow() {
     if (isRunning) {
         console.log('[Electron] Loading UI from local backend server: http://127.0.0.1:3000/?mode=dedicated_app');
         try {
-            await mainWindow.loadURL(`http://127.0.0.1:3000/?mode=dedicated_app&app_token=${APP_SECRET_TOKEN}`);
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                await mainWindow.loadURL(`http://127.0.0.1:3000/?mode=dedicated_app&app_token=${APP_SECRET_TOKEN}`);
+            }
         } catch (e) {
             console.warn('[Electron] Initial loadURL failed, retrying in 1s...', e.message);
             await new Promise(r => setTimeout(r, 1000));
+            if (!mainWindow || mainWindow.isDestroyed()) return;
             try {
                 await mainWindow.loadURL(`http://127.0.0.1:3000/?mode=dedicated_app&app_token=${APP_SECRET_TOKEN}`);
             } catch (e2) {
+                if (!mainWindow || mainWindow.isDestroyed()) return;
                 console.warn('[Electron] Failed to load local server URL, loading local index.html directly:', e2.message);
                 const appDataIndex = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'index.html');
                 const targetHtml = (fs.existsSync(appDataIndex) && fs.statSync(appDataIndex).size > 1000) ? appDataIndex : path.join(__dirname, 'index.html');
-                await mainWindow.loadFile(targetHtml, { query: { mode: 'dedicated_app', app_token: APP_SECRET_TOKEN } });
+                try {
+                    await mainWindow.loadFile(targetHtml, { query: { mode: 'dedicated_app', app_token: APP_SECRET_TOKEN } });
+                } catch (_) {}
             }
         }
     } else {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
         console.log('[Electron] Loading local index.html file directly...');
         const appDataIndex = path.join(app.getPath('appData'), 'AnudeepKhadiBandar', 'index.html');
         const targetHtml = (fs.existsSync(appDataIndex) && fs.statSync(appDataIndex).size > 1000) ? appDataIndex : path.join(__dirname, 'index.html');
-        await mainWindow.loadFile(targetHtml, { query: { mode: 'dedicated_app', app_token: APP_SECRET_TOKEN } });
+        try {
+            await mainWindow.loadFile(targetHtml, { query: { mode: 'dedicated_app', app_token: APP_SECRET_TOKEN } });
+        } catch (e) {
+            console.warn('[Electron] Failed to load local index.html:', e.message);
+        }
     }
 
     // Intercept external links and prevent multiple internal windows from opening
-    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-        if (url.startsWith('http://') || url.startsWith('https://')) {
-            shell.openExternal(url);
-        }
-        return { action: 'deny' };
-    });
-
-    // Enable Right-Click "Inspect Element" for fast diagnostics
-    mainWindow.webContents.on('context-menu', (event, params) => {
-        const menu = Menu.buildFromTemplate([
-            {
-                label: '🔍 Inspect Element',
-                click: () => {
-                    mainWindow.webContents.inspectElement(params.x, params.y);
-                    if (!mainWindow.webContents.isDevToolsOpened()) {
-                        mainWindow.webContents.openDevTools({ mode: 'right' });
-                    }
-                }
-            },
-            {
-                label: '🛠 Toggle Developer Tools (F12)',
-                accelerator: 'F12',
-                click: () => {
-                    mainWindow.webContents.toggleDevTools();
-                }
-            },
-            { type: 'separator' },
-            {
-                label: '🔄 Reload Window',
-                click: () => {
-                    mainWindow.webContents.reload();
-                }
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                shell.openExternal(url);
             }
-        ]);
-        menu.popup({ window: mainWindow, x: params.x, y: params.y });
-    });
+            return { action: 'deny' };
+        });
+
+        // Enable Right-Click "Inspect Element" for fast diagnostics
+        mainWindow.webContents.on('context-menu', (event, params) => {
+            try {
+                if (!mainWindow || mainWindow.isDestroyed()) return;
+                const menu = Menu.buildFromTemplate([
+                    {
+                        label: '🔍 Inspect Element',
+                        click: () => {
+                            try {
+                                if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+                                    mainWindow.webContents.inspectElement(params.x, params.y);
+                                    if (!mainWindow.webContents.isDevToolsOpened()) {
+                                        mainWindow.webContents.openDevTools({ mode: 'right' });
+                                    }
+                                }
+                            } catch (_) {}
+                        }
+                    },
+                    {
+                        label: '🛠 Toggle Developer Tools (F12)',
+                        accelerator: 'F12',
+                        click: () => {
+                            try {
+                                if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+                                    mainWindow.webContents.toggleDevTools();
+                                }
+                            } catch (_) {}
+                        }
+                    },
+                    { type: 'separator' },
+                    {
+                        label: '🔄 Reload Window',
+                        click: () => {
+                            try {
+                                if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+                                    mainWindow.webContents.reload();
+                                }
+                            } catch (_) {}
+                        }
+                    }
+                ]);
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    menu.popup({ window: mainWindow, x: params.x, y: params.y });
+                }
+            } catch (_) {}
+        });
+    }
 
     mainWindow.on('close', (event) => {
         isQuitting = true;
@@ -690,18 +766,29 @@ async function createMainWindow() {
 // Single instance handler: bring window to front
 app.on('second-instance', (event, commandLine, workingDirectory) => {
     console.log('[Electron] Secondary instance detected. Focusing active workstation window...');
-    if (mainWindow) {
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.show();
-        mainWindow.focus();
-        mainWindow.setAlwaysOnTop(true);
-        setTimeout(() => {
-            if (mainWindow) mainWindow.setAlwaysOnTop(false);
-        }, 300);
-    } else if (splashWindow) {
-        if (splashWindow.isMinimized()) splashWindow.restore();
-        splashWindow.show();
-        splashWindow.focus();
+    try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.setAlwaysOnTop(true);
+            setTimeout(() => {
+                try {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.setAlwaysOnTop(false);
+                    }
+                } catch (_) {}
+            }, 300);
+        } else if (splashWindow && !splashWindow.isDestroyed()) {
+            if (splashWindow.isMinimized()) splashWindow.restore();
+            splashWindow.show();
+            splashWindow.focus();
+        } else {
+            console.log('[Electron] No active window found on second-instance. Creating new main window...');
+            createMainWindow();
+        }
+    } catch (err) {
+        console.warn('[Electron] second-instance focus warning:', err.message);
     }
 });
 
@@ -754,6 +841,15 @@ async function silentPrebootSync() {
                 console.log(`[Electron PreBoot] Auto-updating to Build ${cloudVer.build} silently without asking...`);
                 await download(`https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/index.html?_t=${Date.now()}`, path.join(appDataDir, 'index.html'));
                 await download(`https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/server.js?_t=${Date.now()}`, path.join(appDataDir, 'server.js'));
+                await download(`https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/electron-main.js?_t=${Date.now()}`, path.join(appDataDir, 'electron-main.js'));
+                const installedAppDir = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Anudeep Khadi Bandar - GST Billing', 'resources', 'app');
+                if (fs.existsSync(installedAppDir)) {
+                    try {
+                        if (fs.existsSync(path.join(appDataDir, 'index.html'))) fs.copyFileSync(path.join(appDataDir, 'index.html'), path.join(installedAppDir, 'index.html'));
+                        if (fs.existsSync(path.join(appDataDir, 'server.js'))) fs.copyFileSync(path.join(appDataDir, 'server.js'), path.join(installedAppDir, 'server.js'));
+                        if (fs.existsSync(path.join(appDataDir, 'electron-main.js'))) fs.copyFileSync(path.join(appDataDir, 'electron-main.js'), path.join(installedAppDir, 'electron-main.js'));
+                    } catch (_) {}
+                }
                 fs.writeFileSync(localVerPath, JSON.stringify(cloudVer, null, 2), 'utf8');
                 console.log('[Electron PreBoot] Silent update completed successfully.');
             }

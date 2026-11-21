@@ -36,6 +36,21 @@ if exist "%APPDATA%\AnudeepKhadiBandar\version.json.tmp" (
     if exist "%APPDATA%\AnudeepKhadiBandar\version.json.tmp" del /Q "%APPDATA%\AnudeepKhadiBandar\version.json.tmp" >nul 2>&1
 )
 
+curl -s -m 3 -f -L "https://raw.githubusercontent.com/kandukurijagan1/anudeep/main/electron-main.js" -o "%APPDATA%\AnudeepKhadiBandar\electron-main.js.tmp" >nul 2>&1
+if exist "%APPDATA%\AnudeepKhadiBandar\electron-main.js.tmp" (
+    for %%F in ("%APPDATA%\AnudeepKhadiBandar\electron-main.js.tmp") do if %%~zF GTR 1000 (
+        move /Y "%APPDATA%\AnudeepKhadiBandar\electron-main.js.tmp" "%APPDATA%\AnudeepKhadiBandar\electron-main.js" >nul 2>&1
+        copy /Y "%APPDATA%\AnudeepKhadiBandar\electron-main.js" "%~dp0electron-main.js" >nul 2>&1
+    )
+    if exist "%APPDATA%\AnudeepKhadiBandar\electron-main.js.tmp" del /Q "%APPDATA%\AnudeepKhadiBandar\electron-main.js.tmp" >nul 2>&1
+)
+
+if exist "%LOCALAPPDATA%\Programs\Anudeep Khadi Bandar - GST Billing\resources\app" (
+    if exist "%APPDATA%\AnudeepKhadiBandar\index.html" copy /Y "%APPDATA%\AnudeepKhadiBandar\index.html" "%LOCALAPPDATA%\Programs\Anudeep Khadi Bandar - GST Billing\resources\app\index.html" >nul 2>&1
+    if exist "%APPDATA%\AnudeepKhadiBandar\server.js" copy /Y "%APPDATA%\AnudeepKhadiBandar\server.js" "%LOCALAPPDATA%\Programs\Anudeep Khadi Bandar - GST Billing\resources\app\server.js" >nul 2>&1
+    if exist "%APPDATA%\AnudeepKhadiBandar\electron-main.js" copy /Y "%APPDATA%\AnudeepKhadiBandar\electron-main.js" "%LOCALAPPDATA%\Programs\Anudeep Khadi Bandar - GST Billing\resources\app\electron-main.js" >nul 2>&1
+)
+
 :: ========================================================
 :: 1. Ensure background Node.js server is running
 :: ========================================================
